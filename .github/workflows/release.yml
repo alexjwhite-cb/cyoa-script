@@ -225,6 +225,21 @@ jobs:
           cp web-demo/cyoa.d.ts _site/web-demo/
           # Deploy API reference docs alongside the web demo
           cp docs/api-reference.md _site/docs/
+
+          # Root redirect for GitHub Pages (site is served at /web-demo/)
+          cat > _site/index.html <<'HTMLEOF'
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="refresh" content="0; url=/web-demo/">
+  <title>CYOA Engine — Redirecting</title>
+</head>
+<body>
+  <p>Redirecting to the <a href="/web-demo/">web demo</a>…</p>
+</body>
+</html>
+HTMLEOF
           cp docs/wasm-api.md _site/docs/
           cp docs/c-abi-api.md _site/docs/
           cp docs/rust-api.md _site/docs/
