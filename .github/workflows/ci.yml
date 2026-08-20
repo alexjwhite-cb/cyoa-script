@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: auto
+
+jobs:
+  test:
+    name: Test & Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Check formatting
+        run: cargo fmt --check
+
+      - name: Clippy (native)
+        run: cargo clippy -- -D warnings
+
+      - name: Clippy (WASM target)
+        run: cargo clippy -p cyoa-wasm --target wasm32-unknown-unknown -- -D warnings
+
+      - name: Clippy (C-ABI target)
+        run: cargo clippy -p cyoa-native -- -D warnings
+
+      - name: Run all tests
+        run: cargo test

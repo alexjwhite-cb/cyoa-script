@@ -303,3 +303,10 @@ cargo build -p cyoa-lsp
 ## License
 
 Dual-licensed under MIT or Apache-2.0, at your option.
+
+---
+
+*This project was written and maintained with the help of AI (Anthropic Claude).*
+The language design, Rust implementation, WASM/C-ABI bindings, C#/GDScript
+bindings, LSP server, and documentation were developed in collaboration with
+Claude Code across multiple implementation phases.

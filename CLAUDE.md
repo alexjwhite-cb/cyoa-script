@@ -228,7 +228,11 @@ cargo clippy -p cyoa-native -- -D warnings                                 # Nat
 # Godot bindings: C# wrapper in bindings/godot/csharp/ delegates to the C-ABI;
 # GDScript wrapper in bindings/godot/gdscript/ is a thin client (GDScript can't
 # call native C directly).
-```
+
+# GitHub Actions CI:
+# - .github/workflows/ci.yml — runs on every push/PR: fmt, clippy, tests, WASM clippy
+# - .github/workflows/release.yml — triggers on git tag v*: builds all artifacts +
+#   deploys web-demo to GitHub Pages (cyoa-script.github.io)
 
 ## Key Risks (from plan)
 
