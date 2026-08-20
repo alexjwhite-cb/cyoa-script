@@ -584,7 +584,7 @@ story Test:
 "#;
     let story = parse_story(source).unwrap();
     let base_dir = Path::new(".");
-    let result = resolve_imports(&story, base_dir, &[std_dir.clone()]).expect("should resolve");
+    let result = resolve_imports(&story, base_dir, &[std_subdir.clone()]).expect("should resolve");
 
     // Should have merged: heal effect + stat + event
     assert!(result.items.len() >= 3);
