@@ -1,0 +1,18 @@
+[package]
+name = "cyoa-wasm"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wasm-bindgen = { workspace = true }
+serde = { workspace = true }
+serde-wasm-bindgen = "0.6"
+js-sys = "0.3"
+serde_json = "1.0"
+cyoa-runtime = { path = "../cyoa-runtime" }
+cyoa-bytecode = { path = "../cyoa-bytecode" }

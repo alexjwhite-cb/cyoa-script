@@ -1,0 +1,15 @@
+# Standard library: healing effects
+# These are reusable effect blocks that can be used by any story.
+# Import via: import "std/healing"
+
+effect healing_potion:
+  + hp by 20
+  text "You drink a healing potion. You recover 20 HP."
+
+effect minor_heal:
+  + hp by 10
+  text "You take a moment to rest. You recover 10 HP."
+
+effect full_restore:
+  text "You feel completely revitalized."
+  + hp by 999999

@@ -1,0 +1,241 @@
+// =============================================================
+// CYOA DSL Grammar (pest PEG)
+// =============================================================
+//
+// Design principles:
+// - Writer-first: prose-like, indentation-based, minimal syntax
+// - Comments use # (familiar, doesn't conflict with {{}} templating)
+// - Keywords: story, import, stat, flag, effect, event, choice, requires, tags, uses, next, text, set
+// - Text can be quoted or unquoted prose
+// - Templates use {{stat_name}} for interpolation
+//
+// Note: DQUOTE rule avoids escaping issues with " inside pest string literals.
+
+// ===== Utility: Double quote character =====
+
+DQUOTE = _{ "\u{22}" }
+
+// ===== Top-level rules =====
+
+// A story file contains statements (imports + story block)
+story_file = { SOI ~ statement* ~ EOI }
+
+// Statements at file scope
+statement = _{
+    import_decl | story_block | comment | blank_line
+}
+
+// ===== Comments and whitespace =====
+
+comment = { "#" ~ (!NEWLINE ~ ANY)* }
+blank_line = { (" " | "\t" | "\r")* ~ "\n" }
+
+// ===== Import declarations =====
+
+// Go-style imports: import "path" or import "path" as alias
+import_decl = {
+    "import" ~ WS+ ~ string_literal ~ (WS+ ~ "as" ~ WS+ ~ identifier)? ~ NEWLINE*
+}
+
+// ===== Story block =====
+
+// story StoryName: <body>
+story_block = {
+    "story" ~ WS+ ~ identifier ~ ":" ~ NEWLINE+ ~
+    (stat_def | flag_def | effect_def | event_def | comment | blank_line)*
+}
+
+// ===== Stat definitions =====
+
+stat_def = {
+    "stat" ~ WS+ ~ identifier ~ WS* ~ "=" ~ WS* ~ integer ~ NEWLINE*
+}
+
+flag_def = {
+    "flag" ~ WS+ ~ identifier ~ (WS* ~ "=" ~ WS* ~ boolean)? ~ NEWLINE*
+}
+
+boolean = { "true" | "false" }
+
+// ===== Effect blocks =====
+
+effect_def = {
+    "effect" ~ WS+ ~ identifier ~ ":" ~ NEWLINE+ ~
+    (effect_step+) ~
+    (!indent ~ !statement)
+}
+
+effect_step = _{
+    stat_change | flag_set | add_tag | text_output | set_to_decl | comment | blank_line
+}
+
+stat_change = {
+    ("+" | "-") ~ WS* ~ "stat" ~ WS+ ~ identifier ~ WS* ~ "by" ~ WS+ ~ integer ~ NEWLINE*
+}
+
+flag_set = {
+    "set" ~ WS+ ~ identifier ~ WS+ ~ "to" ~ WS+ ~ boolean ~ NEWLINE*
+}
+
+add_tag = {
+    "add" ~ WS+ ~ identifier ~ NEWLINE*
+}
+
+text_output = {
+    "text" ~ WS+ ~ template_string ~ NEWLINE*
+}
+
+set_to_decl = {
+    "set" ~ WS+ ~ identifier ~ WS+ ~ "to" ~ boolean ~ NEWLINE*
+}
+
+// ===== Event blocks =====
+
+event_def = {
+    "event" ~ WS+ ~ identifier ~ ":" ~ NEWLINE+ ~
+    event_body
+}
+
+// The body of an event
+event_body = _{
+    event_requires? ~ event_tags? ~ event_text* ~ choice_def*
+}
+
+// Optional requires clause
+event_requires = {
+    "requires:" ~ WS* ~ condition_expr ~ NEWLINE+
+}
+
+// Optional tags clause
+event_tags = {
+    "tags:" ~ WS* ~ identifier_list ~ NEWLINE+
+}
+
+// Event text (can be quoted or unquoted prose)
+event_text = _{
+    template_line ~ NEWLINE+
+}
+
+template_line = {
+    quoted_template | unquoted_template
+}
+
+// Quoted string with possible {{stat}} placeholders
+quoted_template = {
+    DQUOTE ~ (template_literal | template_var)* ~ DQUOTE
+}
+
+// Unquoted prose line: any text that doesn't start with a keyword
+unquoted_template = {
+    !keyword ~ (!NEWLINE ~ ANY)+
+}
+
+// Components of a template
+template_literal = {
+    (!"{{" ~ !NEWLINE ~ !DQUOTE ~ ANY)+
+}
+
+template_var = {
+    "{{" ~ WS* ~ identifier ~ WS* ~ "}}"
+}
+
+// List of identifiers (comma-separated)
+identifier_list = {
+    identifier ~ (WS* ~ "," ~ WS* ~ identifier)*
+}
+
+// ===== Choice blocks =====
+
+// choice "text": <body>
+choice_def = {
+    "choice" ~ WS+ ~ template_string ~ (WS+ ~ choice_modifier)* ~ ":" ~ NEWLINE+ ~
+    (choice_body_item+ | (!indent ~ !statement))
+}
+
+// Choice modifiers between the text and the colon
+choice_modifier = _{
+    uses_clause | requires_clause | flag_set | add_tag | set_to_decl
+}
+
+uses_clause = {
+    "uses" ~ WS+ ~ identifier_list
+}
+
+requires_clause = {
+    "requires:" ~ WS* ~ condition_expr
+}
+
+// Body items of a choice
+choice_body_item = _{
+    stat_change | flag_set | add_tag | text_output | template_line | next_decl | set_to_decl | comment | blank_line
+}
+
+next_decl = {
+    "next" ~ WS+ ~ identifier ~ NEWLINE*
+}
+
+// ===== Condition expressions (prerequisites) =====
+
+// condition_expr is an AND/OR/NOT expression with comparisons and flag refs
+condition_expr = {
+    or_expr
+}
+
+or_expr = {
+    and_expr ~ (WS* ~ "OR" ~ WS* ~ and_expr)*
+}
+
+and_expr = {
+    not_expr ~ (WS* ~ "AND" ~ WS* ~ not_expr)*
+}
+
+not_expr = {
+    ("NOT" ~ WS*)? ~ primary_expr
+}
+
+primary_expr = {
+    paren_expr | comparison | flag_ref
+}
+
+paren_expr = {
+    "(" ~ WS* ~ condition_expr ~ WS* ~ ")"
+}
+
+comparison = {
+    identifier ~ WS* ~ compare_op ~ WS* ~ integer
+}
+
+compare_op = _{ ">=" | "<=" | ">" | "<" | "==" | "!=" }
+
+flag_ref = {
+    identifier
+}
+
+// ===== Utility rules =====
+
+identifier = @{
+    (ASCII_ALPHA | "_" | "$") ~ (ASCII_ALPHANUMERIC | "_" | "$")*
+}
+
+integer = @{ "-"? ~ ASCII_DIGIT+ }
+
+// String literal for import paths and template strings
+string_literal = @{
+    DQUOTE ~ (!DQUOTE ~ ANY)* ~ DQUOTE
+}
+
+// Template string: quoted text with possible {{stat}} interpolation
+template_string = {
+    DQUOTE ~ (template_literal | template_var)* ~ DQUOTE
+}
+
+keyword = {
+    "story" | "import" | "stat" | "flag" | "effect" | "event" |
+    "choice" | "requires" | "tags" | "uses" | "next" | "text" |
+    "set" | "add" | "by" | "to" | "AND" | "OR" | "NOT" |
+    "true" | "false" | "as"
+}
+
+NEWLINE = _{ "\n" | "\r\n" }
+WS = _{ " " | "\t" | "\n" | "\r" }
+indent = { " " | "\t" }

@@ -1,0 +1,15 @@
+[package]
+name = "cyoa-runtime"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+cyoa-ast = { path = "../cyoa-ast" }
+cyoa-bytecode = { path = "../cyoa-bytecode" }
+serde = { workspace = true }
+serde_json = "1.0"
+
+[dev-dependencies]
+cyoa-compiler = { path = "../cyoa-compiler" }

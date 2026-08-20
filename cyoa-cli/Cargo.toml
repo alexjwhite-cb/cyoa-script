@@ -1,0 +1,12 @@
+[package]
+name = "cyoa-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+clap = { workspace = true }
+cyoa-compiler = { path = "../cyoa-compiler" }
+cyoa-runtime = { path = "../cyoa-runtime" }
+cyoa-bytecode = { path = "../cyoa-bytecode" }

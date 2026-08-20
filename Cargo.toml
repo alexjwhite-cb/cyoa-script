@@ -1,0 +1,37 @@
+[workspace]
+resolver = "2"
+members = [
+    "cyoa-ast",
+    "cyoa-bytecode",
+    "cyoa-compiler",
+    "cyoa-runtime",
+    "cyoa-wasm",
+    "cyoa-native",
+    "cyoa-cli",
+    "cyoa-lsp",
+]
+
+# Workspace-wide dependencies — versions pinned for reproducibility
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+rust-version = "1.80"
+
+[workspace.dependencies]
+# Serialization
+postcard = { version = "1.1", features = ["use-std"] }
+serde = { version = "1.0", features = ["derive"] }
+
+# Parser
+pest = "2.7"
+pest_derive = "2.7"
+
+# CLI
+clap = { version = "4.5", features = ["derive"] }
+
+# WASM (only used by cyoa-wasm)
+wasm-bindgen = "0.2"
+
+# LSP (only used by cyoa-lsp)
+lsp-types = "0.97"

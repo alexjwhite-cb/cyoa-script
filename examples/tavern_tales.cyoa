@@ -1,0 +1,97 @@
+# Tavern Tales — a second example story for multi-story demonstration
+# Short story with different tags from forest_adventure
+
+import "std/healing"
+
+story TavernTales:
+
+  tags: fantasy, social
+
+  stat charisma = 0
+  stat respect = 0
+  stat gold = 10
+  flag has_amulet
+  flag bard_met
+
+  effect earn_respect:
+    + respect by 1
+    text "The crowd nods in appreciation."
+
+  event start:
+    tags: town
+    "You push open the door to The Gilded Gryphon tavern."
+    "Merchants, mercenaries, and misfits fill the wooden booths."
+    "You have {{gold}} gold to spend."
+
+    choice "Sing a ballad":
+      + charisma by 2
+      uses earn_respect
+      next tavern_success
+
+    choice "Buy a drink (2 gold)":
+      requires: gold >= 2
+      - gold by 2
+      next tavern_conversation
+
+    choice "Leave":
+      - gold by 0
+      next tavern_end
+
+  event tavern_conversation:
+    tags: social
+    "An old bard notices your coin and offers a trade: a story for a story."
+
+    choice "Trade stories":
+      + charisma by 1
+      uses earn_respect
+      set bard_met to true
+      next bard_deal
+
+    choice "Politely decline":
+      next tavern_end
+
+  event bard_deal:
+    requires: bard_met
+    "The bard speaks of a hidden amulet in the Whispering Marsh."
+    "You have {{charisma}} charisma and {{respect}} respect."
+
+    choice "Seek the amulet":
+      next marsh_search
+
+    choice "Stay at the tavern":
+      next tavern_success
+
+  event marsh_search:
+    tags: exploration
+    "The Whispering Marsh lives up to its name — reeds seem to call your name."
+    "After hours of searching, you find a tarnished silver amulet."
+
+    set has_amulet to true
+    "The amulet hums with ancient magic."
+
+    choice "Return to town":
+      uses healing_potion
+      next tavern_end
+
+    choice "Explore deeper":
+      uses healing_potion
+      next tavern_end
+
+  event tavern_success:
+    tags: completion
+    "Your performance draws applause. The tavern keeper offers free lodging."
+    "Final stats: charisma={{charisma}}, respect={{respect}}, gold={{gold}}"
+
+    choice "Bask in glory":
+      next start
+
+    choice "Leave while you're on top":
+      next tavern_end
+
+  event tavern_end:
+    tags: completion
+    "The night winds down. You count your remaining coin."
+    "You have {{gold}} gold pieces left."
+
+    choice "Start over":
+      next start

@@ -1,0 +1,15 @@
+# Standard library: combat effects
+# Import via: import "std/combat"
+
+effect basic_attack:
+  + courage by 1
+  text "You strike at your opponent."
+
+effect critical_hit:
+  + courage by 5
+  - hp by 0
+  text "A critical hit! Your opponent reels."
+
+effect dodge:
+  + courage by 2
+  text "You gracefully dodge the attack."

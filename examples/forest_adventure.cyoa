@@ -1,0 +1,185 @@
+# Forest Adventure — example story
+# Exercises all Phase 1 features:
+# - Stats, flags, tags
+# - Reusable effects (found_mushroom, wolf_scare)
+# - AND/OR + stat threshold prerequisites
+# - Text templating ({{gold}}, {{hp}})
+# - File imports (std/healing)
+# - Choice history (implicitly tracked)
+
+import "std/healing"
+import "std/combat"
+
+story ForestAdventure:
+
+  tags: fantasy, exploration
+
+  stat hp = 50
+  stat courage = 0
+  stat gold = 0
+  flag visited_old_ruins
+  flag wolf_friend
+
+  effect found_mushroom:
+    + courage by 1
+    text "You find a glowing mushroom. It hums softly."
+
+  effect wolf_scare:
+    - hp by 10
+    text "The wolf's claws scratch you. You take damage."
+
+  event start:
+    tags: exploration, early_game
+    "You find yourself at the edge of a dark forest."
+    "Moss-covered stones mark an old path leading east."
+
+    choice "Enter the forest":
+      next forest_path
+
+    choice "Go back to town":
+      - gold by 0
+      next town_square
+
+  event forest_path:
+    tags: exploration
+    "Twisted trees block out the sunlight."
+    "A narrow deer trail winds deeper into the woods."
+
+    choice "Follow the trail":
+      uses found_mushroom
+      next deep_woods
+
+    choice "Return to the entrance":
+      next start
+
+  event deep_woods:
+    requires: courage >= 2
+    tags: exploration
+    "The woods grow thick and the air turns cold."
+    "You have {{courage}} courage and {{gold}} gold pieces."
+
+    choice "Press deeper":
+      + courage by 3
+      next old_ruins
+
+    choice "Head back":
+      next forest_path
+
+  event old_ruins:
+    requires: courage >= 1
+    tags: exploration, early_game
+    set visited_old_ruins to true
+    "You stand before ancient stone ruins, half-swallowed by ivy."
+    "A cold wind whispers from within."
+
+    choice "Enter the ruins":
+      next river_crossing
+
+    choice "Circle around" uses found_mushroom:
+      next dense_forest
+
+  event dense_forest:
+    requires: visited_old_ruins
+    "Thick undergrowth chokes the forest floor."
+    "Something watches you from the shadows."
+
+    choice "Push through":
+      + courage by 2
+      next forest_encounter
+
+    choice "Retrace your steps":
+      next old_ruins
+
+  event forest_encounter:
+    requires: visited_old_ruins AND courage >= 5
+    tags: combat
+    "A wolf blocks your path, teeth bared."
+    "You have {{hp}} HP remaining."
+
+    choice "Attack the wolf":
+      + courage by 2
+      uses wolf_scare
+      next wolf_fight
+
+    choice "Offer food" uses found_mushroom:
+      - gold by 3
+      set wolf_friend to true
+      next peace_with_wolf
+
+    choice "Sneak past":
+      uses foxtrot  # from std/combat
+      next river_crossing
+
+  event peace_with_wolf:
+    requires: wolf_friend
+    "The wolf nuzzles your hand. It seems to understand you mean no harm."
+    "You gain a loyal companion."
+
+    choice "Continue onward":
+      uses healing_potion
+      next river_crossing
+
+  event wolf_fight:
+    "Fangs meet fur. You fight for your life."
+    "- hp by 15"
+
+    choice "Keep fighting":
+      + courage by 5
+      uses critical_hit
+      next victory
+
+    choice "Run away":
+      - gold by 5
+      next river_crossing
+
+  event victory:
+    tags: completion
+    "You emerge victorious! The forest is quiet once more."
+    "Final stats: hp={{hp}}, courage={{courage}}, gold={{gold}}"
+
+    choice "Play again":
+      next start
+
+  event river_crossing:
+    tags: exploration
+    "A rushing river blocks your path."
+    "A rickety bridge spans the water."
+
+    choice "Cross the bridge":
+      - courage by 1
+      next town_square
+
+    choice "Look for another way":
+      next deep_woods
+
+  event town_square:
+    tags: town
+    "The town square bustles with merchants and travelers."
+    "Your coin purse feels lighter — {{gold}} gold pieces remain."
+
+    choice "Visit the tavern":
+      next tavern
+
+    choice "Leave town":
+      next start
+
+  event tavern:
+    tags: town
+    "The barkeep eyes your coin purse."
+    "You have {{gold}} gold pieces to spend."
+
+    choice "Buy ale (5 gold)":
+      requires: gold >= 5
+      - gold by 5
+      "You buy an ale. The barkeep grins."
+      next tavern
+
+    choice "Rest (10 gold)":
+      requires: gold >= 10
+      - gold by 10
+      uses healing_potion
+      "You rest in the back room. You feel refreshed."
+      next town_square
+
+    choice "Leave":
+      next town_square
