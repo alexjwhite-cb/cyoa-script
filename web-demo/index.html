@@ -1,0 +1,500 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CYOA WASM Demo</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Crimson+Text:wght@400;600;700&family=Fira+Code:wght@400;500&display=swap');
+
+    :root {
+      --bg: #0d1117;
+      --card: #161b22;
+      --border: #30363d;
+      --text: #c9d1d9;
+      --text-dim: #8b949e;
+      --accent: #7c4cff;
+      --accent-hover: #996cff;
+      --success: #4ade80;
+      --warning: #facc15;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Crimson Text', serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 2rem;
+    }
+
+    .container { max-width: 900px; margin: 0 auto; }
+
+    h1 {
+      font-size: 2rem;
+      font-weight: 600;
+      color: var(--accent);
+      margin-bottom: 0.5rem;
+    }
+
+    .subtitle { color: var(--text-dim); margin-bottom: 2rem; }
+
+    /* Catalog / story selector */
+    .catalog {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .catalog h2 { font-size: 1.2rem; margin-bottom: 1rem; }
+
+    .tag-filter {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .tag-filter input {
+      padding: 0.4rem 0.8rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: #0d1117;
+      color: var(--text);
+      font-family: 'Fira Code', monospace;
+      font-size: 0.9rem;
+    }
+
+    .tag-filter button {
+      padding: 0.4rem 1rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: var(--accent);
+      color: #fff;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .tag-filter button:hover { background: var(--accent-hover); }
+
+    .story-list { display: flex; gap: 1rem; flex-wrap: wrap; }
+
+    .story-card {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1rem 1.5rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: #0a0d12;
+    }
+
+    .story-card:hover {
+      border-color: var(--accent);
+      background: #0f131b;
+    }
+
+    .story-card h3 { font-size: 1.1rem; color: var(--accent); }
+    .story-card .tags { margin-top: 0.5rem; display: flex; gap: 0.3rem; flex-wrap: wrap; }
+
+    .tag-pill {
+      font-size: 0.75rem;
+      font-family: 'Fira Code', monospace;
+      background: #1f2428;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.15rem 0.6rem;
+      color: var(--text-dim);
+    }
+
+    /* Story view */
+    .story-view {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 2rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .story-view .event-id {
+      font-family: 'Fira Code', monospace;
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      margin-bottom: 1rem;
+    }
+
+    .story-view .prose {
+      line-height: 1.8;
+      font-size: 1.1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .story-view .prose p { margin-bottom: 0.8rem; }
+
+    .choices { display: flex; flex-direction: column; gap: 0.5rem; }
+
+    .choice-btn {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.8rem 1.2rem;
+      background: #0a0d12;
+      color: var(--text);
+      font-family: 'Crimson Text', serif;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: left;
+    }
+
+    .choice-btn:hover {
+      border-color: var(--accent);
+      background: #0f131b;
+    }
+
+    /* Zero-copy demo */
+    .zerocopy-demo {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .zerocopy-demo h2 { font-size: 1.2rem; margin-bottom: 1rem; }
+    .zerocopy-demo .timing { font-family: 'Fira Code', monospace; color: var(--success); }
+    .zerocopy-demo .label { color: var(--text-dim); font-size: 0.9rem; }
+
+    /* Stats panel */
+    .stats-panel {
+      display: flex;
+      gap: 2rem;
+      flex-wrap: wrap;
+      margin-top: 1rem;
+    }
+
+    .stat-group h4 {
+      font-family: 'Fira Code', monospace;
+      font-size: 0.8rem;
+      color: var(--accent);
+      margin-bottom: 0.3rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .stat-group ul { list-style: none; }
+    .stat-group li { font-size: 0.9rem; color: var(--text-dim); }
+
+    .loading { text-align: center; padding: 3rem; color: var(--text-dim); }
+    .error { color: var(--warning); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>CYOA WASM Engine Demo</h1>
+    <p class="subtitle">Story engine compiled to WebAssembly — zero-copy text, tag-based story catalog, multi-story support</p>
+
+    <!-- Loading state -->
+    <div id="loading" class="loading">Loading WASM engine and story data…</div>
+
+    <!-- Story catalog -->
+    <div id="catalog" class="catalog" style="display:none">
+      <h2>Story Catalog</h2>
+      <div class="tag-filter">
+        <input type="text" id="tagInput" placeholder='e.g. "fantasy" or ["fantasy","combat"]'>
+        <button id="btnTag">Filter by Single Tag</button>
+        <button id="btnAllTags">Require All Tags</button>
+        <button id="btnAnyTags">Any Tag Match</button>
+        <button id="btnClear" style="display:none">Clear Filters</button>
+      </div>
+      <div id="storyList" class="story-list"></div>
+    </div>
+
+    <!-- Story view -->
+    <div id="storyView" class="story-view" style="display:none">
+      <button id="backBtn" style="display:none; margin-bottom:1rem; padding:0.4rem 1rem; background:#1f2428; border:1px solid var(--border); border-radius:4px; cursor:pointer; font-family:monospace;">← Back to Catalog</button>
+      <div class="event-id" id="eventId"></div>
+      <div class="prose" id="prose"></div>
+      <div class="choices" id="choices"></div>
+    </div>
+
+    <!-- Zero-copy text demo -->
+    <div class="zerocopy-demo">
+      <h2>Zero-Copy Text Access</h2>
+      <div class="label">Current approach: <span id="apiMode">serde (high-level)</span></div>
+      <div class="timing" id="timing"></div>
+      <div class="label" id="timingLabel"></div>
+    </div>
+
+    <!-- Stats panel -->
+    <div class="stats-panel" id="statsPanel"></div>
+  </div>
+
+  <script type="module">
+    import init, { WasmEngine, WasmStoryCatalog } from '../cyoa-wasm/pkg/cyoa_wasm.js';
+
+    // Global state
+    const state = {
+      catalog: null,
+      currentEngine: null,
+      decoder: new TextDecoder('utf-8'),
+    };
+
+    // DOM elements
+    const els = {
+      loading: document.getElementById('loading'),
+      catalog: document.getElementById('catalog'),
+      storyView: document.getElementById('storyView'),
+      storyList: document.getElementById('storyList'),
+      tagInput: document.getElementById('tagInput'),
+      btnTag: document.getElementById('btnTag'),
+      btnAllTags: document.getElementById('btnAllTags'),
+      btnAnyTags: document.getElementById('btnAnyTags'),
+      btnClear: document.getElementById('btnClear'),
+      eventId: document.getElementById('eventId'),
+      prose: document.getElementById('prose'),
+      choices: document.getElementById('choices'),
+      timing: document.getElementById('timing'),
+      timingLabel: document.getElementById('timingLabel'),
+      apiMode: document.getElementById('apiMode'),
+      statsPanel: document.getElementById('statsPanel'),
+    };
+
+    // Helper: fetch a binary file as Uint8Array
+    async function fetchBytes(url) {
+      const resp = await fetch(url);
+      const buf = await resp.arrayBuffer();
+      return new Uint8Array(buf);
+    }
+
+    // Render the current event: text + choices
+    function renderEvent() {
+      const eng = state.currentEngine;
+      if (!eng) return;
+
+      // High-level API: getCurrentEvent returns { id, text: [], choices: [] }
+      const event = eng.getCurrentEvent();
+      els.eventId.textContent = event.id;
+
+      // Render prose paragraphs
+      els.prose.innerHTML = '';
+      for (const para of event.text) {
+        const p = document.createElement('p');
+        p.textContent = para;
+        els.prose.appendChild(p);
+      }
+
+      // Render choices
+      els.choices.innerHTML = '';
+      for (let i = 0; i < event.choices.length; i++) {
+        const btn = document.createElement('button');
+        btn.className = 'choice-btn';
+        btn.textContent = `${i + 1}. ${event.choices[i]}`;
+        btn.onclick = () => {
+          const effects = eng.makeChoice(i);
+          for (const ef of effects.effectText) {
+            const efEl = document.createElement('div');
+            efEl.textContent = ef;
+            efEl.style.cssText = 'color:#4ade80; margin-top:0.3rem;';
+            els.choices.appendChild(efEl);
+          }
+          renderEvent();
+          renderStats();
+        };
+        els.choices.appendChild(btn);
+      }
+
+      renderStats();
+    }
+
+    // Render stats, story tags, and runtime tags
+    function renderStats() {
+      const eng = state.currentEngine;
+      if (!eng) return;
+
+      const stats = eng.listStats();
+      const storyTags = eng.listStoryTags();
+      const runtimeTags = eng.listTags();
+
+      els.statsPanel.innerHTML = '';
+
+      // Stats
+      const sg1 = document.createElement('div');
+      sg1.className = 'stat-group';
+      sg1.innerHTML = '<h4>Stats</h4><ul>';
+      for (const [k, v] of Object.entries(stats)) {
+        sg1.innerHTML += `<li>${k}: ${v}</li>`;
+      }
+      sg1.innerHTML += '</ul>';
+      els.statsPanel.appendChild(sg1);
+
+      // Story tags (static)
+      const sg2 = document.createElement('div');
+      sg2.className = 'stat-group';
+      sg2.innerHTML = '<h4>Story Tags (static)</h4><ul>';
+      for (const t of storyTags) {
+        sg2.innerHTML += `<li><span class="tag-pill">${t}</span></li>`;
+      }
+      sg2.innerHTML += '</ul>';
+      els.statsPanel.appendChild(sg2);
+
+      // Runtime tags
+      const sg3 = document.createElement('div');
+      sg3.className = 'stat-group';
+      sg3.innerHTML = '<h4>Runtime Tags</h4><ul>';
+      if (runtimeTags.length === 0) {
+        sg3.innerHTML += '<li><span style="color:var(--text-dim)">(none)</span></li>';
+      }
+      for (const t of runtimeTags) {
+        sg3.innerHTML += `<li><span class="tag-pill" style="color:#4ade80">${t}</span></li>`;
+      }
+      sg3.innerHTML += '</ul>';
+      els.statsPanel.appendChild(sg3);
+    }
+
+    // Benchmark: high-level (serde) vs zero-copy (Uint8Array)
+    function benchmarkTextAccess() {
+      const eng = state.currentEngine;
+      if (!eng) return;
+
+      // High-level API
+      const t0 = performance.now();
+      for (let i = 0; i < 1000; i++) {
+        eng.getCurrentEvent();
+      }
+      const highMs = performance.now() - t0;
+
+      // Zero-copy API
+      let byteLen = 0;
+      const t2 = performance.now();
+      for (let i = 0; i < 1000; i++) {
+        const bytes = eng.currentEventTextBytes();
+        byteLen = bytes.length;
+        state.decoder.decode(bytes);
+      }
+      const zeroMs = performance.now() - t2;
+
+      const highPer = (highMs / 1000 * 1000).toFixed(1);
+      const zeroPer = (zeroMs / 1000 * 1000).toFixed(1);
+      const speedup = (highMs / zeroMs).toFixed(1);
+      const savings = ((1 - zeroMs / highMs) * 100).toFixed(0);
+
+      els.timing.innerHTML =
+        `<div>1000 calls — High-level (serde): <b>${highMs.toFixed(1)}ms</b> (${highPer}μs/call)</div>` +
+        `<div>1000 calls — Zero-copy (Uint8Array): <b>${zeroMs.toFixed(1)}ms</b> (${zeroPer}μs/call, ${byteLen} bytes)</div>` +
+        `<div>Speedup: <b>${speedup}×</b> | Savings: <b>${savings}%</b></div>`;
+      els.timingLabel.textContent = 'Benchmark: 1000 text-access calls (both return the same text)';
+    }
+
+    // Select and play a story from the catalog
+    function selectStory(index) {
+      state.currentEngine = state.catalog.createEngine(index);
+      els.catalog.style.display = 'none';
+      els.storyView.style.display = 'block';
+      renderEvent();
+
+      // Back button
+      const backBtn = document.getElementById('backBtn');
+      backBtn.style.display = 'inline-block';
+
+      // Run benchmark
+      setTimeout(() => {
+        benchmarkTextAccess();
+        els.apiMode.textContent = 'serde (high-level) vs Uint8Array (zero-copy)';
+      }, 100);
+    }
+
+    // Render story catalog cards
+    function renderCatalogList(stories) {
+      els.storyList.innerHTML = '';
+
+      stories.forEach((story, i) => {
+        const card = document.createElement('div');
+        card.className = 'story-card';
+        card.innerHTML = `<h3>${story.name}</h3>`;
+        if (story.tags && story.tags.length > 0) {
+          card.innerHTML += `<div class="tags">${story.tags.map(t => `<span class="tag-pill">${t}</span>`).join('')}</div>`;
+        }
+        card.onclick = () => selectStory(i);
+        els.storyList.appendChild(card);
+      });
+    }
+
+    // Filter catalog by tags
+    function filterCatalog(mode) {
+      const tagStr = els.tagInput.value.trim();
+      if (!tagStr) {
+        renderCatalogList(state.catalog.listStories());
+        return;
+      }
+
+      let result;
+      try {
+        const tags = JSON.parse(tagStr);
+        if (!Array.isArray(tags)) throw new Error('not array');
+
+        if (mode === 'all') {
+          result = state.catalog.storiesWithAllTags(JSON.stringify(tags));
+        } else if (mode === 'any') {
+          result = state.catalog.storiesWithAnyTags(JSON.stringify(tags));
+        } else {
+          result = state.catalog.storiesWithTag(typeof tags === 'string' ? tags : tags[0]);
+        }
+      } catch {
+        result = state.catalog.storiesWithTag(tagStr);
+      }
+
+      renderCatalogList(result);
+    }
+
+    // Back to catalog
+    function backToCatalog() {
+      state.currentEngine = null;
+      els.storyView.style.display = 'none';
+      renderCatalogList(state.catalog.listStories());
+      els.catalog.style.display = 'block';
+      document.getElementById('backBtn').style.display = 'none';
+    }
+
+    // Main entry point
+    async function main() {
+      await init();
+
+      els.loading.textContent = 'Registering stories…';
+
+      // Create catalog and register both stories
+      state.catalog = new WasmStoryCatalog();
+      state.catalog.register(await fetchBytes('../examples/forest_adventure.cyoa.bc'));
+      state.catalog.register(await fetchBytes('../examples/tavern_tales.cyoa.bc'));
+
+      window.catalog = state.catalog; // for debugging
+
+      // Wire up controls
+      els.btnTag.onclick = () => filterCatalog('tag');
+      els.btnAllTags.onclick = () => filterCatalog('all');
+      els.btnAnyTags.onclick = () => filterCatalog('any');
+      els.btnClear.onclick = () => { els.tagInput.value = ''; renderCatalogList(state.catalog.listStories()); };
+
+      // Back button
+      document.getElementById('backBtn').onclick = backToCatalog;
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && state.currentEngine) backToCatalog();
+      });
+
+      // Show catalog
+      els.loading.style.display = 'none';
+      els.catalog.style.display = 'block';
+      renderCatalogList(state.catalog.listStories());
+    }
+
+    // Initialize
+    main().catch(err => {
+      els.loading.innerHTML = `<span class="error">Error: ${err.message}</span>`;
+      console.error(err);
+    });
+  </script>
+</body>
+</html>
