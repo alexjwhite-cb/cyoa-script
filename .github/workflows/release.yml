@@ -71,7 +71,7 @@ jobs:
 
       - name: Build WASM
         run: |
-          wasm-pack build cyoa-wasm --target web --out-dir cyoa-wasm/pkg
+          wasm-pack build cyoa-wasm --target web --out-dir pkg
 
       - uses: actions/upload-artifact@v4
         with:
@@ -126,18 +126,12 @@ jobs:
           name: cyoa-native-${{ matrix.name }}
           path: dist/
 
-  build-mobile:
-    name: Build Mobile Libraries
+  build-android:
+    name: Build Android Libraries
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rust-src
-          targets: aarch64-apple-ios, x86_64-apple-ios
 
       - name: Install cargo-ndk
         run: |
@@ -158,11 +152,26 @@ jobs:
           name: cyoa-native-android
           path: dist-android/
 
+  build-ios:
+    name: Build iOS Libraries
+    runs-on: macos-latest
+    # iOS cross-compilation requires the Xcode/iOS SDK, which is only available on macOS.
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rust-src
+
+      - name: Install cargo-lipo
+        run: cargo install cargo-lipo
+
       - name: Build iOS
         run: |
           rustup target add aarch64-apple-ios x86_64-apple-ios
-          cargo install cargo-lipo
-          cargo lipo -p cyoa-native --release --allow-run-on-non-macos
+          cargo lipo -p cyoa-native --release
           mkdir -p dist-ios/include dist-ios/lib
           cp cyoa-native/include/cyoa.h dist-ios/include/
           cp target/universal/release/libcyoa_native.a dist-ios/lib/
@@ -174,7 +183,7 @@ jobs:
 
   deploy:
     name: Create GitHub Release
-    needs: [build-cli, build-wasm, build-native, build-mobile]
+    needs: [build-cli, build-wasm, build-native, build-android, build-ios]
     runs-on: ubuntu-latest
 
     steps:
@@ -213,7 +222,7 @@ jobs:
 
       - name: Build WASM
         run: |
-          wasm-pack build cyoa-wasm --target web --out-dir cyoa-wasm/pkg
+          wasm-pack build cyoa-wasm --target web --out-dir pkg
 
       - name: Prepare web-demo for deployment
         run: |
