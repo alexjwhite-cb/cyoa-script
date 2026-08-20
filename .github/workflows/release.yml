@@ -162,9 +162,10 @@ jobs:
         run: |
           rustup target add aarch64-apple-ios x86_64-apple-ios
           cargo install cargo-lipo
-          cargo lipo -p cyoa-native --release --root dist-ios
-          mkdir -p dist-ios/include
+          cargo lipo -p cyoa-native --release
+          mkdir -p dist-ios/include dist-ios/lib
           cp cyoa-native/include/cyoa.h dist-ios/include/
+          cp target/universal/release/libcyoa_native.a dist-ios/lib/
 
       - uses: actions/upload-artifact@v4
         with:
