@@ -198,17 +198,22 @@ jobs:
 
   deploy-web:
     name: Deploy Web Demo to GitHub Pages
-    needs: build-wasm
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download WASM artifact
-        uses: actions/download-artifact@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
         with:
-          name: cyoa-wasm
-          path: cyoa-wasm/pkg
+          targets: wasm32-unknown-unknown
+
+      - name: Install wasm-pack
+        run: cargo install wasm-pack
+
+      - name: Build WASM
+        run: |
+          wasm-pack build cyoa-wasm --target web --out-dir cyoa-wasm/pkg
 
       - name: Prepare web-demo for deployment
         run: |
