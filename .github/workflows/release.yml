@@ -216,13 +216,21 @@ jobs:
       - name: Prepare web-demo for deployment
         run: |
           # Deploy at root so index.html's ../cyoa-wasm/pkg/ and ../examples/ paths work
-          mkdir -p _site/cyoa-wasm/pkg _site/examples _site/web-demo
+          mkdir -p _site/cyoa-wasm/pkg _site/examples _site/web-demo _site/docs
           cp cyoa-wasm/pkg/cyoa_wasm.js _site/cyoa-wasm/pkg/
           cp cyoa-wasm/pkg/cyoa_wasm_bg.wasm _site/cyoa-wasm/pkg/
           cp cyoa-wasm/pkg/cyoa_wasm.d.ts _site/cyoa-wasm/pkg/
           cp examples/*.cyoa.bc _site/examples/
           cp web-demo/index.html _site/web-demo/
           cp web-demo/cyoa.d.ts _site/web-demo/
+          # Deploy API reference docs alongside the web demo
+          cp docs/api-reference.md _site/docs/
+          cp docs/wasm-api.md _site/docs/
+          cp docs/c-abi-api.md _site/docs/
+          cp docs/rust-api.md _site/docs/
+          cp docs/gdscript-api.md _site/docs/
+          cp docs/syntax.md _site/docs/
+          cp docs/mobile.md _site/docs/
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3

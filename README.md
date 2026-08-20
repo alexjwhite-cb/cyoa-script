@@ -297,7 +297,11 @@ cargo build -p cyoa-lsp
 | [SPEC.md](SPEC.md) | Language specification (canonical) |
 | [CLAUDE.md](CLAUDE.md) | Claude Code context (build/test) |
 | [docs/syntax.md](docs/syntax.md) | Extended syntax reference |
-| [docs/api-reference.md](docs/api-reference.md) | Engine API reference (WASM + C-ABI) |
+| [docs/api-reference.md](docs/api-reference.md) | API reference index + architecture overview |
+| [docs/wasm-api.md](docs/wasm-api.md) | WASM / JavaScript API |
+| [docs/c-abi-api.md](docs/c-abi-api.md) | C-ABI + C# (Unity) API |
+| [docs/rust-api.md](docs/rust-api.md) | Rust runtime API + bytecode format + CLI |
+| [docs/gdscript-api.md](docs/gdscript-api.md) | GDScript API (Godot) |
 | [docs/mobile.md](docs/mobile.md) | Mobile cross-compilation (Android/iOS) |
 
 ## License
