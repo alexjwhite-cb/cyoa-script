@@ -185,6 +185,8 @@ jobs:
     name: Create GitHub Release
     needs: [build-cli, build-wasm, build-native, build-android, build-ios]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - uses: actions/checkout@v4
@@ -208,6 +210,8 @@ jobs:
   deploy-web:
     name: Deploy Web Demo to GitHub Pages
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # needed to push to gh-pages branch
 
     steps:
       - uses: actions/checkout@v4
