@@ -86,7 +86,7 @@ function fixLinks(html) {
     for (const rf of rootFiles) {
       if (normalized === rf || normalized === '../' + rf) {
         if (rf === 'README.md') return `href="index.html${frag}"`;
-        return `href="https://github.com/alexjwhite/cyoa-script/blob/main/${rf}${frag}" target="_blank"`;
+        return `href="https://github.com/alexjwhite-cb/cyoa-script/blob/main/${rf}${frag}" target="_blank"`;
       }
     }
 
@@ -97,7 +97,7 @@ function fixLinks(html) {
     }
 
     // Any other .md with a path → GitHub source
-    return `href="https://github.com/alexjwhite/cyoa-script/blob/main/${normalized}${frag}" target="_blank"`;
+    return `href="https://github.com/alexjwhite-cb/cyoa-script/blob/main/${normalized}${frag}" target="_blank"`;
   });
 }
 

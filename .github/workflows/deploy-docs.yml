@@ -37,32 +37,32 @@ jobs:
           mkdir -p _site/cyoa-wasm/pkg _site/examples _site/web-demo
           # Download WASM bindings from the latest release
           # (avoids rebuilding WASM — WASM is only changed on release)
-          rm -rf release_wasm
-          echo "Downloading WASM assets from latest release..."
-          gh release download --pattern "*cyoa_wasm*" --dir release_wasm --repo alexjwhite/cyoa-script 2>&1 || echo "  gh release download failed, trying alternate pattern..."
+          # Uses the GitHub API to find the latest release tag and asset list,
+          # then downloads each cyoa_wasm* file via curl (no auth needed for
+          # public repos' release asset download URLs).
+          echo "Fetching latest release info from GitHub API..."
 
-          # If the first download didn't get the files, try a broader approach
-          if [ ! -d release_wasm ] || [ -z "$(ls -A release_wasm 2>/dev/null)" ]; then
-            echo "  Trying to list release assets and download individually..."
-            ASSETS=$(gh release view --json assets -q '.assets[].name' --repo alexjwhite/cyoa-script 2>/dev/null || echo "")
-            echo "  Available assets: $ASSETS" | tr ' ' '\n' | head -20
+          RELEASE_JSON=$(curl -sL "https://api.github.com/repos/alexjwhite-cb/cyoa-script/releases/latest")
+          RELEASE_TAG=$(echo "$RELEASE_JSON" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/"tag_name": *"\([^"]*\)"/\1/')
 
+          if [ -z "$RELEASE_TAG" ] || [ "$RELEASE_TAG" = "null" ]; then
+            echo "  WARNING: No published release found — web demo may not load engine"
+          else
+            echo "  Latest release tag: $RELEASE_TAG"
+            # Extract asset names from the release JSON
+            ASSETS=$(echo "$RELEASE_JSON" | grep -o '"name": *"[^"]*"' | sed 's/"name": *"\([^"]*\)"/\1/' | tr -d '"')
+
+            # Download each cyoa_wasm* asset
             for asset in $ASSETS; do
               if echo "$asset" | grep -q "cyoa_wasm"; then
-                echo "  Downloading asset: $asset"
-                gh release download --asset "$asset" --dir release_wasm --repo alexjwhite/cyoa-script 2>/dev/null || true
+                echo "  Downloading $asset..."
+                curl -sL "https://github.com/alexjwhite-cb/cyoa-script/releases/download/${RELEASE_TAG}/${asset}" \
+                  -o "_site/cyoa-wasm/pkg/${asset}"
               fi
             done
           fi
 
-          # Find all cyoa_wasm files recursively (they may be in nested dirs)
-          if [ -d release_wasm ]; then
-            find release_wasm -name 'cyoa_wasm*' -exec cp {} _site/cyoa-wasm/pkg/ \;
-            echo "  WASM files in _site/cyoa-wasm/pkg/: $(ls _site/cyoa-wasm/pkg/ 2>/dev/null)"
-          else
-            echo "  WARNING: No WASM files downloaded — web demo may not load engine"
-          fi
-          rm -rf release_wasm
+          echo "  WASM files in _site/cyoa-wasm/pkg/: $(ls _site/cyoa-wasm/pkg/ 2>/dev/null)"
           # Copy example bytecode from the repo (not released as artifacts)
           cp examples/*.cyoa.bc _site/examples/ 2>/dev/null || true
 

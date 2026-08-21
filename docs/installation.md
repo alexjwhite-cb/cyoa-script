@@ -2,7 +2,7 @@
 
 This guide covers how to obtain and use the CYOA engine across different
 platforms and game engines. The engine is distributed as pre-built artifacts on
-[GitHub Releases](https://github.com/alexjwhite/cyoa-script/releases), so you
+[GitHub Releases](https://github.com/alexjwhite-cb/cyoa-script/releases), so you
 don't need to compile from source unless you're contributing.
 
 ## Table of Contents
@@ -22,7 +22,7 @@ don't need to compile from source unless you're contributing.
 ## Latest Release
 
 Pre-built artifacts for each release are published to
-[GitHub Releases](https://github.com/alexjwhite/cyoa-script/releases).
+[GitHub Releases](https://github.com/alexjwhite-cb/cyoa-script/releases).
 
 Each release includes:
 
@@ -46,7 +46,7 @@ The CLI binary provides three commands for story authors and testers.
 ### Install
 
 Download the `cyoa-cli-<platform>` binary from the latest
-[release page](https://github.com/alexjwhite/cyoa-script/releases/latest).
+[release page](https://github.com/alexjwhite-cb/cyoa-script/releases/latest).
 
 ### Usage
 
@@ -257,8 +257,8 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-cyoa-runtime = { git = "https://github.com/alexjwhite/cyoa-script", tag = "v0.6.0" }
-cyoa-bytecode = { git = "https://github.com/alexjwhite/cyoa-script", tag = "v0.6.0" }
+cyoa-runtime = { git = "https://github.com/alexjwhite-cb/cyoa-script", tag = "v0.6.0" }
+cyoa-bytecode = { git = "https://github.com/alexjwhite-cb/cyoa-script", tag = "v0.6.0" }
 ```
 
 Or use the pre-built runtime crate from crates.io if published.
@@ -294,7 +294,7 @@ engine2.set_state_json(&save)?;
 For compiling stories from `.cyoa` source, use `cyoa-compiler`:
 
 ```toml
-cyoa-compiler = { git = "https://github.com/alexjwhite/cyoa-script" }
+cyoa-compiler = { git = "https://github.com/alexjwhite-cb/cyoa-script" }
 ```
 
 ```rust
@@ -332,11 +332,11 @@ at compile time, so no runtime file access is needed.
 
 If you're contributing or need to build from source, see the
 [Quick Start](#building-from-source) section of the
-[README](https://github.com/alexjwhite/cyoa-script#quick-start).
+[README](https://github.com/alexjwhite-cb/cyoa-script#quick-start).
 
 ```bash
 # Clone and build
-git clone https://github.com/alexjwhite/cyoa-script.git
+git clone https://github.com/alexjwhite-cb/cyoa-script.git
 cd cyoa-script
 
 # Build all crates
