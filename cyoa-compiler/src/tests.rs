@@ -584,7 +584,8 @@ story Test:
 "#;
     let story = parse_story(source).unwrap();
     let base_dir = Path::new(".");
-    let result = resolve_imports(&story, base_dir, &[std_subdir.clone()]).expect("should resolve");
+    let result = resolve_imports(&story, base_dir, std::slice::from_ref(&std_subdir))
+        .expect("should resolve");
 
     // Should have merged: heal effect + stat + event
     assert!(result.items.len() >= 3);
@@ -730,4 +731,129 @@ story Empty:
     let bytecode = compile_story(&story).expect("should compile");
     assert!(bytecode.events.is_empty());
     assert!(bytecode.stats.is_empty());
+}
+
+// ===== Multi-line string tests =====
+
+#[test]
+fn test_parse_multiline_quoted_string() {
+    let source = r#"
+story Test:
+  stat hp = 0
+  event start:
+    "This is the first paragraph.
+    This is the second paragraph.
+    They are in the same string."
+    choice "Continue":
+      next end
+  event end:
+    "The end."
+"#;
+    let story = parse_story(source).unwrap();
+    let ev = match &story.items[1] {
+        StoryItem::EventDef(e) => e,
+        _ => panic!("expected EventDef"),
+    };
+    // The multi-line string should be a single TextContent item
+    assert_eq!(ev.text.len(), 1);
+    let segments = &ev.text[0].segments;
+    // Should be a single literal segment containing newlines
+    assert_eq!(segments.len(), 1);
+    match &segments[0] {
+        TextSegment::Literal(s) => {
+            assert!(s.contains('\n'), "multi-line string should contain newline");
+            assert!(s.contains("first paragraph"));
+            assert!(s.contains("second paragraph"));
+        }
+        other => panic!("expected Literal, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_parse_multiline_string_with_template() {
+    let source = r#"
+story Test:
+  stat gold = 42
+  event start:
+    "You see {{gold}} gold
+    pieces scattered on the floor."
+"#;
+    let story = parse_story(source).unwrap();
+    let ev = match &story.items[1] {
+        StoryItem::EventDef(e) => e,
+        _ => panic!("expected EventDef"),
+    };
+    // Should be a single text segment with a stat reference and literal
+    assert_eq!(ev.text.len(), 1);
+    let segments = &ev.text[0].segments;
+    // Should contain a stat ref for "gold" and literal text
+    let has_stat_ref = segments
+        .iter()
+        .any(|s| matches!(s, TextSegment::StatRef(ref name) if name == "gold"));
+    assert!(has_stat_ref, "should contain {{gold}} stat ref");
+}
+
+#[test]
+fn test_parse_multiline_string_with_comment_inside() {
+    let source = r#"
+story Test:
+  event start:
+    "Hello world
+    # this is not a comment, it is inside the string
+    Goodbye"
+"#;
+    let story = parse_story(source).unwrap();
+    let ev = match &story.items[0] {
+        StoryItem::EventDef(e) => e,
+        _ => panic!("expected EventDef"),
+    };
+    assert_eq!(ev.text.len(), 1);
+    let segments = &ev.text[0].segments;
+    match &segments[0] {
+        TextSegment::Literal(s) => {
+            assert!(s.contains("# this is not a comment"));
+            assert!(s.contains("Hello world"));
+            assert!(s.contains("Goodbye"));
+        }
+        other => panic!("expected Literal, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_parse_single_line_string_still_works() {
+    let source = r#"
+story Test:
+  event start:
+    "Single line string."
+    choice "Go":
+      next end
+  event end:
+    "End."
+"#;
+    let story = parse_story(source).unwrap();
+    let ev = match &story.items[0] {
+        StoryItem::EventDef(e) => e,
+        _ => panic!("expected EventDef"),
+    };
+    assert_eq!(ev.text.len(), 1);
+}
+
+#[test]
+fn test_compile_multiline_string() {
+    let source = r#"
+story TestStory:
+  stat hp = 0
+  event start:
+    "Line one.
+    Line two.
+    Line three."
+    choice "Continue":
+      next end
+  event end:
+    "The end."
+"#;
+    let story = parse_story(source).unwrap();
+    let bytecode = compile_story(&story).expect("should compile");
+    assert!(!bytecode.events.is_empty());
+    assert!(!bytecode.instructions.is_empty());
 }

@@ -128,6 +128,12 @@ char *cyoa_available_events_json(CyoaEngine *engine);
  */
 int cyoa_can_access_event(CyoaEngine *engine, const char *id);
 
+/**
+ * Returns 1 (true) if the story has ended (a terminal choice was made).
+ * A terminal choice is one that has no `next` event specified.
+ */
+int cyoa_is_story_complete(CyoaEngine *engine);
+
 /* ── Stats / tags / flags ─────────────────────────────────────────────────── */
 
 /**

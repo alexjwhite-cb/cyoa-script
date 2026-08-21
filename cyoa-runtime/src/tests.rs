@@ -543,6 +543,65 @@ story T:
 }
 
 #[test]
+fn test_engine_state_json_complete_flag() {
+    let bc = compile(
+        r#"
+story T:
+  stat hp = 50
+  event start:
+    "Start"
+    choice "End story":
+      + hp by 10
+  event after_end:
+    "This should not be reachable"
+"#,
+    );
+    let mut engine = Engine::new(bc);
+    assert!(!engine.is_story_complete());
+
+    // Making a choice with no 'next' — terminal, story is complete
+    engine.make_choice(0);
+    assert!(engine.is_story_complete());
+
+    // The complete flag should be in the state JSON
+    let json = engine.get_state_json();
+    assert!(json.contains("\"complete\":true"));
+
+    // Restore to a fresh engine — complete flag should persist
+    let mut engine2 = Engine::new(compile(
+        r#"
+story T:
+  stat hp = 50
+  event start:
+    "Start"
+    choice "End story":
+      + hp by 10
+  event after_end:
+    "This should not be reachable"
+"#,
+    ));
+    engine2.set_state_json(&json).unwrap();
+    assert!(engine2.is_story_complete());
+
+    // A save from before completion should show complete: false
+    let bc2 = compile(
+        r#"
+story T:
+  stat hp = 50
+  event start:
+    "Start"
+    choice "End story":
+      + hp by 10
+  event after_end:
+    "This should not be reachable"
+"#,
+    );
+    let engine3 = Engine::new(bc2);
+    let json3 = engine3.get_state_json();
+    assert!(json3.contains("\"complete\":false"));
+}
+
+#[test]
 fn test_engine_multiple_effects_used() {
     let bc = compile(
         r#"

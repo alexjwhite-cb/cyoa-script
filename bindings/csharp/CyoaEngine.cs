@@ -100,6 +100,9 @@ namespace Cyoa
         [DllImport(DLL_NAME)]
         public static extern int cyoa_can_access_event(IntPtr engine, string id);
 
+        [DllImport(DLL_NAME)]
+        public static extern int cyoa_is_story_complete(IntPtr engine);
+
         // Stats / tags / flags
         [DllImport(DLL_NAME)]
         public static extern IntPtr cyoa_list_stats_json(IntPtr engine);
@@ -749,6 +752,13 @@ namespace Cyoa
         /// </summary>
         public bool CanAccessEvent(string id) =>
             Native.cyoa_can_access_event(handle, id) != 0;
+
+        /// <summary>
+        /// Returns true if the story has ended (a terminal choice was made).
+        /// A terminal choice is one that has no `next` event specified.
+        /// </summary>
+        public bool IsStoryComplete =>
+            Native.cyoa_is_story_complete(handle) != 0;
 
         // ── Stats / tags / flags ────────────────────────────────────────────
 

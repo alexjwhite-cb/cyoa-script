@@ -63,21 +63,64 @@ pub struct Line {
 }
 
 /// Split input into lines, counting indentation and stripping comments.
+///
+/// Lines that contain an unterminated quoted string are accumulated with
+/// subsequent lines until the closing quote is found. This allows writers
+/// to span quoted text across multiple source lines for readability.
 fn tokenize_lines(input: &str) -> Vec<Line> {
-    let mut lines = Vec::new();
-    for (i, raw) in input.lines().enumerate() {
-        let (indent, raw_content) = strip_indent(raw);
-        let stripped = strip_comment(raw_content);
-        // Trim trailing whitespace but preserve content
-        let content = stripped.trim_end().to_string();
-        lines.push(Line {
-            indent,
-            content,
-            line_num: i + 1,
-            col: indent + 1,
-        });
+    // First, scan for multi-line quoted strings and accumulate them into
+    // single logical lines. We track whether we're inside a string literal
+    // across line boundaries.
+    let mut logical_lines: Vec<(usize, String)> = Vec::new();
+    let raw_lines: Vec<&str> = input.lines().collect();
+
+    let mut i = 0;
+    while i < raw_lines.len() {
+        let start_idx = i;
+        let mut combined = raw_lines[i].to_string();
+        // If the line has an unbalanced quote count, keep accumulating
+        while !is_quote_balanced(&combined) && i + 1 < raw_lines.len() {
+            i += 1;
+            combined.push('\n');
+            combined.push_str(raw_lines[i]);
+        }
+        logical_lines.push((start_idx, combined));
+        i += 1;
     }
-    lines
+
+    logical_lines
+        .into_iter()
+        .map(|(idx, raw)| {
+            let (indent, raw_content) = strip_indent(&raw);
+            let stripped = strip_comment(raw_content);
+            // Trim trailing whitespace but preserve content
+            let content = stripped.trim_end().to_string();
+            Line {
+                indent,
+                content,
+                line_num: idx + 1,
+                col: indent + 1,
+            }
+        })
+        .collect()
+}
+
+/// Count quotes outside of escape sequences. Returns true if all quotes
+/// are balanced (even number of unescaped quotes).
+fn is_quote_balanced(s: &str) -> bool {
+    let mut quote_count = 0;
+    let mut chars = s.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\\' {
+            // Skip the next character (escape sequence)
+            chars.next();
+            continue;
+        }
+        if c == '"' {
+            quote_count += 1;
+        }
+    }
+    quote_count % 2 == 0
 }
 
 /// Count leading spaces for indentation.

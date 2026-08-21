@@ -333,18 +333,31 @@ namespace Cyoa.Unity
                 foreach (Transform child in choicesContainer)
                     Destroy(child.gameObject);
 
-                string[] choices = currentEngine.CurrentChoices;
-                for (int i = 0; i < choices.Length; i++)
+                // If the story is complete, show "Story Complete" and hide choices
+                if (currentEngine.IsStoryComplete)
                 {
-                    int choiceIdx = i;
-                    var btnObj = Instantiate(choiceButtonPrefab, choicesContainer);
-                    var btnText = btnObj.GetComponentInChildren<TMP_Text>();
-                    if (btnText != null)
-                        btnText.text = $"{i + 1}. {choices[i]}";
+                    var completeObj = new GameObject("StoryCompleteText");
+                    completeObj.AddComponent<RectTransform>();
+                    var completeText = completeObj.AddComponent<TMP_Text>();
+                    completeText.text = "── Story Complete ──";
+                    completeText.alignment = TextAnchor.MiddleCenter;
+                    completeObj.transform.SetParent(choicesContainer, false);
+                }
+                else
+                {
+                    string[] choices = currentEngine.CurrentChoices;
+                    for (int i = 0; i < choices.Length; i++)
+                    {
+                        int choiceIdx = i;
+                        var btnObj = Instantiate(choiceButtonPrefab, choicesContainer);
+                        var btnText = btnObj.GetComponentInChildren<TMP_Text>();
+                        if (btnText != null)
+                            btnText.text = $"{i + 1}. {choices[i]}";
 
-                    var btn = btnObj.GetComponent<Button>();
-                    if (btn != null)
-                        btn.onClick.AddListener(() => OnChoiceSelected(choiceIdx));
+                        var btn = btnObj.GetComponent<Button>();
+                        if (btn != null)
+                            btn.onClick.AddListener(() => OnChoiceSelected(choiceIdx));
+                    }
                 }
             }
 
@@ -380,6 +393,12 @@ namespace Cyoa.Unity
             if (!string.IsNullOrEmpty(effectText))
             {
                 Debug.Log($"[CYOA] Effect: {effectText}");
+            }
+
+            // Check if story is now complete
+            if (currentEngine.IsStoryComplete)
+            {
+                Debug.Log("[CYOA] Story complete!");
             }
 
             // Render the next event

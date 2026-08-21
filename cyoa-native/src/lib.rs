@@ -254,6 +254,21 @@ pub extern "C" fn cyoa_can_access_event(engine: *mut CyoaEngine, id: *const c_ch
     }
 }
 
+/// Returns 1 (true) if the story has ended (a terminal choice was made).
+/// A terminal choice is one that has no `next` event specified.
+#[no_mangle]
+pub extern "C" fn cyoa_is_story_complete(engine: *const CyoaEngine) -> c_int {
+    if engine.is_null() {
+        return 0;
+    }
+    let eng = unsafe { &*engine };
+    if eng.engine.is_story_complete() {
+        1
+    } else {
+        0
+    }
+}
+
 // ── Stats / tags / flags ───────────────────────────────────────────────────
 
 /// Get all stats as a JSON string: `{"statName": value, ...}`.

@@ -29,6 +29,8 @@ pub struct HistoryEntry {
 pub struct StoryCursor {
     pub current_event: u32,
     pub choice_history: Vec<HistoryEntry>,
+    /// Set to true when a terminal choice is made (choice with no `next`).
+    pub complete: bool,
 }
 
 /// The CYOA engine — one per story.
@@ -61,6 +63,7 @@ impl Engine {
             cursor: StoryCursor {
                 current_event: 0,
                 choice_history: Vec::new(),
+                complete: false,
             },
         };
         // Execute the start event's body (inline effects)
@@ -222,9 +225,18 @@ impl Engine {
                 // Execute the new event's body (inline effects like set flag)
                 effect_texts.extend(self.execute_current_event_body());
             }
+        } else {
+            // Terminal choice — story is complete
+            self.cursor.complete = true;
         }
 
         effect_texts
+    }
+
+    /// Returns true if the story has ended (a terminal choice was made).
+    /// A terminal choice is one that has no `next` event specified.
+    pub fn is_story_complete(&self) -> bool {
+        self.cursor.complete
     }
 
     /// Execute a range of effect instructions (stat/flag/tag changes).
@@ -347,9 +359,9 @@ impl Engine {
     ///
     /// Accepts the comprehensive state JSON format produced by
     /// [`get_state_json`](Self::get_state_json), which includes stats,
-    /// flags, tags, current_event, and choice_history. This enables
-    /// full save/load between sessions — the engine resumes exactly
-    /// where it was saved, including story position and choice history.
+    /// flags, tags, current_event, choice_history, and the `complete` flag.
+    /// This enables full save/load between sessions — the engine resumes
+    /// exactly where it was saved, including story position and choice history.
     pub fn set_state_json(&mut self, json: &str) -> Result<(), serde_json::Error> {
         let value: serde_json::Value = serde_json::from_str(json)?;
 
@@ -367,6 +379,9 @@ impl Engine {
         }
         if let Some(history) = value.get("choice_history") {
             self.cursor.choice_history = serde_json::from_value(history.clone())?;
+        }
+        if let Some(complete) = value.get("complete") {
+            self.cursor.complete = complete.as_bool().unwrap_or(false);
         }
 
         Ok(())
@@ -418,9 +433,9 @@ impl Engine {
     /// Get serialized state as a JSON string (for save/load).
     ///
     /// The JSON includes stats, flags, runtime tags, current event position,
-    /// and choice history — enabling full save/load between sessions. The
-    /// engine can be restored to the exact same state using
-    /// [`set_state_json`](Self::set_state_json).
+    /// choice history, and the story-complete flag — enabling full save/load
+    /// between sessions. The engine can be restored to the exact same state
+    /// using [`set_state_json`](Self::set_state_json).
     ///
     /// ```json
     /// {
@@ -430,7 +445,8 @@ impl Engine {
     ///   "current_event": 3,
     ///   "choice_history": [
     ///     {"eventId": "start", "choiceIndex": 0, "choiceText": "Enter"}
-    ///   ]
+    ///   ],
+    ///   "complete": false
     /// }
     /// ```
     ///
@@ -443,6 +459,7 @@ impl Engine {
             "tags": &self.state.tags,
             "current_event": self.cursor.current_event,
             "choice_history": &self.cursor.choice_history,
+            "complete": self.cursor.complete,
         })
         .to_string()
     }

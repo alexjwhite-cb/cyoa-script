@@ -346,6 +346,7 @@ pub struct PlayerState {
 pub struct StoryCursor {
     current_event: u32,                // ID of the current event
     choice_history: Vec<HistoryEntry>, // choice history
+    complete: bool,                    // true after a terminal choice
 }
 
 pub struct HistoryEntry {
@@ -428,6 +429,7 @@ engine.listFlags(): string[];       // runtime flags currently set
 
 engine.canAccessEvent(id: string): boolean;
 engine.availableEvents(): string[];  // all event IDs in the story
+engine.isStoryComplete(): boolean;   // true if a terminal choice was made
 ```
 
 #### Engine API (zero-copy — Uint8Array views into WASM memory)

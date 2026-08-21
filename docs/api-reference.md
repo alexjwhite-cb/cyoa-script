@@ -69,7 +69,8 @@ sessions. The JSON format is identical across all languages:
   "current_event": 3,
   "choice_history": [
     { "event_id": "old_ruins", "choice_index": 0, "choice_text": "Enter the ruins" }
-  ]
+  ],
+  "complete": false
 }
 ```
 
@@ -78,6 +79,7 @@ sessions. The JSON format is identical across all languages:
 - **`tags`**: Runtime tags applied during play (not story-level tags)
 - **`current_event`**: Event table index for cursor restoration
 - **`choice_history`**: All choices made, for replay/analytics
+- **`complete`**: `true` if a terminal choice was made (story has ended)
 
 > **Important**: `tags` in state are **runtime-applied** tags (added during play
 > via `add tag`). **Story-level tags** are static metadata in the bytecode and

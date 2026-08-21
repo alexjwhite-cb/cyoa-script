@@ -366,6 +366,13 @@ impl WasmEngine {
         self.engine.available_events()
     }
 
+    /// Returns true if the story has ended (a terminal choice was made).
+    /// A terminal choice is one that has no `next` event specified.
+    #[wasm_bindgen(js_name = isStoryComplete)]
+    pub fn is_story_complete(&self) -> bool {
+        self.engine.is_story_complete()
+    }
+
     // ── Zero-copy text API ──────────────────────────────────────────────
 
     /// Zero-copy: returns a `Uint8Array` view of all current event text

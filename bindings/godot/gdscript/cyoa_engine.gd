@@ -233,6 +233,10 @@ func get_available_events() -> PackedStringArray:
 func can_access_event(id: String) -> bool:
 	return _engine.CanAccessEvent(id) if _engine != null else false
 
+# Returns true if the story has ended (a terminal choice was made).
+func is_story_complete() -> bool:
+	return _engine.IsStoryComplete if _engine != null else false
+
 # ── Stats / tags / flags ─────────────────────────────────────────────────────
 
 func get_stats() -> Dictionary:
