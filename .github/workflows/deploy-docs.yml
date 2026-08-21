@@ -32,20 +32,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Fetch latest release WASM artifacts
+      - name: Download latest release WASM artifacts
         run: |
           mkdir -p _site/cyoa-wasm/pkg _site/examples _site/web-demo
-          # Download WASM build artifacts from the latest release
-          # This avoids rebuilding WASM — WASM is only changed on release
-          rm -rf release_downloads
-          gh release download --dir release_downloads 2>/dev/null || echo "No release found — docs-only deploy"
-          if [ -d release_downloads ]; then
-            # Copy WASM JS bindings + binary
-            cp release_downloads/cyoa_wasm.js _site/cyoa-wasm/pkg/ 2>/dev/null || true
-            cp release_downloads/cyoa_wasm_bg.wasm _site/cyoa-wasm/pkg/ 2>/dev/null || true
-            cp release_downloads/cyoa_wasm.d.ts _site/cyoa-wasm/pkg/ 2>/dev/null || true
+          # Download WASM bindings from the latest release
+          # (avoids rebuilding WASM — WASM is only changed on release)
+          rm -rf release_wasm
+          gh release download --pattern "cyoa_wasm*" --dir release_wasm 2>/dev/null || echo "No release found — deploying docs only"
+          if [ -d release_wasm ]; then
+            cp release_wasm/* _site/cyoa-wasm/pkg/ 2>/dev/null || true
           fi
-          rm -rf release_downloads
+          rm -rf release_wasm
+          # Copy example bytecode from the repo (not released as artifacts)
+          cp examples/*.cyoa.bc _site/examples/ 2>/dev/null || true
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
