@@ -15,6 +15,7 @@ on:
       - 'README.md'
       - 'docs-site/**'
       - '.github/workflows/deploy-docs.yml'
+      - 'package.json'
 
 permissions:
   contents: read
