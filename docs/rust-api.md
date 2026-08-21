@@ -86,11 +86,11 @@ engine.set_state_json(&json: &str) -> Result<(), serde_json::Error>
 ```
 
 `get_state_json()` returns a comprehensive JSON string containing stats,
-flags, tags, current_event index, and choice_history — enabling full save/load
-between sessions.
+flags, tags, current_event index, choice_history, and the `complete` flag —
+enabling full save/load between sessions.
 
 `set_state_json()` parses and restores all fields, including restoring the
-story cursor to the correct position.
+story cursor to the correct position and the story-completion state.
 
 **Example**:
 ```rust
@@ -117,6 +117,7 @@ engine.list_story_tags() -> Vec<String>  // static story-level tags
 ```rust
 engine.can_access_event(id: &str) -> bool    // event reachable?
 engine.available_events() -> Vec<String>     // all event IDs
+engine.is_story_complete() -> bool            // terminal choice made?
 ```
 
 ---

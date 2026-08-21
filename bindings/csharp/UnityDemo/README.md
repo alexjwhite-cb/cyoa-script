@@ -107,6 +107,7 @@ using var engine = catalog.CreateEngineByName("ForestAdventure");
 | `SetStateJson(string json)` | — | Restore state from JSON |
 | `GetAvailableEvents()` | `string[]` | All event IDs in the story |
 | `CanAccessEvent(string id)` | `bool` | Whether an event is reachable |
+| `IsStoryComplete` | `bool` | True if a terminal choice was made |
 | `GetStats()` | `Dictionary<string,int>` | All stats as name→value |
 | `GetStat(string name)` | `int` | Value of a specific stat |
 | `GetStoryTags()` | `string[]` | Story-level tags (static) |

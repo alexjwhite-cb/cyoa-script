@@ -194,6 +194,9 @@ export class WasmEngine {
    * List all event IDs in the story (useful for quest logs).
    */
   availableEvents(): string[];
+
+  /** Returns true if the story has ended (a terminal choice was made). */
+  isStoryComplete(): boolean;
 }
 
 /** Initializes the WASM module. Returns a Promise that resolves when ready. */

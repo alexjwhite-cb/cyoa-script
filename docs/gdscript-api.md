@@ -260,8 +260,8 @@ for entry in engine.get_all_history():
 
 ### `get_state_json() -> String`
 
-Full player state as JSON (stats, flags, tags, current_event, choice_history).
-Use for save files.
+Full player state as JSON (stats, flags, tags, current_event, choice_history,
+complete). Use for save files.
 
 ```gdscript
 var save_json = engine.get_state_json()
@@ -291,6 +291,17 @@ Whether an event by ID exists in the story's event index.
 ```gdscript
 if engine.can_access_event("wolf_fight"):
     print("Wolf fight is reachable.")
+```
+
+### `is_story_complete() -> bool`
+
+Returns `true` if the story has ended — a terminal choice was made
+(a choice with no `next` event).
+
+```gdscript
+engine.make_choice(0)
+if engine.is_story_complete():
+    print("The story is over.")
 ```
 
 ---

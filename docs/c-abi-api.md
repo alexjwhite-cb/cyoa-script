@@ -98,7 +98,7 @@ void  cyoa_set_state_json(CyoaEngine* engine, const char* json);
 ```
 
 - `cyoa_get_state_json`: Full player state as JSON (stats, flags, tags,
-  current_event, choice_history). **Caller must free** with `cyoa_free_string`.
+  current_event, choice_history, complete). **Caller must free** with `cyoa_free_string`.
 - `cyoa_set_state_json`: Restore state from a JSON string produced by
   `cyoa_get_state_json`. Pass `NULL` for `json` (no-op).
 
@@ -301,6 +301,7 @@ engine.SetStateJson(saveJson);
 | `GetTags()` | `string[]` | Runtime tags |
 | `GetFlags()` | `string[]` | Runtime flags |
 | `CanAccessEvent(string id)` | `bool` | Event reachable? |
+| `IsStoryComplete` | `bool` | True if a terminal choice was made |
 | `GetAvailableEvents()` | `string[]` | All event IDs |
 | `Dispose()` | — | Free native resources |
 

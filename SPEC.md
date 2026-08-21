@@ -130,11 +130,30 @@ story ForestAdventure:
   ...
 ```
 
+Multi-line form (when `tags:` is on its own line, indented tags follow):
+```
+story ForestAdventure:
+  tags:
+    fantasy
+    exploration
+
+  stat hp = 50
+  ...
+```
+
 **Event-level tags** — declared per-event, describing that event's content:
 
 ```
 event dark_forest:
   tags: combat, dangerous
+```
+
+Multi-line form:
+```
+event dark_forest:
+  tags:
+    combat
+    dangerous
 ```
 
 ### 3.5 Effect Blocks
@@ -176,10 +195,25 @@ event old_ruins:
 ```
 
 **Event fields** (in any order within the event block):
-- `requires:` — AND/OR condition expression (optional)
-- `tags:` — comma-separated list (optional)
+- `requires:` — AND/OR condition expression (optional, inline or multi-line)
+- `tags:` — comma-separated list (optional, inline or multi-line)
 - Text lines — quoted or unquoted prose (rendered to player)
 - `choice:` — one or more choices
+
+**Multi-line `tags:` and `requires:`** — when the keyword is on its own line,
+the content follows on indented lines:
+
+```
+event old_ruins:
+  tags:
+    exploration
+    early_game
+  requires:
+    visited_old_ruins AND courage >= 5
+  "You stand before ancient stone ruins."
+```
+
+Both forms may be mixed freely within the same story.
 
 ### 3.7 Choices
 

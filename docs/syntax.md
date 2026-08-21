@@ -103,6 +103,20 @@ story ForestAdventure:
   ...
 ```
 
+**Multi-line form** — when `tags:` is on its own line, tag names follow on
+indented lines (one per line or comma-separated per line):
+
+```cyoa
+story ForestAdventure:
+
+  tags:
+    fantasy
+    exploration
+
+  stat hp = 50
+  ...
+```
+
 #### Event-level Tags
 
 Declared per-event, describing that event's content.
@@ -110,6 +124,15 @@ Declared per-event, describing that event's content.
 ```cyoa
 event old_ruins:
   tags: exploration, early_game
+```
+
+**Multi-line form:**
+
+```cyoa
+event old_ruins:
+  tags:
+    exploration
+    early_game
 ```
 
 > **Note**: Story-level tags are distinct from runtime tags (see `add tag`
@@ -237,8 +260,8 @@ event old_ruins:
 
 | Field | Required? | Description |
 |-------|-----------|-------------|
-| `requires:` | No | AND/OR condition expression |
-| `tags:` | No | Comma-separated tag list |
+| `requires:` | No | AND/OR condition expression (inline or multi-line) |
+| `tags:` | No | Comma-separated tag list (inline or multi-line) |
 | Inline effects | No | `set`, `+/- stat`, `add tag` that run when event is entered |
 | Text lines | No | Quoted or unquoted prose shown to the player |
 | `choice:` | Yes | At least one choice (or the event is terminal) |
@@ -317,6 +340,18 @@ requires: gold >= 5 AND reputation >= 10  # AND
 requires: gold >= 5 OR reputation >= 10    # OR
 requires: NOT defeated_dragon             # negation of flag
 requires: (courage >= 5 OR gold >= 100) AND visited_old_ruins  # grouping
+```
+
+### Multi-line Form
+
+When the condition is long, `requires:` can stand alone on its line with the
+condition on the following indented lines:
+
+```cyoa
+event guarded_path:
+  requires:
+    courage >= 5 AND gold > 0
+  "A guarded path lies ahead."
 ```
 
 ### Full Operator Table

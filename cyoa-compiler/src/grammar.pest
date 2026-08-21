@@ -101,14 +101,21 @@ event_body = _{
     event_requires? ~ event_tags? ~ event_text* ~ choice_def*
 }
 
-// Optional requires clause
+// Optional requires clause (inline or multi-line)
+// Inline:  requires: courage >= 5 AND hp > 0
+// Multi:   requires:
+//            courage >= 5 AND gold > 0
 event_requires = {
-    "requires:" ~ WS* ~ condition_expr ~ NEWLINE+
+    "requires:" ~ WS* ~ condition_expr? ~ NEWLINE+
 }
 
-// Optional tags clause
+// Optional tags clause (inline or multi-line)
+// Inline:  tags: fantasy, exploration
+// Multi:   tags:
+//            fantasy
+//            exploration
 event_tags = {
-    "tags:" ~ WS* ~ identifier_list ~ NEWLINE+
+    "tags:" ~ WS* ~ (identifier_list ~ NEWLINE+ | NEWLINE+ ~ indent+ ~ identifier ~ NEWLINE*+)
 }
 
 // Event text (can be quoted or unquoted prose)

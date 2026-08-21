@@ -351,11 +351,35 @@ fn parse_story_body(
         if line.content.starts_with("tags:") {
             cursor.next();
             let rest = line.content.strip_prefix("tags:").unwrap().trim();
-            story_tags.extend(
-                rest.split(',')
-                    .map(|s| s.trim().to_string())
-                    .filter(|s| !s.is_empty()),
-            );
+            if !rest.is_empty() {
+                // Inline comma-separated form
+                story_tags.extend(
+                    rest.split(',')
+                        .map(|s| s.trim().to_string())
+                        .filter(|s| !s.is_empty()),
+                );
+            } else {
+                // Multi-line form: collect indented tag names
+                while cursor.has_more() {
+                    let next = cursor.peek().clone();
+                    if next.content.trim().is_empty() {
+                        cursor.next();
+                        continue;
+                    }
+                    if next.indent > base_indent {
+                        cursor.next();
+                        story_tags.extend(
+                            next.content
+                                .trim()
+                                .split(',')
+                                .map(|s| s.trim().to_string())
+                                .filter(|s| !s.is_empty()),
+                        );
+                    } else {
+                        break;
+                    }
+                }
+            }
             continue;
         }
 
@@ -658,13 +682,65 @@ fn parse_event_block(
 
         if trimmed.starts_with("requires:") {
             let rest = trimmed.strip_prefix("requires:").unwrap().trim();
-            let cond = parse_condition(rest, line.line_num, line.col)?;
-            requires = Some(cond);
-            cursor.next();
+            if !rest.is_empty() {
+                // Inline form (existing behavior)
+                let cond = parse_condition(rest, line.line_num, line.col)?;
+                requires = Some(cond);
+                cursor.next();
+            } else {
+                // Multi-line form: collect indented condition lines
+                cursor.next(); // consume the "requires:" line
+                let mut cond_parts = Vec::new();
+                while cursor.has_more() {
+                    let next = cursor.peek().clone();
+                    if next.content.trim().is_empty() {
+                        cursor.next();
+                        continue;
+                    }
+                    if next.indent > body_indent {
+                        cursor.next();
+                        cond_parts.push(next.content.trim().to_string());
+                    } else {
+                        break;
+                    }
+                }
+                let cond_str = cond_parts.join(" ");
+                let cond = parse_condition(&cond_str, line.line_num, line.col)?;
+                requires = Some(cond);
+            }
         } else if trimmed.starts_with("tags:") {
             let rest = trimmed.strip_prefix("tags:").unwrap().trim();
-            tags = rest.split(',').map(|s| s.trim().to_string()).collect();
-            cursor.next();
+            if !rest.is_empty() {
+                // Inline comma-separated form (existing behavior)
+                tags = rest
+                    .split(',')
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect();
+                cursor.next();
+            } else {
+                // Multi-line form: collect indented tag names
+                cursor.next();
+                while cursor.has_more() {
+                    let next = cursor.peek().clone();
+                    if next.content.trim().is_empty() {
+                        cursor.next();
+                        continue;
+                    }
+                    if next.indent > body_indent {
+                        cursor.next();
+                        tags.extend(
+                            next.content
+                                .trim()
+                                .split(',')
+                                .map(|s| s.trim().to_string())
+                                .filter(|s| !s.is_empty()),
+                        );
+                    } else {
+                        break;
+                    }
+                }
+            }
         } else if trimmed.starts_with("choice ") || trimmed.starts_with("choice:") {
             cursor.next();
             let choice = parse_choice(cursor, line.line_num, line.col, &line.content)?;

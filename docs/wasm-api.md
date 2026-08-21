@@ -195,8 +195,8 @@ const history = engine.getHistory();
 #### `getStateJson(): string`
 
 Get the full player state as a JSON string (for save files). The JSON includes
-`stats`, `flags`, `tags`, `current_event`, and `choice_history` — enabling
-full save/load between sessions.
+`stats`, `flags`, `tags`, `current_event`, `choice_history`, and `complete`
+— enabling full save/load between sessions.
 
 ```typescript
 const saveJson = engine.getStateJson();
@@ -287,6 +287,19 @@ const events = engine.availableEvents();
 // → ["start", "forest_path", "old_ruins", "forest_encounter", ...]
 ```
 
+#### `isStoryComplete(): boolean`
+
+Returns `true` if the story has ended — i.e., a terminal choice was made
+(a choice with no `next` event). After this returns `true`, there are no
+more choices to display.
+
+```typescript
+engine.makeChoice(0);
+if (engine.isStoryComplete()) {
+  console.log("The story is over.");
+}
+```
+
 ---
 
 ## Zero-Copy Text Access
@@ -355,6 +368,7 @@ export class WasmEngine {
   listFlags(): string[];
   canAccessEvent(id: string): boolean;
   availableEvents(): string[];
+  isStoryComplete(): boolean;
 
   // Zero-copy text API
   currentEventTextBytes(): Uint8Array;

@@ -284,6 +284,92 @@ story Test:
 }
 
 #[test]
+fn test_parse_story_tags_multiline() {
+    let source = r#"
+story Test:
+  tags:
+    fantasy
+    exploration
+
+  stat hp = 50
+  event start:
+    "Hello"
+"#;
+    let story = parse_story(source).unwrap();
+    assert_eq!(story.tags, vec!["fantasy", "exploration"]);
+}
+
+#[test]
+fn test_parse_event_tags_multiline() {
+    let source = r#"
+story Test:
+  event start:
+    tags:
+      combat
+      dangerous
+    "Fight!"
+"#;
+    let story = parse_story(source).unwrap();
+    let ev = match &story.items[0] {
+        StoryItem::EventDef(e) => e,
+        _ => panic!("expected EventDef"),
+    };
+    assert_eq!(ev.tags, vec!["combat", "dangerous"]);
+}
+
+#[test]
+fn test_parse_event_requires_multiline() {
+    let source = r#"
+story Test:
+  stat courage = 0
+  stat gold = 0
+  event start:
+    requires:
+      courage >= 5 AND gold > 0
+    "A guarded path."
+"#;
+    let story = parse_story(source).unwrap();
+    let ev = match &story.items[2] {
+        StoryItem::EventDef(e) => e,
+        _ => panic!("expected EventDef"),
+    };
+    assert!(ev.requires.is_some());
+}
+
+#[test]
+fn test_parse_tags_inline_and_multiline_coexist() {
+    // Inline tags in one event, multi-line in another
+    let source = r#"
+story Test:
+  tags:
+    fantasy
+
+  event start:
+    tags: combat
+    "Begin."
+  event second:
+    tags:
+      exploration
+      dangerous
+    "Continue."
+"#;
+    let story = parse_story(source).unwrap();
+    assert_eq!(story.tags, vec!["fantasy"]);
+
+    let start = match &story.items[0] {
+        StoryItem::EventDef(e) => e,
+        _ => panic!("expected EventDef"),
+    };
+    assert_eq!(start.tags, vec!["combat"]);
+
+    let second = match &story.items[1] {
+        StoryItem::EventDef(e) => e,
+        _ => panic!("expected EventDef"),
+    };
+    assert_eq!(second.tags, vec!["exploration", "dangerous"]);
+}
+
+#[test]
 fn test_parse_choice_requires() {
     let source = r#"
 story Test:

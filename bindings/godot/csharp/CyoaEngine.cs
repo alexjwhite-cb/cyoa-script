@@ -675,6 +675,9 @@ namespace Cyoa.Godot
         public bool CanAccessEvent(string id) =>
             Native.cyoa_can_access_event(handle, id) != 0;
 
+        public bool IsStoryComplete =>
+            Native.cyoa_is_story_complete(handle) != 0;
+
         // ── Stats / tags / flags ────────────────────────────────────────────
 
         public Dictionary<string, int> GetStats()
