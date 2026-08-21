@@ -32,15 +32,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Authenticate with GitHub
+        run: echo "GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_ENV
+
       - name: Download latest release WASM artifacts
         run: |
           mkdir -p _site/cyoa-wasm/pkg _site/examples _site/web-demo
           # Download WASM bindings from the latest release
           # (avoids rebuilding WASM — WASM is only changed on release)
+          # The files in the release are uploaded with path prefixes like
+          # "artifacts/cyoa-wasm/", so we use a broad glob to match and
+          # then find the actual files recursively.
           rm -rf release_wasm
-          gh release download --pattern "cyoa_wasm*" --dir release_wasm 2>/dev/null || echo "No release found — deploying docs only"
+          gh release download --pattern "*cyoa_wasm*" --dir release_wasm 2>&1 || echo "WARNING: No release WASM found — web demo may not load engine"
+          # Find all cyoa_wasm files recursively (they may be in nested dirs)
           if [ -d release_wasm ]; then
-            cp release_wasm/* _site/cyoa-wasm/pkg/ 2>/dev/null || true
+            find release_wasm -name 'cyoa_wasm*' -exec cp {} _site/cyoa-wasm/pkg/ \;
+            echo "  WASM files downloaded: $(ls _site/cyoa-wasm/pkg/ 2>/dev/null | wc -l)"
+          else
+            echo "  No release_wasm directory created"
           fi
           rm -rf release_wasm
           # Copy example bytecode from the repo (not released as artifacts)

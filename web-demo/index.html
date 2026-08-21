@@ -17,6 +17,7 @@
       --accent-hover: #996cff;
       --success: #4ade80;
       --warning: #facc15;
+      --sidebar-width: 280px;
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -30,7 +31,81 @@
       padding: 2rem;
     }
 
-    .container { max-width: 900px; margin: 0 auto; }
+    /* Layout: sidebar + main */
+    .layout {
+      display: flex;
+      min-height: calc(100vh - 4rem);
+    }
+
+    /* Sidebar (shared with docs site) */
+    .sidebar {
+      width: var(--sidebar-width);
+      background: var(--card);
+      border-right: 1px solid var(--border);
+      padding: 1.5rem;
+      overflow-y: auto;
+      position: sticky;
+      top: 2rem;
+      height: calc(100vh - 4rem);
+    }
+
+    .sidebar h2 {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-dim);
+      margin-bottom: 1rem;
+    }
+
+    .sidebar ul {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .sidebar li {
+      margin: 0;
+    }
+
+    .sidebar a {
+      display: block;
+      padding: 0.4rem 0.6rem;
+      border-radius: 4px;
+      color: var(--text-dim);
+      text-decoration: none;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    }
+
+    .sidebar a:hover {
+      background: #1f2428;
+      color: var(--text);
+    }
+
+    .sidebar a.active {
+      background: rgba(124, 76, 255, 0.15);
+      color: var(--accent);
+    }
+
+    .sidebar .group-title {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-dim);
+      margin-top: 1rem;
+      margin-bottom: 0.3rem;
+      padding-left: 0.2rem;
+    }
+
+    .sidebar .group-title:first-child {
+      margin-top: 0;
+    }
+
+    .main-content {
+      flex: 1;
+      max-width: 900px;
+    }
 
     h1 {
       font-size: 2rem;
@@ -194,48 +269,81 @@
     .error { color: var(--warning); }
   </style>
 </head>
-<body>
-  <div class="container">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
-      <h1 style="margin-bottom:0;">CYOA WASM Engine Demo</h1>
-      <a href="/docs/index.html" style="font-size:0.8rem; color:var(--text-dim); text-decoration:none; padding:0.3rem 0.8rem; border:1px solid var(--border); border-radius:4px;">Documentation</a>
+  <!-- Desktop header -->
+  <header>
+    <h1><a href="../docs/index.html">CYOA Engine</a></h1>
+    <div class="desktop-nav">
+      <a href="../docs/index.html">Docs</a>
+      <a href="index.html" style="color:var(--accent)">Web Demo</a>
+      <a href="https://github.com/alexjwhite/cyoa-script">GitHub</a>
     </div>
-    <p class="subtitle">Story engine compiled to WebAssembly — zero-copy text, tag-based story catalog, multi-story support</p>
+  </header>
 
-    <!-- Loading state -->
-    <div id="loading" class="loading">Loading WASM engine and story data…</div>
+  <div class="layout">
+    <!-- Sidebar -->
+    <nav class="sidebar" id="sidebar">
+      <h2>Documentation</h2>
+      <ul>
+        <li>
+          <div class="group-title">Getting Started</div>
+          <a href="../docs/installation.html">Installation Instructions</a>
+          <a href="../docs/index.html">Quick Start (README)</a>
+          <div class="group-title">Language</div>
+          <a href="../docs/syntax.html">Syntax Reference</a>
+          <div class="group-title">API Reference</div>
+          <a href="../docs/api-reference.html">API Overview</a>
+          <a href="../docs/wasm-api.html">WASM / JavaScript</a>
+          <a href="../docs/c-abi-api.html">C-ABI + C# / Unity</a>
+          <a href="../docs/rust-api.html">Rust Runtime API</a>
+          <a href="../docs/gdscript-api.html">GDScript (Godot)</a>
+          <div class="group-title">Deployment</div>
+          <a href="../docs/mobile.html">Mobile Guide</a>
+        </li>
+      </ul>
+    </nav>
 
-    <!-- Story catalog -->
-    <div id="catalog" class="catalog" style="display:none">
-      <h2>Story Catalog</h2>
-      <div class="tag-filter">
-        <input type="text" id="tagInput" placeholder='e.g. "fantasy" or ["fantasy","combat"]'>
-        <button id="btnTag">Filter by Single Tag</button>
-        <button id="btnAllTags">Require All Tags</button>
-        <button id="btnAnyTags">Any Tag Match</button>
-        <button id="btnClear" style="display:none">Clear Filters</button>
+    <!-- Main content -->
+    <main class="main-content">
+      <div class="container">
+        <h1>CYOA WASM Engine Demo</h1>
+        <p class="subtitle">Story engine compiled to WebAssembly — zero-copy text, tag-based story catalog, multi-story support</p>
+
+        <!-- Loading state -->
+        <div id="loading" class="loading">Loading WASM engine and story data…</div>
+
+        <!-- Story catalog -->
+        <div id="catalog" class="catalog" style="display:none">
+          <h2>Story Catalog</h2>
+          <div class="tag-filter">
+            <input type="text" id="tagInput" placeholder='e.g. "fantasy" or ["fantasy","combat"]'>
+            <button id="btnTag">Filter by Single Tag</button>
+            <button id="btnAllTags">Require All Tags</button>
+            <button id="btnAnyTags">Any Tag Match</button>
+            <button id="btnClear" style="display:none">Clear Filters</button>
+          </div>
+          <div id="storyList" class="story-list"></div>
+        </div>
+
+        <!-- Story view -->
+        <div id="storyView" class="story-view" style="display:none">
+          <button id="backBtn" style="display:none; margin-bottom:1rem; padding:0.4rem 1rem; background:#1f2428; border:1px solid var(--border); border-radius:4px; cursor:pointer; font-family:monospace;">← Back to Catalog</button>
+          <div class="event-id" id="eventId"></div>
+          <div class="prose" id="prose"></div>
+          <div class="choices" id="choices"></div>
+        </div>
+
+        <!-- Zero-copy text demo -->
+        <div class="zerocopy-demo">
+          <h2>Zero-Copy Text Access</h2>
+          <div class="label">Current approach: <span id="apiMode">serde (high-level)</span></div>
+          <div class="timing" id="timing"></div>
+          <div class="label" id="timingLabel"></div>
+        </div>
+
+        <!-- Stats panel -->
+        <div class="stats-panel" id="statsPanel"></div>
       </div>
-      <div id="storyList" class="story-list"></div>
-    </div>
-
-    <!-- Story view -->
-    <div id="storyView" class="story-view" style="display:none">
-      <button id="backBtn" style="display:none; margin-bottom:1rem; padding:0.4rem 1rem; background:#1f2428; border:1px solid var(--border); border-radius:4px; cursor:pointer; font-family:monospace;">← Back to Catalog</button>
-      <div class="event-id" id="eventId"></div>
-      <div class="prose" id="prose"></div>
-      <div class="choices" id="choices"></div>
-    </div>
-
-    <!-- Zero-copy text demo -->
-    <div class="zerocopy-demo">
-      <h2>Zero-Copy Text Access</h2>
-      <div class="label">Current approach: <span id="apiMode">serde (high-level)</span></div>
-      <div class="timing" id="timing"></div>
-      <div class="label" id="timingLabel"></div>
-    </div>
-
-    <!-- Stats panel -->
-    <div class="stats-panel" id="statsPanel"></div>
+    </main>
   </div>
 
   <script type="module">
@@ -267,6 +375,9 @@
       apiMode: document.getElementById('apiMode'),
       statsPanel: document.getElementById('statsPanel'),
     };
+
+    // Mark active link in sidebar (the Web Demo link is always active on this page)
+    document.querySelector('.sidebar a[href="index.html"]').classList.add('active');
 
     // Helper: fetch a binary file as Uint8Array
     async function fetchBytes(url) {

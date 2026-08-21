@@ -43,31 +43,57 @@ function escapeHtml(str) {
 let layoutTemplate = fs.readFileSync(layoutPath, 'utf8');
 
 /**
- * Convert markdown links to appropriate HTML links.
+ * Convert markdown links to appropriate HTML links (relative paths).
  *
- * - docs/X.md or ./docs/X.md → /docs/X.html (same-site docs page)
- * - README.md → /docs/index.html (homepage)
+ * All docs pages live in the same output directory (_site/docs/), so internal
+ * links use relative paths like "installation.html" rather than absolute
+ * "/docs/installation.html". This accounts for GitHub Pages project subdirectory
+ * deployment (e.g. https://user.github.io/cyoa-script/docs/).
+ *
+ * - docs/X.md or ./docs/X.md → X.html (same docs directory)
+ * - README.md or ../README.md → index.html (homepage)
  * - SPEC.md, CLAUDE.md, ../SPEC.md (root-level files) → GitHub source link
  * - Other .md references → GitHub source link
  */
 function fixLinks(html) {
-  return html.replace(/href="([^"]+)\.md(\#[^"]*)?"/g, (_, href, fragment) => {
-    const frag = fragment || '';
-    const normalized = href.replace(/^\.\//, '');
+  return html.replace(/href="([^"]+)"/g, (_, href) => {
+    // Skip external links (http/https/mailto)
+    if (/^(https?:|mailto:|\/\/)/.test(href)) return `href="${href}"`;
+
+    // Handle fragment-only links
+    if (href.startsWith('#')) return `href="${href}"`;
+
+    // Extract fragment if present
+    const fragMatch = href.match(/(.+?)(\#.*)/);
+    const frag = fragMatch ? fragMatch[2] : '';
+    const pathPart = fragMatch ? fragMatch[1] : href;
+
+    // Skip if it's already an .html link (just normalize relative path)
+    if (pathPart.endsWith('.html')) return `href="${pathPart}${frag}"`;
+
+    // Handle web-demo/ directory links → ../web-demo/
+    if (pathPart === 'web-demo/' || pathPart === './web-demo/' || pathPart === '../web-demo/') {
+      return `href="../web-demo/${frag}"`;
+    }
+
+    // Only process .md links
+    if (!pathPart.endsWith('.md')) return `href="${pathPart}${frag}"`;
+
+    const normalized = pathPart.replace(/^\.\//, '');
 
     // Root-level docs files referenced via ../
     const rootFiles = ['SPEC.md', 'CLAUDE.md', 'README.md'];
     for (const rf of rootFiles) {
       if (normalized === rf || normalized === '../' + rf) {
-        if (rf === 'README.md') return `href="/docs/index.html${frag}"`;
+        if (rf === 'README.md') return `href="index.html${frag}"`;
         return `href="https://github.com/alexjwhite/cyoa-script/blob/main/${rf}${frag}" target="_blank"`;
       }
     }
 
-    // docs/X.md or bare X.md (relative to docs dir) → /docs/X.html
+    // docs/X.md or bare X.md (relative to docs dir) → X.html (relative)
     if (normalized.startsWith('docs/') || !normalized.includes('/')) {
       const basename = path.basename(normalized, '.md');
-      return `href="/docs/${basename}.html${frag}"`;
+      return `href="${basename}.html${frag}"`;
     }
 
     // Any other .md with a path → GitHub source
