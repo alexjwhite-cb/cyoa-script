@@ -415,8 +415,8 @@
       statsPanel: document.getElementById('statsPanel'),
     };
 
-    // Mark active link in sidebar (the Web Demo link is always active on this page)
-    document.querySelector('.sidebar a[href="index.html"]').classList.add('active');
+    // Mark active link in sidebar/desktop-nav (the Web Demo link is always active on this page)
+    document.querySelector('.desktop-nav a[href="index.html"]').classList.add('active');
 
     // Helper: fetch a binary file as Uint8Array
     async function fetchBytes(url) {
