@@ -361,7 +361,7 @@
     <div class="desktop-nav">
       <a href="index.html">Docs</a>
       <a href="../web-demo/">Web Demo</a>
-      <a href="https://github.com/alexjwhite/cyoa-script">GitHub</a>
+      <a href="https://github.com/alexjwhite-cb/cyoa-script">GitHub</a>
     </div>
   </header>
 
@@ -400,7 +400,7 @@
         <h1>Installation Instructions</h1>
 <p>This guide covers how to obtain and use the CYOA engine across different
 platforms and game engines. The engine is distributed as pre-built artifacts on
-<a href="https://github.com/alexjwhite/cyoa-script/releases">GitHub Releases</a>, so you
+<a href="https://github.com/alexjwhite-cb/cyoa-script/releases">GitHub Releases</a>, so you
 don&#39;t need to compile from source unless you&#39;re contributing.</p>
 <h2>Table of Contents</h2>
 <ul>
@@ -417,7 +417,7 @@ don&#39;t need to compile from source unless you&#39;re contributing.</p>
 <hr>
 <h2>Latest Release</h2>
 <p>Pre-built artifacts for each release are published to
-<a href="https://github.com/alexjwhite/cyoa-script/releases">GitHub Releases</a>.</p>
+<a href="https://github.com/alexjwhite-cb/cyoa-script/releases">GitHub Releases</a>.</p>
 <p>Each release includes:</p>
 <table>
 <thead>
@@ -457,7 +457,7 @@ don&#39;t need to compile from source unless you&#39;re contributing.</p>
 <p>The CLI binary provides three commands for story authors and testers.</p>
 <h3>Install</h3>
 <p>Download the <code>cyoa-cli-&lt;platform&gt;</code> binary from the latest
-<a href="https://github.com/alexjwhite/cyoa-script/releases/latest">release page</a>.</p>
+<a href="https://github.com/alexjwhite-cb/cyoa-script/releases/latest">release page</a>.</p>
 <h3>Usage</h3>
 <pre><code class="language-bash"># Compile a story from .cyoa source to bytecode
 cyoa compile examples/forest_adventure.cyoa
@@ -545,7 +545,7 @@ engine.MakeChoice(0);
 // Save / load
 string saveJson = engine.GetStateJson();
 </code></pre>
-<p>Full integration guide: <a href="https://github.com/alexjwhite/cyoa-script/blob/main/../bindings/csharp/README.md" target="_blank"><code>bindings/csharp/README.md</code></a></p>
+<p>Full integration guide: <a href="https://github.com/alexjwhite-cb/cyoa-script/blob/main/../bindings/csharp/README.md" target="_blank"><code>bindings/csharp/README.md</code></a></p>
 <hr>
 <h2>Godot</h2>
 <p>The C-ABI library works with Godot 4.x via a C# wrapper (FFI bridge) and a
@@ -575,7 +575,7 @@ engine.make_choice(0)
 
 var save_json = engine.get_state_json()  # for saving
 </code></pre>
-<p>Full integration guide: <a href="https://github.com/alexjwhite/cyoa-script/blob/main/../bindings/godot/README.md" target="_blank"><code>bindings/godot/README.md</code></a></p>
+<p>Full integration guide: <a href="https://github.com/alexjwhite-cb/cyoa-script/blob/main/../bindings/godot/README.md" target="_blank"><code>bindings/godot/README.md</code></a></p>
 <hr>
 <h2>Native C/C++</h2>
 <p>Use the C-ABI shared library directly from C or C++.</p>
@@ -624,8 +624,8 @@ directly — no FFI overhead.</p>
 <h3>Install</h3>
 <p>Add to your <code>Cargo.toml</code>:</p>
 <pre><code class="language-toml">[dependencies]
-cyoa-runtime = { git = &quot;https://github.com/alexjwhite/cyoa-script&quot;, tag = &quot;v0.6.0&quot; }
-cyoa-bytecode = { git = &quot;https://github.com/alexjwhite/cyoa-script&quot;, tag = &quot;v0.6.0&quot; }
+cyoa-runtime = { git = &quot;https://github.com/alexjwhite-cb/cyoa-script&quot;, tag = &quot;v0.6.0&quot; }
+cyoa-bytecode = { git = &quot;https://github.com/alexjwhite-cb/cyoa-script&quot;, tag = &quot;v0.6.0&quot; }
 </code></pre>
 <p>Or use the pre-built runtime crate from crates.io if published.</p>
 <h3>Usage</h3>
@@ -654,7 +654,7 @@ let mut engine2 = Engine::new(bc);
 engine2.set_state_json(&amp;save)?;
 </code></pre>
 <p>For compiling stories from <code>.cyoa</code> source, use <code>cyoa-compiler</code>:</p>
-<pre><code class="language-toml">cyoa-compiler = { git = &quot;https://github.com/alexjwhite/cyoa-script&quot; }
+<pre><code class="language-toml">cyoa-compiler = { git = &quot;https://github.com/alexjwhite-cb/cyoa-script&quot; }
 </code></pre>
 <pre><code class="language-rust">use cyoa_compiler::Compiler;
 
@@ -680,9 +680,9 @@ at compile time, so no runtime file access is needed.</p>
 <h2>Building from Source</h2>
 <p>If you&#39;re contributing or need to build from source, see the
 <a href="#building-from-source">Quick Start</a> section of the
-<a href="https://github.com/alexjwhite/cyoa-script#quick-start">README</a>.</p>
+<a href="https://github.com/alexjwhite-cb/cyoa-script#quick-start">README</a>.</p>
 <pre><code class="language-bash"># Clone and build
-git clone https://github.com/alexjwhite/cyoa-script.git
+git clone https://github.com/alexjwhite-cb/cyoa-script.git
 cd cyoa-script
 
 # Build all crates
