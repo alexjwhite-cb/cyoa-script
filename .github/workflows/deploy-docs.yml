@@ -35,20 +35,17 @@ jobs:
       - name: Fetch latest release WASM artifacts
         run: |
           mkdir -p _site/cyoa-wasm/pkg _site/examples _site/web-demo
-          # Download the WASM package and CLI/binary artifacts from the latest release
+          # Download WASM build artifacts from the latest release
           # This avoids rebuilding WASM — WASM is only changed on release
-          gh release download --pattern "cyoa-wasm" --dir _site_wasm 2>/dev/null || echo "No WASM release found — docs-only deploy"
-          if [ -d _site_wasm/cyoa-wasm ]; then
-            cp -r _site_wasm/cyoa-wasm/* _site/cyoa-wasm/pkg/ 2>/dev/null || true
+          rm -rf release_downloads
+          gh release download --dir release_downloads 2>/dev/null || echo "No release found — docs-only deploy"
+          if [ -d release_downloads ]; then
+            # Copy WASM JS bindings + binary
+            cp release_downloads/cyoa_wasm.js _site/cyoa-wasm/pkg/ 2>/dev/null || true
+            cp release_downloads/cyoa_wasm_bg.wasm _site/cyoa-wasm/pkg/ 2>/dev/null || true
+            cp release_downloads/cyoa_wasm.d.ts _site/cyoa-wasm/pkg/ 2>/dev/null || true
           fi
-          # Also fetch example bytecode from the release
-          gh release download --pattern "*examples*" --dir _site_wasm 2>/dev/null || true
-          if [ -d _site_wasm ]; then
-            find _site_wasm -name "*.cyoa.bc" -exec cp {} _site/examples/ \; 2>/dev/null || true
-          fi
-          # Fetch native libraries for C-ABI docs reference
-          gh release download --pattern "cyoa-native-*" --dir _site_wasm 2>/dev/null || true
-          rm -rf _site_wasm
+          rm -rf release_downloads
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -69,9 +66,9 @@ jobs:
       - name: Root redirect
         run: |
           printf '%s\n' '<!doctype html>' '<html>' '<head>' '<meta charset="utf-8">' \
-            '<meta http-equiv="refresh" content="0; url=./docs/">' \
+            '<meta http-equiv="refresh" content="0; url=./web-demo/">' \
             '<title>CYOA Engine — Redirecting</title>' '</head>' '<body>' \
-            '<p>Redirecting to the <a href="./docs/">documentation site</a>…</p>' \
+            '<p>Redirecting to the <a href="./web-demo/">web demo</a>…</p>' \
             '</body>' '</html>' > _site/index.html
 
       - name: Deploy to GitHub Pages
