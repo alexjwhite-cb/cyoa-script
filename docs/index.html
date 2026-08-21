@@ -1,0 +1,808 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CYOA Engine — Declarative Language for Choose-Your-Own-Adventure Games — CYOA Engine</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card: #161b22;
+      --border: #30363d;
+      --text: #c9d1d9;
+      --text-dim: #8b949e;
+      --accent: #7c4cff;
+      --accent-hover: #996cff;
+      --success: #4ade80;
+      --warning: #facc15;
+      --code-bg: #010409;
+      --sidebar-width: 280px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: ui-system, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+                   'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      min-height: 100vh;
+    }
+
+    /* Header */
+    header {
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      padding: 0.75rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    header h1 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--accent);
+    }
+
+    header h1 a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .desktop-nav {
+      display: flex;
+      gap: 1rem;
+      font-size: 0.85rem;
+    }
+
+    .desktop-nav a {
+      color: var(--text-dim);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .desktop-nav a:hover {
+      color: var(--text);
+    }
+
+    /* Layout: sidebar + main */
+    .layout {
+      display: flex;
+      min-height: calc(100vh - 53px);
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: var(--sidebar-width);
+      background: var(--card);
+      border-right: 1px solid var(--border);
+      padding: 1.5rem;
+      overflow-y: auto;
+      position: sticky;
+      top: 0;
+      height: calc(100vh - 53px);
+    }
+
+    .sidebar h2 {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-dim);
+      margin-bottom: 1rem;
+    }
+
+    .sidebar ul {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .sidebar li {
+      margin: 0;
+    }
+
+    .sidebar a {
+      display: block;
+      padding: 0.4rem 0.6rem;
+      border-radius: 4px;
+      color: var(--text-dim);
+      text-decoration: none;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    }
+
+    .sidebar a:hover {
+      background: #1f2428;
+      color: var(--text);
+    }
+
+    .sidebar a.active {
+      background: rgba(124, 76, 255, 0.15);
+      color: var(--accent);
+    }
+
+    .sidebar .group-title {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-dim);
+      margin-top: 1rem;
+      margin-bottom: 0.3rem;
+      padding-left: 0.2rem;
+    }
+
+    .sidebar .group-title:first-child {
+      margin-top: 0;
+    }
+
+    /* Main content */
+    main {
+      flex: 1;
+      max-width: 900px;
+      padding: 2rem;
+    }
+
+    /* Content styling (rendered markdown) */
+    article {
+      max-width: 100%;
+    }
+
+    article h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 1rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.5rem;
+    }
+
+    article h2 {
+      font-size: 1.4rem;
+      font-weight: 600;
+      color: var(--text);
+      margin: 1.5rem 0 0.8rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.3rem;
+    }
+
+    article h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text);
+      margin: 1.2rem 0 0.5rem;
+    }
+
+    article h4 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin: 1rem 0 0.4rem;
+    }
+
+    article p {
+      margin-bottom: 1rem;
+    }
+
+    article a {
+      color: var(--accent);
+    }
+
+    article a:hover {
+      text-decoration: underline;
+    }
+
+    article code {
+      font-family: 'ui-monospace', 'Fira Code', 'Consolas', 'Menlo', monospace;
+      font-size: 0.9rem;
+      background: var(--code-bg);
+      padding: 0.15rem 0.4rem;
+      border-radius: 3px;
+      color: var(--success);
+    }
+
+    article code::before,
+    article code::after {
+      content: '\00a0'; /* non-breaking spaces to prevent zero-width issues */
+    }
+
+    article pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1rem;
+      margin: 1rem 0;
+      overflow-x: auto;
+    }
+
+    article pre code {
+      background: none;
+      padding: 0;
+      color: var(--text);
+      font-size: 0.85rem;
+      line-height: 1.5;
+    }
+
+    article pre code::before,
+    article pre code::after {
+      content: none;
+    }
+
+    article table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+      font-size: 0.9rem;
+    }
+
+    article th,
+    article td {
+      border: 1px solid var(--border);
+      padding: 0.5rem 0.75rem;
+      text-align: left;
+    }
+
+    article th {
+      background: #1f2428;
+      font-weight: 600;
+    }
+
+    article tr:nth-child(even) {
+      background: rgba(0, 0, 0, 0.1);
+    }
+
+    article ul,
+    article ol {
+      margin: 0.5rem 0 1rem 1.5rem;
+    }
+
+    article li {
+      margin-bottom: 0.25rem;
+    }
+
+    article blockquote {
+      border-left: 3px solid var(--accent);
+      padding: 0.5rem 1rem;
+      margin: 1rem 0;
+      background: #010409;
+      color: var(--text-dim);
+      font-style: italic;
+    }
+
+    article blockquote a {
+      color: var(--accent);
+    }
+
+    article hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 1.5rem 0;
+    }
+
+    article .highlight {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1.5rem;
+      margin: 1rem 0;
+    }
+
+    /* Tags */
+    .tag {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-family: 'ui-monospace', 'Fira Code', monospace;
+      background: #1f2428;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.1rem 0.6rem;
+      color: var(--text-dim);
+      margin-right: 0.25rem;
+    }
+
+    /* Mobile menu toggle */
+    .mobile-header {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.75rem 1.5rem;
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .menu-toggle {
+      background: #1f2428;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.4rem 0.8rem;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.8rem;
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .menu-toggle:hover {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    @media (max-width: 800px) {
+      header, .sidebar { display: none; }
+      .mobile-header { display: flex; }
+      .layout { display: block; }
+      main { padding: 2rem; }
+
+      .sidebar.mobile {
+        display: block;
+        position: fixed;
+        top: 53px;
+        left: 0;
+        right: 0;
+        background: var(--bg);
+        border-bottom: 1px solid var(--border);
+        z-index: 100;
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.3s ease;
+      }
+
+      .sidebar.mobile.open {
+        max-height: 600px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Desktop header -->
+  <header>
+    <h1><a href="/docs/index.html">CYOA Engine</a></h1>
+    <div class="desktop-nav">
+      <a href="/docs/index.html">Docs</a>
+      <a href="/web-demo/">Web Demo</a>
+      <a href="https://github.com/alexjwhite/cyoa-script">GitHub</a>
+    </div>
+  </header>
+
+  <!-- Mobile header -->
+  <div class="mobile-header">
+    <h1 style="font-size: 1.1rem; font-weight: 600; color: var(--accent);">CYOA Engine</h1>
+    <button class="menu-toggle" id="menuToggle">☰ Menu</button>
+  </div>
+
+  <div class="layout">
+    <!-- Sidebar -->
+    <nav class="sidebar" id="sidebar">
+      <h2>Documentation</h2>
+      <ul>
+        <li>
+          <div class="group-title">Getting Started</div>
+          <a href="/docs/installation.html">Installation Instructions</a>
+          <a href="/docs/index.html">Quick Start (README)</a>
+          <div class="group-title">Language</div>
+          <a href="/docs/syntax.html">Syntax Reference</a>
+          <div class="group-title">API Reference</div>
+          <a href="/docs/api-reference.html">API Overview</a>
+          <a href="/docs/wasm-api.html">WASM / JavaScript</a>
+          <a href="/docs/c-abi-api.html">C-ABI + C# / Unity</a>
+          <a href="/docs/rust-api.html">Rust Runtime API</a>
+          <a href="/docs/gdscript-api.html">GDScript (Godot)</a>
+          <div class="group-title">Deployment</div>
+          <a href="/docs/mobile.html">Mobile Guide</a>
+        </li>
+      </ul>
+    </nav>
+
+    <!-- Main content -->
+    <main>
+      <article>
+        <h1>cyoa — A Declarative Language Engine for Choose-Your-Own-Adventure Games</h1>
+<blockquote>
+<p><strong>Version 0.5.0</strong> — Phase 1 + 2 + 3 + 4 complete (incl. LSP server + mobile docs).</p>
+</blockquote>
+<h2>What Is This?</h2>
+<p><code>cyoa</code> is a <strong>declarative language and engine</strong> for writing Choose-Your-Own-
+Adventure-style stories in games. Writers and game designers use a simple,
+prose-like DSL (no programming required) to create branching narratives with
+stats, tags, reusable consequences, and prerequisites. Stories compile ahead of
+time into compact bytecode that a lightweight VM interprets at runtime —
+fast enough for large stories across web, desktop, mobile, and game engines.</p>
+<h2>Why?</h2>
+<ul>
+<li><strong>Writers, not programmers</strong>: The DSL reads like writing a story outline</li>
+<li><strong>Fast text output</strong>: Zero-copy string table delivers text without allocation</li>
+<li><strong>All platforms from one codebase</strong>: Rust → WASM (web/Unity/Godot) or native
+C-ABI (desktop/mobile)</li>
+<li><strong>Large stories</strong>: 10,000+ events supported; VM is register-based and lean</li>
+<li><strong>Writer-friendly features</strong>: <code>{{templating}}</code>, reusable <code>effect</code> blocks,
+AND/OR + stat threshold <code>requires:</code>, choice history, multi-story</li>
+</ul>
+<h2>Quick Start</h2>
+<pre><code class="language-bash"># Install (requires Rust 1.80+)
+git clone https://github.com/yourname/cyoa.git
+cd cyoa
+
+# Compile a story
+cargo run -p cyoa-cli -- compile examples/forest_adventure.cyoa
+
+# Play in the CLI
+cargo run -p cyoa-cli -- play examples/forest_adventure.cyoa.bc
+
+# Run tests
+cargo test
+
+# Build WASM (for web/Unity/Godot)
+cargo build -p cyoa-wasm --target wasm32-unknown-unknown
+
+# Run the web demo
+python3 -m http.server 8080 --directory .
+# Then open http://localhost:8080/web-demo/
+</code></pre>
+<h2>Example Story</h2>
+<pre><code class="language-cyoa">story ForestAdventure:
+
+  tags: fantasy, exploration
+
+  stat hp = 50
+  stat courage = 0
+  stat gold = 0
+
+  effect found_mushroom:
+    + courage by 1
+    text &quot;You find a glowing mushroom. It hums softly.&quot;
+
+  event old_ruins:
+    tags: exploration, early_game
+    &quot;You stand before ancient stone ruins, half-swallowed by ivy.&quot;
+
+    choice &quot;Enter the ruins&quot;:
+      set visited_old_ruins to true
+      next river_crossing
+
+    choice &quot;Circle around&quot; uses found_mushroom:
+      next dense_forest
+
+  event forest_encounter:
+    requires: visited_old_ruins AND courage &gt;= 5
+    &quot;A wolf blocks your path.&quot;
+
+    choice &quot;Attack the wolf&quot;:
+      + courage by 2
+      uses found_mushroom
+      next wolf_fight
+
+    choice &quot;Offer food&quot; uses found_mushroom:
+      - gold by 3
+      next peace_with_wolf
+
+  event tavern:
+    &quot;The barkeep eyes your coin purse.&quot;
+    &quot;You have {{gold}} gold pieces.&quot;  # template interpolation
+</code></pre>
+<h2>Features</h2>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Status</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Text output</td>
+<td>✅</td>
+<td>Zero-copy delivery via string table</td>
+</tr>
+<tr>
+<td>Stats</td>
+<td>✅</td>
+<td>Numeric state (<code>i64</code>) tracked over time</td>
+</tr>
+<tr>
+<td>Flags</td>
+<td>✅</td>
+<td>Boolean story progress markers</td>
+</tr>
+<tr>
+<td>Tags</td>
+<td>✅</td>
+<td>Story + event-level labels for filtering</td>
+</tr>
+<tr>
+<td>Reusable effects</td>
+<td>✅</td>
+<td>Define once, use from multiple choices</td>
+</tr>
+<tr>
+<td>AND/OR prerequisites</td>
+<td>✅</td>
+<td><code>requires: courage &gt;= 5 AND hp &gt; 0</code></td>
+</tr>
+<tr>
+<td>Text templating</td>
+<td>✅</td>
+<td><code>{{stat}}</code> interpolation in prose</td>
+</tr>
+<tr>
+<td>Choice history</td>
+<td>✅</td>
+<td>Serializable history of all choices</td>
+</tr>
+<tr>
+<td>Multi-story</td>
+<td>✅</td>
+<td>Independent engine per story</td>
+</tr>
+<tr>
+<td>File imports</td>
+<td>✅</td>
+<td><code>import &quot;std/...&quot;</code> and <code>import &quot;./...&quot;</code></td>
+</tr>
+<tr>
+<td>WASM/Web</td>
+<td>✅</td>
+<td>Phase 2 — zero-copy text, StoryCatalog, web demo</td>
+</tr>
+<tr>
+<td>Unity (C#)</td>
+<td>✅</td>
+<td>Phase 3</td>
+</tr>
+<tr>
+<td>Godot (GDScript + C#/.NET)</td>
+<td>✅</td>
+<td>Phase 4</td>
+</tr>
+<tr>
+<td>Mobile (Android + iOS)</td>
+<td>✅</td>
+<td>Phase 4.3</td>
+</tr>
+<tr>
+<td>LSP server</td>
+<td>✅</td>
+<td>Phase 4.2</td>
+</tr>
+<tr>
+<td>Articy:Draft import</td>
+<td>⏳</td>
+<td>Phase 5</td>
+</tr>
+</tbody></table>
+<h2>Architecture</h2>
+<pre><code>┌────────────────┐
+│  Game Engines  │  Web | Unity | Godot | Native
+├────────────────┤
+│  C-ABI / WASM  │
+├────────────────┤
+│  Runtime VM    │←── State mutations
+├────────────────┤
+│  .cyoa.bc      │←── zero-copy mmap
+├────────────────┤
+│  Compiler      │←── .cyoa source
+└────────────────┘
+</code></pre>
+<h3>Crate Layout</h3>
+<pre><code>cyoa-ast/       AST types (foundation)
+cyoa-bytecode/  Binary format + postcard serialization
+cyoa-compiler/  Pest grammar + parser + bytecode codegen
+cyoa-runtime/   VM + PlayerState + StoryCursor
+cyoa-wasm/      WASM bindings (Phase 2)
+cyoa-native/    C-ABI bindings (Phase 3)
+cyoa-cli/       CLI: compile, play, validate
+cyoa-lsp/       LSP server (Phase 4)
+</code></pre>
+<h2>Web Demo (WASM)</h2>
+<p>A working demo is in <a href="web-demo/"><code>web-demo/</code></a>. It loads two stories
+(<code>forest_adventure.cyoa</code> and <code>tavern_tales.cyoa</code>) into a <code>StoryCatalog</code>,
+filters them by tags, and plays them with zero-copy text rendering.</p>
+<pre><code class="language-bash"># From the project root:
+python3 -m http.server 8080
+# Open http://localhost:8080/web-demo/
+</code></pre>
+<h3>WASM API (JavaScript)</h3>
+<pre><code class="language-typescript">import init, { WasmStoryCatalog, WasmEngine } from &#39;./cyoa-wasm/pkg/cyoa_wasm.js&#39;;
+await init();
+
+// Register and filter stories by tag
+const catalog = new WasmStoryCatalog();
+catalog.register(bytecodeBytes);   // Uint8Array from fetch
+
+catalog.storiesWithTag(&quot;fantasy&quot;);          // array of { name, tags }
+catalog.storiesWithAllTags(&#39;[&quot;fantasy&quot;,&quot;exploration&quot;]&#39;);
+
+// Create and play a story engine
+const engine = catalog.createEngine(0);
+
+const event = engine.getCurrentEvent();
+// { id: &quot;old_ruins&quot;, text: [...], choices: [...] }
+
+engine.makeChoice(0);      // { effectText: [...], gameStateChanged: true }
+engine.getStateJson();     // for save files
+engine.setStateJson(json); // to load
+
+// Zero-copy text (returns Uint8Array view into WASM memory)
+const bytes = engine.currentEventTextBytes();
+const text = new TextDecoder().decode(bytes);
+</code></pre>
+<p>Full API reference: <a href="/docs/api-reference.html"><code>docs/api-reference.md</code></a></p>
+<h2>Unity Integration (C-ABI)</h2>
+<p><code>cyoa-native</code> compiles to a native C-ABI shared library for use with
+Unity, Godot, desktop C/C++ apps, and mobile platforms.</p>
+<pre><code class="language-bash"># Build the native plugin
+cargo build -p cyoa-native --release
+
+# Copy to Unity project
+cp target/release/libcyoa_native.* YourUnityProject/Assets/Plugins/
+</code></pre>
+<p>A C# wrapper (<code>CyoaEngine.cs</code>) provides a rich, memory-safe API mirroring
+the WASM/JS API. The Unity demo (<code>CyoaUnityDemo.cs</code>) shows two stories
+loaded simultaneously with tag filtering, choice handling, stats display,
+and save/load.</p>
+<pre><code class="language-csharp">using Cyoa;
+
+// Multi-story with tag filtering
+using var catalog = new CyoaStoryCatalog();
+catalog.RegisterStory(File.ReadAllBytes(&quot;forest_adventure.cyoa.bc&quot;));
+catalog.RegisterStory(File.ReadAllBytes(&quot;tavern_tales.cyoa.bc&quot;));
+
+var fantasyStories = catalog.StoriesWithTag(&quot;fantasy&quot;);
+using var engine = catalog.CreateEngineByName(&quot;ForestAdventure&quot;);
+
+string text = engine.CurrentEventText;
+string[] choices = engine.CurrentChoices;
+engine.MakeChoice(0);
+
+string saveJson = engine.GetStateJson();  // for saving
+engine.SetStateJson(saveJson);            // for loading
+</code></pre>
+<p>Unity integration guide: <a href="https://github.com/alexjwhite/cyoa-script/blob/main/bindings/csharp/UnityDemo/README" target="_blank"><code>bindings/csharp/UnityDemo/README.md</code></a></p>
+<h3>Mobile (Android + iOS)</h3>
+<p>Cross-compile the native library for mobile platforms:</p>
+<pre><code class="language-bash"># Android (requires cargo-ndk)
+cargo ndk -t arm64-v8a -t armeabi-v7a build -p cyoa-native --release
+
+# iOS (requires cargo-lipo, macOS + Xcode)
+cargo lipo -p cyoa-native --release
+</code></pre>
+<p>Full setup guide: <a href="/docs/mobile.html"><code>docs/mobile.md</code></a></p>
+<h2>Godot Integration (GDScript + C#)</h2>
+<p><code>cyoa-native</code> provides C-ABI bindings for Godot 4.x via a C# wrapper
+(<code>bindings/godot/csharp/</code>) and a GDScript convenience script
+(<code>bindings/godot/gdscript/</code>). Since GDScript cannot call native C functions
+directly, the C# class serves as the FFI bridge.</p>
+<pre><code class="language-bash"># Build the native plugin (same as Unity)
+cargo build -p cyoa-native --release
+# Copy target/release/libcyoa_native.* to YourProject/addons/cyoa/native/
+</code></pre>
+<pre><code class="language-gdscript"># GDScript usage
+var engine = preload(&quot;res://addons/cyoa/cyoa_engine.gd&quot;).new()
+engine.load_from_path(&quot;res://addons/cyoa/native/forest_adventure.cyoa.bc&quot;)
+print(engine.get_current_event_text())
+print(engine.get_current_choices())
+engine.make_choice(0)
+</code></pre>
+<pre><code class="language-csharp">// C# direct usage
+var engine = CyoaEngine.LoadFromFile(&quot;res://addons/cyoa/native/forest_adventure.cyoa.bc&quot;);
+GD.Print(engine.CurrentEventText);
+</code></pre>
+<p>Godot integration guide: <a href="https://github.com/alexjwhite/cyoa-script/blob/main/bindings/godot/README" target="_blank"><code>bindings/godot/README.md</code></a></p>
+<h2>Language Server Protocol (LSP)</h2>
+<p>The <code>cyoa-lsp</code> crate provides a language server for <code>.cyoa</code> files with syntax
+diagnostics, hover info, and completion. It communicates over stdio (JSON-RPC),
+making it compatible with any LSP-compatible editor (VS Code, Neovim, etc.).</p>
+<pre><code class="language-bash"># Build the LSP server
+cargo build -p cyoa-lsp
+
+# Example: configure VS Code (settings.json)
+{
+  &quot;cyoa-lsp&quot;: {
+    &quot;command&quot;: [&quot;cyoa-lsp&quot;],
+    &quot;languageId&quot;: &quot;cyoa&quot;,
+    &quot;uri&quot;: &quot;file:///path/to/cyoa-lsp&quot;
+  }
+}
+</code></pre>
+<p><strong>Features:</strong></p>
+<ul>
+<li>Real-time syntax error diagnostics on file open/change</li>
+<li>Hover shows story metadata: name, tags, stats, flags, effects, events</li>
+<li>Completion suggests event IDs, stat/flag/effect names, and DSL keywords</li>
+<li>Error hover shows line/column info</li>
+</ul>
+<h2>Documentation</h2>
+<table>
+<thead>
+<tr>
+<th>Document</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><a href="/docs/SPEC.html">SPEC.md</a></td>
+<td>Language specification (canonical)</td>
+</tr>
+<tr>
+<td><a href="/docs/CLAUDE.html">CLAUDE.md</a></td>
+<td>Claude Code context (build/test)</td>
+</tr>
+<tr>
+<td><a href="/docs/installation.html">docs/installation.md</a></td>
+<td>Installation instructions (consuming releases)</td>
+</tr>
+<tr>
+<td><a href="/docs/syntax.html">docs/syntax.md</a></td>
+<td>Extended syntax reference</td>
+</tr>
+<tr>
+<td><a href="/docs/api-reference.html">docs/api-reference.md</a></td>
+<td>API reference index + architecture overview</td>
+</tr>
+<tr>
+<td><a href="/docs/wasm-api.html">docs/wasm-api.md</a></td>
+<td>WASM / JavaScript API</td>
+</tr>
+<tr>
+<td><a href="/docs/c-abi-api.html">docs/c-abi-api.md</a></td>
+<td>C-ABI + C# (Unity) API</td>
+</tr>
+<tr>
+<td><a href="/docs/rust-api.html">docs/rust-api.md</a></td>
+<td>Rust runtime API + bytecode format + CLI</td>
+</tr>
+<tr>
+<td><a href="/docs/gdscript-api.html">docs/gdscript-api.md</a></td>
+<td>GDScript API (Godot)</td>
+</tr>
+<tr>
+<td><a href="/docs/mobile.html">docs/mobile.md</a></td>
+<td>Mobile cross-compilation (Android/iOS)</td>
+</tr>
+</tbody></table>
+<h2>License</h2>
+<p>Dual-licensed under MIT or Apache-2.0, at your option.</p>
+<hr>
+<p><em>This project was written and maintained with the help of AI (Anthropic Claude).</em>
+The language design, Rust implementation, WASM/C-ABI bindings, C#/GDScript
+bindings, LSP server, and documentation were developed in collaboration with
+Claude Code across multiple implementation phases.</p>
+
+      </article>
+    </main>
+  </div>
+
+  <script>
+    // Mobile sidebar toggle
+    const toggle = document.getElementById('menuToggle');
+    const sidebar = document.getElementById('sidebar');
+
+    // On mobile, move the sidebar into the fixed position container
+    if (window.innerWidth <= 800) {
+      const mobileSidebar = document.querySelector('.sidebar.mobile');
+      // The sidebar element itself gets cloned or shown inline
+    }
+
+    toggle.addEventListener('click', () => {
+      // For mobile: show/hide sidebar by toggling a class
+      const sidebar = document.querySelector('.sidebar');
+      if (sidebar.style.display === 'block' || sidebar.style.display === '') {
+        sidebar.style.display = 'none';
+      } else {
+        sidebar.style.display = 'block';
+      }
+    });
+
+    // Mark active link in sidebar
+    const currentPath = window.location.pathname;
+    const sidebarLinks = document.querySelectorAll('.sidebar a');
+    sidebarLinks.forEach(link => {
+      const href = link.getAttribute('href');
+      const linkPath = new URL(href, 'http://localhost').pathname;
+      if (currentPath === linkPath || currentPath.endsWith(href.replace(/^\//, ''))) {
+        link.classList.add('active');
+      }
+    });
+  </script>
+</body>
+</html>

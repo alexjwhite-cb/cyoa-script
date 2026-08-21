@@ -1,0 +1,667 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GDScript API Reference — CYOA Engine</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card: #161b22;
+      --border: #30363d;
+      --text: #c9d1d9;
+      --text-dim: #8b949e;
+      --accent: #7c4cff;
+      --accent-hover: #996cff;
+      --success: #4ade80;
+      --warning: #facc15;
+      --code-bg: #010409;
+      --sidebar-width: 280px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: ui-system, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+                   'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      min-height: 100vh;
+    }
+
+    /* Header */
+    header {
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      padding: 0.75rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    header h1 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--accent);
+    }
+
+    header h1 a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .desktop-nav {
+      display: flex;
+      gap: 1rem;
+      font-size: 0.85rem;
+    }
+
+    .desktop-nav a {
+      color: var(--text-dim);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .desktop-nav a:hover {
+      color: var(--text);
+    }
+
+    /* Layout: sidebar + main */
+    .layout {
+      display: flex;
+      min-height: calc(100vh - 53px);
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: var(--sidebar-width);
+      background: var(--card);
+      border-right: 1px solid var(--border);
+      padding: 1.5rem;
+      overflow-y: auto;
+      position: sticky;
+      top: 0;
+      height: calc(100vh - 53px);
+    }
+
+    .sidebar h2 {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-dim);
+      margin-bottom: 1rem;
+    }
+
+    .sidebar ul {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .sidebar li {
+      margin: 0;
+    }
+
+    .sidebar a {
+      display: block;
+      padding: 0.4rem 0.6rem;
+      border-radius: 4px;
+      color: var(--text-dim);
+      text-decoration: none;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    }
+
+    .sidebar a:hover {
+      background: #1f2428;
+      color: var(--text);
+    }
+
+    .sidebar a.active {
+      background: rgba(124, 76, 255, 0.15);
+      color: var(--accent);
+    }
+
+    .sidebar .group-title {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-dim);
+      margin-top: 1rem;
+      margin-bottom: 0.3rem;
+      padding-left: 0.2rem;
+    }
+
+    .sidebar .group-title:first-child {
+      margin-top: 0;
+    }
+
+    /* Main content */
+    main {
+      flex: 1;
+      max-width: 900px;
+      padding: 2rem;
+    }
+
+    /* Content styling (rendered markdown) */
+    article {
+      max-width: 100%;
+    }
+
+    article h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 1rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.5rem;
+    }
+
+    article h2 {
+      font-size: 1.4rem;
+      font-weight: 600;
+      color: var(--text);
+      margin: 1.5rem 0 0.8rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.3rem;
+    }
+
+    article h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text);
+      margin: 1.2rem 0 0.5rem;
+    }
+
+    article h4 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin: 1rem 0 0.4rem;
+    }
+
+    article p {
+      margin-bottom: 1rem;
+    }
+
+    article a {
+      color: var(--accent);
+    }
+
+    article a:hover {
+      text-decoration: underline;
+    }
+
+    article code {
+      font-family: 'ui-monospace', 'Fira Code', 'Consolas', 'Menlo', monospace;
+      font-size: 0.9rem;
+      background: var(--code-bg);
+      padding: 0.15rem 0.4rem;
+      border-radius: 3px;
+      color: var(--success);
+    }
+
+    article code::before,
+    article code::after {
+      content: '\00a0'; /* non-breaking spaces to prevent zero-width issues */
+    }
+
+    article pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1rem;
+      margin: 1rem 0;
+      overflow-x: auto;
+    }
+
+    article pre code {
+      background: none;
+      padding: 0;
+      color: var(--text);
+      font-size: 0.85rem;
+      line-height: 1.5;
+    }
+
+    article pre code::before,
+    article pre code::after {
+      content: none;
+    }
+
+    article table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+      font-size: 0.9rem;
+    }
+
+    article th,
+    article td {
+      border: 1px solid var(--border);
+      padding: 0.5rem 0.75rem;
+      text-align: left;
+    }
+
+    article th {
+      background: #1f2428;
+      font-weight: 600;
+    }
+
+    article tr:nth-child(even) {
+      background: rgba(0, 0, 0, 0.1);
+    }
+
+    article ul,
+    article ol {
+      margin: 0.5rem 0 1rem 1.5rem;
+    }
+
+    article li {
+      margin-bottom: 0.25rem;
+    }
+
+    article blockquote {
+      border-left: 3px solid var(--accent);
+      padding: 0.5rem 1rem;
+      margin: 1rem 0;
+      background: #010409;
+      color: var(--text-dim);
+      font-style: italic;
+    }
+
+    article blockquote a {
+      color: var(--accent);
+    }
+
+    article hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 1.5rem 0;
+    }
+
+    article .highlight {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1.5rem;
+      margin: 1rem 0;
+    }
+
+    /* Tags */
+    .tag {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-family: 'ui-monospace', 'Fira Code', monospace;
+      background: #1f2428;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.1rem 0.6rem;
+      color: var(--text-dim);
+      margin-right: 0.25rem;
+    }
+
+    /* Mobile menu toggle */
+    .mobile-header {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.75rem 1.5rem;
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .menu-toggle {
+      background: #1f2428;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.4rem 0.8rem;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.8rem;
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .menu-toggle:hover {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    @media (max-width: 800px) {
+      header, .sidebar { display: none; }
+      .mobile-header { display: flex; }
+      .layout { display: block; }
+      main { padding: 2rem; }
+
+      .sidebar.mobile {
+        display: block;
+        position: fixed;
+        top: 53px;
+        left: 0;
+        right: 0;
+        background: var(--bg);
+        border-bottom: 1px solid var(--border);
+        z-index: 100;
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.3s ease;
+      }
+
+      .sidebar.mobile.open {
+        max-height: 600px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Desktop header -->
+  <header>
+    <h1><a href="/docs/index.html">CYOA Engine</a></h1>
+    <div class="desktop-nav">
+      <a href="/docs/index.html">Docs</a>
+      <a href="/web-demo/">Web Demo</a>
+      <a href="https://github.com/alexjwhite/cyoa-script">GitHub</a>
+    </div>
+  </header>
+
+  <!-- Mobile header -->
+  <div class="mobile-header">
+    <h1 style="font-size: 1.1rem; font-weight: 600; color: var(--accent);">CYOA Engine</h1>
+    <button class="menu-toggle" id="menuToggle">☰ Menu</button>
+  </div>
+
+  <div class="layout">
+    <!-- Sidebar -->
+    <nav class="sidebar" id="sidebar">
+      <h2>Documentation</h2>
+      <ul>
+        <li>
+          <div class="group-title">Getting Started</div>
+          <a href="/docs/installation.html">Installation Instructions</a>
+          <a href="/docs/index.html">Quick Start (README)</a>
+          <div class="group-title">Language</div>
+          <a href="/docs/syntax.html">Syntax Reference</a>
+          <div class="group-title">API Reference</div>
+          <a href="/docs/api-reference.html">API Overview</a>
+          <a href="/docs/wasm-api.html">WASM / JavaScript</a>
+          <a href="/docs/c-abi-api.html">C-ABI + C# / Unity</a>
+          <a href="/docs/rust-api.html">Rust Runtime API</a>
+          <a href="/docs/gdscript-api.html">GDScript (Godot)</a>
+          <div class="group-title">Deployment</div>
+          <a href="/docs/mobile.html">Mobile Guide</a>
+        </li>
+      </ul>
+    </nav>
+
+    <!-- Main content -->
+    <main>
+      <article>
+        <h1>GDScript API Reference</h1>
+<p>The GDScript wrapper (<code>cyoa_engine.gd</code>) provides a Godot-friendly API that
+delegates to the C# FFI layer. Since GDScript cannot call native C functions
+directly, the C# <code>CyoaEngine</code> / <code>CyoaStoryCatalog</code> class acts as the
+bridge — this script is a thin wrapper around it.</p>
+<h2>Setup</h2>
+<pre><code>YourGodotProject/
+├── addons/
+│   └── cyoa/
+│       ├── cyoa_engine.gd        # GDScript wrapper (this file)
+│       ├── scripts/
+│       │   └── CyoaEngine.cs     # C# FFI bridge
+│       └── native/
+│           ├── libcyoa_native.so # (or .dll / .dylib)
+│           └── forest_adventure.cyoa.bc
+</code></pre>
+<p>Load the script:</p>
+<pre><code class="language-gdscript">var engine = preload(&quot;res://addons/cyoa/cyoa_engine.gd&quot;).new()
+</code></pre>
+<h2>Two Usage Patterns</h2>
+<p>The <code>CyoaEngineGD</code> class supports <strong>catalog mode</strong> and <strong>engine mode</strong> in a
+single class. Catalog mode is used first to discover and filter stories;
+once an engine is created, the instance automatically switches to engine mode.</p>
+<h3>Catalog mode</h3>
+<pre><code class="language-gdscript"># Register multiple stories and filter by tags
+var catalog = preload(&quot;res://addons/cyoa/cyoa_engine.gd&quot;).new()
+catalog.register_story(&quot;res://addons/cyoa/native/forest_adventure.cyoa.bc&quot;)
+catalog.register_story(&quot;res://addons/cyoa/native/tavern_tales.cyoa.bc&quot;)
+
+# Discover stories
+var fantasy_stories = catalog.stories_with_tag(&quot;fantasy&quot;)
+
+# Create an engine — returns a new CyoaEngineGD instance in engine mode
+var engine = catalog.create_engine_by_name(&quot;ForestAdventure&quot;)
+</code></pre>
+<h3>Engine mode</h3>
+<pre><code class="language-gdscript">var engine = preload(&quot;res://addons/cyoa/cyoa_engine.gd&quot;).new()
+engine.load_from_path(&quot;res://addons/cyoa/native/forest_adventure.cyoa.bc&quot;)
+</code></pre>
+<hr>
+<h2>Catalog API</h2>
+<h3><code>register_story(path: String) -&gt; void</code></h3>
+<p>Register a compiled story from a <code>.cyoa.bc</code> file path. Switches the instance
+to catalog mode.</p>
+<pre><code class="language-gdscript">catalog.register_story(&quot;res://addons/cyoa/native/forest_adventure.cyoa.bc&quot;)
+</code></pre>
+<h3><code>register_story_from_bytes(bytes: PackedVectorByteArray) -&gt; void</code></h3>
+<p>Register a compiled story from bytecode bytes. Switches to catalog mode.</p>
+<pre><code class="language-gdscript">var bytes = FileAccess.get_file_as_bytes(&quot;res://addons/cyoa/native/forest_adventure.cyoa.bc&quot;)
+catalog.register_story_from_bytes(bytes)
+</code></pre>
+<h3><code>story_count() -&gt; int</code></h3>
+<p>Number of registered stories in catalog mode.</p>
+<pre><code class="language-gdscript">print(catalog.story_count())  # → 2
+</code></pre>
+<h3><code>list_stories() -&gt; Array</code></h3>
+<p>List all registered stories as an array of <code>{ name, tags }</code> dictionaries.</p>
+<pre><code class="language-gdscript">for story in catalog.list_stories():
+    print(story.name, story.tags)
+</code></pre>
+<h3><code>stories_with_tag(tag: String) -&gt; Array</code></h3>
+<p>Find all stories that have a specific tag.</p>
+<pre><code class="language-gdscript">var fantasy = catalog.stories_with_tag(&quot;fantasy&quot;)
+</code></pre>
+<h3><code>stories_with_all_tags(tags: Array) -&gt; Array</code></h3>
+<p>Find all stories that have <strong>ALL</strong> of the specified tags.</p>
+<pre><code class="language-gdscript">var stories = catalog.stories_with_all_tags([&quot;fantasy&quot;, &quot;exploration&quot;])
+</code></pre>
+<h3><code>stories_with_any_tags(tags: Array) -&gt; Array</code></h3>
+<p>Find all stories that have <strong>ANY</strong> of the specified tags.</p>
+<pre><code class="language-gdscript">var stories = catalog.stories_with_any_tags([&quot;combat&quot;, &quot;social&quot;])
+</code></pre>
+<h3><code>create_engine(index: int) -&gt; Object</code></h3>
+<p>Create a <code>CyoaEngineGD</code> instance (in engine mode) for the story at the
+given catalog index. Returns <code>null</code> if out of bounds.</p>
+<pre><code class="language-gdscript">var engine = catalog.create_engine(0)
+</code></pre>
+<h3><code>create_engine_by_name(name: String) -&gt; Object</code></h3>
+<p>Find a story by name and create a <code>CyoaEngineGD</code> instance for it.
+Returns <code>null</code> if not found.</p>
+<pre><code class="language-gdscript">var engine = catalog.create_engine_by_name(&quot;ForestAdventure&quot;)
+</code></pre>
+<h3><code>_exit_tree() -&gt; void</code></h3>
+<p>Cleanup method — frees the C# engine or catalog instance. Call
+<code>queue_free()</code> on the <code>CyoaEngineGD</code> instance rather than calling directly.</p>
+<hr>
+<h2>Engine API</h2>
+<p>All engine-mode methods return empty/zero values if the engine hasn&#39;t been
+loaded or if <code>_engine</code> is <code>null</code>.</p>
+<h3><code>load_from_path(path: String) -&gt; Error</code></h3>
+<p>Load a story from a <code>.cyoa.bc</code> file path. Returns <code>OK</code> on success,
+<code>ERR_FILE_NOT_FOUND</code> if the file doesn&#39;t exist.</p>
+<pre><code class="language-gdscript">var err = engine.load_from_path(&quot;res://addons/cyoa/native/forest_adventure.cyoa.bc&quot;)
+assert(err == OK)
+</code></pre>
+<h3><code>load_from_bytes(bytecode: PackedVectorByteArray) -&gt; Error</code></h3>
+<p>Load a story from bytecode bytes. Returns <code>OK</code> on success,
+<code>ERR_INVALID_INPUT</code> if bytes are empty.</p>
+<pre><code class="language-gdscript">var bytes = FileAccess.get_file_as_bytes(path)
+var err = engine.load_from_bytes(bytes)
+</code></pre>
+<h3><code>get_current_event_id() -&gt; String</code></h3>
+<p>Internal event ID (name). Returns <code>&quot;&quot;</code> if no engine loaded.</p>
+<pre><code class="language-gdscript">print(engine.get_current_event_id())  # → &quot;old_ruins&quot;
+</code></pre>
+<h3><code>get_current_event_text() -&gt; String</code></h3>
+<p>Current event text paragraphs joined by <code>\n</code>. Returns <code>&quot;&quot;</code> if no engine loaded.</p>
+<pre><code class="language-gdscript">print(engine.get_current_event_text())
+</code></pre>
+<h3><code>get_choice_count() -&gt; int</code></h3>
+<p>Number of currently available choices.</p>
+<pre><code class="language-gdscript">var count = engine.get_choice_count()
+for i in range(count):
+    print(engine.get_choice_text(i))
+</code></pre>
+<h3><code>get_choice_text(index: int) -&gt; String</code></h3>
+<p>Text of the choice at the given index. Returns <code>&quot;&quot;</code> if out of bounds.</p>
+<h3><code>get_current_choices() -&gt; PackedStringArray</code></h3>
+<p>All current choice texts as an array.</p>
+<pre><code class="language-gdscript">var choices = engine.get_current_choices()
+for choice in choices:
+    print(choice)
+</code></pre>
+<h3><code>make_choice(index: int) -&gt; void</code></h3>
+<p>Apply the player&#39;s choice at the given 0-based index. After this call, the
+engine has advanced to the next event.</p>
+<pre><code class="language-gdscript">engine.make_choice(0)
+print(engine.get_current_event_text())
+</code></pre>
+<h3><code>get_last_effect_text() -&gt; String</code></h3>
+<p>Effect text from the most recent <code>make_choice()</code> call. Multiple effect
+fragments are joined by <code>\n</code>. Returns <code>&quot;&quot;</code> if no engine loaded.</p>
+<pre><code class="language-gdscript">engine.make_choice(0)
+print(engine.get_last_effect_text())
+</code></pre>
+<hr>
+<h2>History API</h2>
+<h3><code>get_history_length() -&gt; int</code></h3>
+<p>Number of entries in the choice history.</p>
+<h3><code>get_history_entry(index: int) -&gt; Dictionary</code></h3>
+<p>Get a single history entry as <code>{ event_id, choice_index, choice_text }</code>.
+Returns <code>{}</code> if out of bounds.</p>
+<pre><code class="language-gdscript">for i in range(engine.get_history_length()):
+    var entry = engine.get_history_entry(i)
+    print(entry.event_id, entry.choice_index, entry.choice_text)
+</code></pre>
+<h3><code>get_all_history() -&gt; Array</code></h3>
+<p>All history entries as an array of dictionaries.</p>
+<pre><code class="language-gdscript">for entry in engine.get_all_history():
+    print(entry.event_id, entry.choice_index)
+</code></pre>
+<hr>
+<h2>State API</h2>
+<h3><code>get_state_json() -&gt; String</code></h3>
+<p>Full player state as JSON (stats, flags, tags, current_event, choice_history,
+complete). Use for save files.</p>
+<pre><code class="language-gdscript">var save_json = engine.get_state_json()
+# Save to file, database, etc.
+</code></pre>
+<h3><code>set_state_json(json: String) -&gt; void</code></h3>
+<p>Restore state from a JSON string produced by <code>get_state_json()</code>.</p>
+<pre><code class="language-gdscript">engine.set_state_json(save_json)
+</code></pre>
+<hr>
+<h2>Queries</h2>
+<h3><code>get_available_events() -&gt; PackedStringArray</code></h3>
+<p>All event IDs in the story. Useful for quest logs.</p>
+<h3><code>can_access_event(id: String) -&gt; bool</code></h3>
+<p>Whether an event by ID exists in the story&#39;s event index.</p>
+<pre><code class="language-gdscript">if engine.can_access_event(&quot;wolf_fight&quot;):
+    print(&quot;Wolf fight is reachable.&quot;)
+</code></pre>
+<h3><code>is_story_complete() -&gt; bool</code></h3>
+<p>Returns <code>true</code> if the story has ended — a terminal choice was made
+(a choice with no <code>next</code> event).</p>
+<pre><code class="language-gdscript">engine.make_choice(0)
+if engine.is_story_complete():
+    print(&quot;The story is over.&quot;)
+</code></pre>
+<hr>
+<h2>Stats / Tags / Flags</h2>
+<h3><code>get_stats() -&gt; Dictionary</code></h3>
+<p>Stat name → current value as a <code>Dictionary</code>.</p>
+<pre><code class="language-gdscript">var stats = engine.get_stats()
+print(stats[&quot;hp&quot;])  # → 50
+</code></pre>
+<h3><code>get_stat(name: String) -&gt; int</code></h3>
+<p>Individual stat value. Returns <code>0</code> if the stat doesn&#39;t exist.</p>
+<h3><code>get_story_tags() -&gt; PackedStringArray</code></h3>
+<p>Story-level tags (static metadata from the <code>.cyoa</code> file).</p>
+<h3><code>get_tags() -&gt; PackedStringArray</code></h3>
+<p>Runtime tags currently applied during play.</p>
+<h3><code>get_flags() -&gt; PackedStringArray</code></h3>
+<p>Runtime flags currently set.</p>
+<hr>
+<h2>Full Example</h2>
+<pre><code class="language-gdscript"># Load the engine wrapper
+var engine = preload(&quot;res://addons/cyoa/cyoa_engine.gd&quot;).new()
+engine.load_from_path(&quot;res://addons/cyoa/native/forest_adventure.cyoa.bc&quot;)
+
+# Show the current event
+print(&quot;Event: %s&quot; % engine.get_current_event_id())
+print(engine.get_current_event_text())
+
+# Show choices
+var choices = engine.get_current_choices()
+for i in range(choices.size()):
+    print(&quot;  [%d] %s&quot; % [i, choices[i]])
+
+# Make a choice
+engine.make_choice(0)
+
+# Save state
+var save_json = engine.get_state_json()
+# → {&quot;stats&quot;:{...},&quot;flags&quot;:[...],&quot;tags&quot;:[...],&quot;current_event&quot;:3,&quot;choice_history&quot;:[...]}
+
+# Later — restore state
+engine.set_state_json(save_json)
+
+# History
+for entry in engine.get_all_history():
+    print(&quot;  %s → %s&quot; % [entry.event_id, entry.choice_text])
+
+# Cleanup (if not using auto-free via _exit_tree)
+engine._exit_tree()
+</code></pre>
+<hr>
+<p>See <a href="https://github.com/alexjwhite/cyoa-script/blob/main/../bindings/godot/README" target="_blank"><code>bindings/godot/README.md</code></a> for the full
+Godot integration guide, including C# wrapper API and mobile setup.</p>
+
+      </article>
+    </main>
+  </div>
+
+  <script>
+    // Mobile sidebar toggle
+    const toggle = document.getElementById('menuToggle');
+    const sidebar = document.getElementById('sidebar');
+
+    // On mobile, move the sidebar into the fixed position container
+    if (window.innerWidth <= 800) {
+      const mobileSidebar = document.querySelector('.sidebar.mobile');
+      // The sidebar element itself gets cloned or shown inline
+    }
+
+    toggle.addEventListener('click', () => {
+      // For mobile: show/hide sidebar by toggling a class
+      const sidebar = document.querySelector('.sidebar');
+      if (sidebar.style.display === 'block' || sidebar.style.display === '') {
+        sidebar.style.display = 'none';
+      } else {
+        sidebar.style.display = 'block';
+      }
+    });
+
+    // Mark active link in sidebar
+    const currentPath = window.location.pathname;
+    const sidebarLinks = document.querySelectorAll('.sidebar a');
+    sidebarLinks.forEach(link => {
+      const href = link.getAttribute('href');
+      const linkPath = new URL(href, 'http://localhost').pathname;
+      if (currentPath === linkPath || currentPath.endsWith(href.replace(/^\//, ''))) {
+        link.classList.add('active');
+      }
+    });
+  </script>
+</body>
+</html>

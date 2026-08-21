@@ -1,0 +1,678 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WASM / JavaScript API Reference — CYOA Engine</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card: #161b22;
+      --border: #30363d;
+      --text: #c9d1d9;
+      --text-dim: #8b949e;
+      --accent: #7c4cff;
+      --accent-hover: #996cff;
+      --success: #4ade80;
+      --warning: #facc15;
+      --code-bg: #010409;
+      --sidebar-width: 280px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: ui-system, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+                   'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      min-height: 100vh;
+    }
+
+    /* Header */
+    header {
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      padding: 0.75rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    header h1 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--accent);
+    }
+
+    header h1 a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .desktop-nav {
+      display: flex;
+      gap: 1rem;
+      font-size: 0.85rem;
+    }
+
+    .desktop-nav a {
+      color: var(--text-dim);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .desktop-nav a:hover {
+      color: var(--text);
+    }
+
+    /* Layout: sidebar + main */
+    .layout {
+      display: flex;
+      min-height: calc(100vh - 53px);
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: var(--sidebar-width);
+      background: var(--card);
+      border-right: 1px solid var(--border);
+      padding: 1.5rem;
+      overflow-y: auto;
+      position: sticky;
+      top: 0;
+      height: calc(100vh - 53px);
+    }
+
+    .sidebar h2 {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-dim);
+      margin-bottom: 1rem;
+    }
+
+    .sidebar ul {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .sidebar li {
+      margin: 0;
+    }
+
+    .sidebar a {
+      display: block;
+      padding: 0.4rem 0.6rem;
+      border-radius: 4px;
+      color: var(--text-dim);
+      text-decoration: none;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    }
+
+    .sidebar a:hover {
+      background: #1f2428;
+      color: var(--text);
+    }
+
+    .sidebar a.active {
+      background: rgba(124, 76, 255, 0.15);
+      color: var(--accent);
+    }
+
+    .sidebar .group-title {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-dim);
+      margin-top: 1rem;
+      margin-bottom: 0.3rem;
+      padding-left: 0.2rem;
+    }
+
+    .sidebar .group-title:first-child {
+      margin-top: 0;
+    }
+
+    /* Main content */
+    main {
+      flex: 1;
+      max-width: 900px;
+      padding: 2rem;
+    }
+
+    /* Content styling (rendered markdown) */
+    article {
+      max-width: 100%;
+    }
+
+    article h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 1rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.5rem;
+    }
+
+    article h2 {
+      font-size: 1.4rem;
+      font-weight: 600;
+      color: var(--text);
+      margin: 1.5rem 0 0.8rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.3rem;
+    }
+
+    article h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text);
+      margin: 1.2rem 0 0.5rem;
+    }
+
+    article h4 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin: 1rem 0 0.4rem;
+    }
+
+    article p {
+      margin-bottom: 1rem;
+    }
+
+    article a {
+      color: var(--accent);
+    }
+
+    article a:hover {
+      text-decoration: underline;
+    }
+
+    article code {
+      font-family: 'ui-monospace', 'Fira Code', 'Consolas', 'Menlo', monospace;
+      font-size: 0.9rem;
+      background: var(--code-bg);
+      padding: 0.15rem 0.4rem;
+      border-radius: 3px;
+      color: var(--success);
+    }
+
+    article code::before,
+    article code::after {
+      content: '\00a0'; /* non-breaking spaces to prevent zero-width issues */
+    }
+
+    article pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1rem;
+      margin: 1rem 0;
+      overflow-x: auto;
+    }
+
+    article pre code {
+      background: none;
+      padding: 0;
+      color: var(--text);
+      font-size: 0.85rem;
+      line-height: 1.5;
+    }
+
+    article pre code::before,
+    article pre code::after {
+      content: none;
+    }
+
+    article table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+      font-size: 0.9rem;
+    }
+
+    article th,
+    article td {
+      border: 1px solid var(--border);
+      padding: 0.5rem 0.75rem;
+      text-align: left;
+    }
+
+    article th {
+      background: #1f2428;
+      font-weight: 600;
+    }
+
+    article tr:nth-child(even) {
+      background: rgba(0, 0, 0, 0.1);
+    }
+
+    article ul,
+    article ol {
+      margin: 0.5rem 0 1rem 1.5rem;
+    }
+
+    article li {
+      margin-bottom: 0.25rem;
+    }
+
+    article blockquote {
+      border-left: 3px solid var(--accent);
+      padding: 0.5rem 1rem;
+      margin: 1rem 0;
+      background: #010409;
+      color: var(--text-dim);
+      font-style: italic;
+    }
+
+    article blockquote a {
+      color: var(--accent);
+    }
+
+    article hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 1.5rem 0;
+    }
+
+    article .highlight {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1.5rem;
+      margin: 1rem 0;
+    }
+
+    /* Tags */
+    .tag {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-family: 'ui-monospace', 'Fira Code', monospace;
+      background: #1f2428;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.1rem 0.6rem;
+      color: var(--text-dim);
+      margin-right: 0.25rem;
+    }
+
+    /* Mobile menu toggle */
+    .mobile-header {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.75rem 1.5rem;
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .menu-toggle {
+      background: #1f2428;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.4rem 0.8rem;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.8rem;
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .menu-toggle:hover {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    @media (max-width: 800px) {
+      header, .sidebar { display: none; }
+      .mobile-header { display: flex; }
+      .layout { display: block; }
+      main { padding: 2rem; }
+
+      .sidebar.mobile {
+        display: block;
+        position: fixed;
+        top: 53px;
+        left: 0;
+        right: 0;
+        background: var(--bg);
+        border-bottom: 1px solid var(--border);
+        z-index: 100;
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.3s ease;
+      }
+
+      .sidebar.mobile.open {
+        max-height: 600px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Desktop header -->
+  <header>
+    <h1><a href="/docs/index.html">CYOA Engine</a></h1>
+    <div class="desktop-nav">
+      <a href="/docs/index.html">Docs</a>
+      <a href="/web-demo/">Web Demo</a>
+      <a href="https://github.com/alexjwhite/cyoa-script">GitHub</a>
+    </div>
+  </header>
+
+  <!-- Mobile header -->
+  <div class="mobile-header">
+    <h1 style="font-size: 1.1rem; font-weight: 600; color: var(--accent);">CYOA Engine</h1>
+    <button class="menu-toggle" id="menuToggle">☰ Menu</button>
+  </div>
+
+  <div class="layout">
+    <!-- Sidebar -->
+    <nav class="sidebar" id="sidebar">
+      <h2>Documentation</h2>
+      <ul>
+        <li>
+          <div class="group-title">Getting Started</div>
+          <a href="/docs/installation.html">Installation Instructions</a>
+          <a href="/docs/index.html">Quick Start (README)</a>
+          <div class="group-title">Language</div>
+          <a href="/docs/syntax.html">Syntax Reference</a>
+          <div class="group-title">API Reference</div>
+          <a href="/docs/api-reference.html">API Overview</a>
+          <a href="/docs/wasm-api.html">WASM / JavaScript</a>
+          <a href="/docs/c-abi-api.html">C-ABI + C# / Unity</a>
+          <a href="/docs/rust-api.html">Rust Runtime API</a>
+          <a href="/docs/gdscript-api.html">GDScript (Godot)</a>
+          <div class="group-title">Deployment</div>
+          <a href="/docs/mobile.html">Mobile Guide</a>
+        </li>
+      </ul>
+    </nav>
+
+    <!-- Main content -->
+    <main>
+      <article>
+        <h1>WASM / JavaScript API Reference</h1>
+<p>The WASM module is built with <code>wasm-bindgen</code> and exported as an ES module.
+It provides two classes: <code>WasmStoryCatalog</code> (multi-story discovery) and
+<code>WasmEngine</code> (playback for a single story).</p>
+<h2>Loading</h2>
+<pre><code class="language-typescript">import init, { WasmStoryCatalog, WasmEngine } from &#39;./cyoa_wasm.js&#39;;
+
+// Must be called once before using any exported class
+await init();
+</code></pre>
+<hr>
+<h2>WasmStoryCatalog</h2>
+<p>A registry of compiled stories with tag-based filtering. Use this to discover
+stories (especially for random event systems) before creating an engine to play
+them.</p>
+<h3>Constructor</h3>
+<h4><code>new WasmStoryCatalog()</code></h4>
+<p>Creates an empty story catalog.</p>
+<pre><code class="language-typescript">const catalog = new WasmStoryCatalog();
+</code></pre>
+<h3>Methods</h3>
+<h4><code>register(bytes: Uint8Array): void</code></h4>
+<p>Register a compiled story from bytecode bytes. The bytecode must have been
+produced by <code>cyoa compile</code>.</p>
+<pre><code class="language-typescript">const response = await fetch(&#39;./forest_adventure.cyoa.bc&#39;);
+const bytes = new Uint8Array(await response.arrayBuffer());
+catalog.register(bytes);
+</code></pre>
+<p><strong>Throws</strong> if the bytecode fails to decode.</p>
+<h4><code>len(): number</code></h4>
+<p>Number of registered stories.</p>
+<pre><code class="language-typescript">console.log(catalog.len());  // → 2
+</code></pre>
+<h4><code>isEmpty(): boolean</code></h4>
+<p>Whether the catalog has zero registered stories.</p>
+<pre><code class="language-typescript">if (catalog.isEmpty()) {
+  console.log(&quot;No stories loaded yet.&quot;);
+}
+</code></pre>
+<h4><code>listStories(): { name: string; tags: string[] }[]</code></h4>
+<p>List all registered stories with their names and tags.</p>
+<pre><code class="language-typescript">const stories = catalog.listStories();
+// → [{ name: &quot;ForestAdventure&quot;, tags: [&quot;fantasy&quot;, &quot;exploration&quot;] }, ...]
+</code></pre>
+<h4><code>storiesWithTag(tag: string): { name: string; tags: string[] }[]</code></h4>
+<p>Find all stories that have a specific tag.</p>
+<pre><code class="language-typescript">const fantasyStories = catalog.storiesWithTag(&quot;fantasy&quot;);
+// → [{ name: &quot;ForestAdventure&quot;, tags: [&quot;fantasy&quot;, &quot;exploration&quot;] }]
+</code></pre>
+<h4><code>storiesWithAllTags(tagsJson: string): { name: string; tags: string[] }[]</code></h4>
+<p>Find all stories that have <strong>ALL</strong> of the specified tags.</p>
+<p><code>tagsJson</code> is a JSON array of tag strings:</p>
+<pre><code class="language-typescript">const stories = catalog.storiesWithAllTags(&#39;[&quot;fantasy&quot;, &quot;exploration&quot;]&#39;);
+</code></pre>
+<h4><code>storiesWithAnyTags(tagsJson: string): { name: string; tags: string[] }[]</code></h4>
+<p>Find all stories that have <strong>ANY</strong> of the specified tags.</p>
+<pre><code class="language-typescript">const stories = catalog.storiesWithAnyTags(&#39;[&quot;combat&quot;, &quot;social&quot;]&#39;);
+</code></pre>
+<h4><code>createEngine(index: number): WasmEngine \| null</code></h4>
+<p>Create a <code>WasmEngine</code> for the story at the given index (0-based).</p>
+<p>Returns <code>null</code> if the index is out of bounds.</p>
+<pre><code class="language-typescript">const engine = catalog.createEngine(0);
+</code></pre>
+<h4><code>createEngineByName(name: string): WasmEngine \| null</code></h4>
+<p>Find a story by its declared name and create a <code>WasmEngine</code> for it.</p>
+<p>Returns <code>null</code> if no story with that name is registered.</p>
+<pre><code class="language-typescript">const engine = catalog.createEngineByName(&quot;ForestAdventure&quot;);
+</code></pre>
+<hr>
+<h2>WasmEngine</h2>
+<p>A CYOA story engine instance. Each engine is independent — state is never
+shared between instances. Create one per story (main quest, side quests, etc.).</p>
+<h3>Constructor</h3>
+<h4><code>new WasmEngine(bytes: Uint8Array)</code></h4>
+<p>Create an engine directly from compiled bytecode bytes. Alternatively, use
+<code>WasmStoryCatalog.createEngine()</code> to create engines from a catalog.</p>
+<pre><code class="language-typescript">const engine = new WasmEngine(bytecodeBytes);
+</code></pre>
+<p><strong>Throws</strong> if the bytecode fails to decode.</p>
+<h3>High-Level API</h3>
+<h4><code>currentEventId(): string</code></h4>
+<p>Get the current event&#39;s internal ID (name).</p>
+<pre><code class="language-typescript">console.log(engine.currentEventId());
+// → &quot;old_ruins&quot;
+</code></pre>
+<h4><code>getCurrentEvent(): { id: string; text: string[]; choices: string[] }</code></h4>
+<p>Get the current event as a JavaScript object. Templates are already rendered
+(e.g., <code>{{gold}}</code> → <code>42</code>). Choices with unmet prerequisites are excluded
+from the list.</p>
+<pre><code class="language-typescript">const event = engine.getCurrentEvent();
+// → {
+//     id: &quot;old_ruins&quot;,
+//     text: [&quot;You stand before ancient stone ruins...&quot;, &quot;A cold wind whispers...&quot;],
+//     choices: [&quot;Enter the ruins&quot;, &quot;Circle around&quot;]
+//   }
+</code></pre>
+<h4><code>makeChoice(choiceIndex: number): { effectText: string[]; gameStateChanged: boolean }</code></h4>
+<p>Make a choice at the given 0-based index. The index references only choices
+visible to the player (prerequisites are already filtered).</p>
+<p>The returned <code>effectText</code> array contains any text produced by the choice&#39;s
+effects (e.g., &quot;You find a glowing mushroom.&quot;).</p>
+<pre><code class="language-typescript">const result = engine.makeChoice(0);
+// → { effectText: [&quot;You find a glowing mushroom. It hums softly.&quot;], gameStateChanged: true }
+</code></pre>
+<h4><code>getHistory(): { eventId: string; choiceIndex: number; choiceText: string }[]</code></h4>
+<p>Get the choice history as an array of objects. Useful for UI display,
+analytics, and save/load systems.</p>
+<pre><code class="language-typescript">const history = engine.getHistory();
+// → [
+//     { eventId: &quot;start&quot;, choiceIndex: 0, choiceText: &quot;Enter the forest&quot; },
+//     { eventId: &quot;forest_path&quot;, choiceIndex: 1, choiceText: &quot;Return to the entrance&quot; },
+//   ]
+</code></pre>
+<h4><code>getStateJson(): string</code></h4>
+<p>Get the full player state as a JSON string (for save files). The JSON includes
+<code>stats</code>, <code>flags</code>, <code>tags</code>, <code>current_event</code>, <code>choice_history</code>, and <code>complete</code>
+— enabling full save/load between sessions.</p>
+<pre><code class="language-typescript">const saveJson = engine.getStateJson();
+localStorage.setItem(&quot;my-save&quot;, saveJson);
+</code></pre>
+<p><strong>Memory contract</strong>: The returned string is valid until the next method call
+on this engine.</p>
+<h4><code>setStateJson(json: string): void</code></h4>
+<p>Restore state from a JSON string produced by <code>getStateJson()</code>.</p>
+<pre><code class="language-typescript">const saveJson = localStorage.getItem(&quot;my-save&quot;);
+engine.setStateJson(saveJson);
+</code></pre>
+<p><strong>Throws</strong> if the JSON is malformed or doesn&#39;t match the expected schema.</p>
+<h4><code>listStats(): { [key: string]: number }</code></h4>
+<p>Get stats as a JavaScript object mapping stat names to current values.</p>
+<pre><code class="language-typescript">const stats = engine.listStats();
+// → { hp: 50, courage: 3, gold: 10 }
+</code></pre>
+<h4><code>getStat(name: string): bigint</code></h4>
+<p>Get a single stat value by name. Returns <code>0</code> if the stat doesn&#39;t exist.</p>
+<p><strong>Note</strong>: The value is returned as a <code>bigint</code> in JavaScript (Rust&#39;s <code>i64</code>
+maps to JS <code>bigint</code>). For typical game values (which fit in <code>i32</code>), convert
+with <code>Number()</code>.</p>
+<pre><code class="language-typescript">const hp = Number(engine.getStat(&quot;hp&quot;));
+// → 50
+</code></pre>
+<h4><code>listStoryTags(): string[]</code></h4>
+<p>List story-level tags — static metadata declared in the <code>.cyoa</code> file at the
+story block level. These do <strong>not</strong> change during play.</p>
+<pre><code class="language-typescript">console.log(engine.listStoryTags());
+// → [&quot;fantasy&quot;, &quot;exploration&quot;]
+</code></pre>
+<h4><code>listTags(): string[]</code></h4>
+<p>List runtime tags currently applied during play (added by <code>add tag</code> or the
+<code>AddTag</code> opcode).</p>
+<pre><code class="language-typescript">console.log(engine.listTags());
+// → [&quot;combat&quot;]
+</code></pre>
+<h4><code>listFlags(): string[]</code></h4>
+<p>List all runtime flags currently set (boolean story progress markers).</p>
+<pre><code class="language-typescript">console.log(engine.listFlags());
+// → [&quot;visited_old_ruins&quot;, &quot;wolf_friend&quot;]
+</code></pre>
+<h4><code>canAccessEvent(id: string): boolean</code></h4>
+<p>Check if an event by ID is reachable from the current story graph.</p>
+<pre><code class="language-typescript">if (engine.canAccessEvent(&quot;wolf_fight&quot;)) {
+  console.log(&quot;The wolf fight event is reachable.&quot;);
+}
+</code></pre>
+<h4><code>availableEvents(): string[]</code></h4>
+<p>List all event IDs in the story. Useful for quest logs and event discovery.</p>
+<pre><code class="language-typescript">const events = engine.availableEvents();
+// → [&quot;start&quot;, &quot;forest_path&quot;, &quot;old_ruins&quot;, &quot;forest_encounter&quot;, ...]
+</code></pre>
+<h4><code>isStoryComplete(): boolean</code></h4>
+<p>Returns <code>true</code> if the story has ended — i.e., a terminal choice was made
+(a choice with no <code>next</code> event). After this returns <code>true</code>, there are no
+more choices to display.</p>
+<pre><code class="language-typescript">engine.makeChoice(0);
+if (engine.isStoryComplete()) {
+  console.log(&quot;The story is over.&quot;);
+}
+</code></pre>
+<hr>
+<h2>Zero-Copy Text Access</h2>
+<p>For maximum performance when rendering large blocks of text, the engine
+provides <code>Uint8Array</code> views directly into WASM linear memory. These avoid
+the <code>TextDecoder</code> serialization overhead of the serde-based high-level API.</p>
+<p>The views are valid <strong>until the next method call on the same engine</strong>.
+Typical usage pattern: <strong>call → decode → use → next call is safe</strong>.</p>
+<h3><code>currentEventTextBytes(): Uint8Array</code></h3>
+<p>Returns a <code>Uint8Array</code> view of all current event text paragraphs,
+newline-separated (<code>\n</code>).</p>
+<pre><code class="language-typescript">const bytes = engine.currentEventTextBytes();
+const text = new TextDecoder().decode(bytes);
+</code></pre>
+<h3><code>currentChoicesBytes(): Uint8Array</code></h3>
+<p>Returns a <code>Uint8Array</code> view of all current choice texts, newline-separated.</p>
+<pre><code class="language-typescript">const bytes = engine.currentChoicesBytes();
+const choices = new TextDecoder().decode(bytes).split(&#39;\n&#39;);
+</code></pre>
+<p><strong>Performance note</strong>: The zero-copy API avoids wasm-bindgen&#39;s <code>String</code>
+allocation + <code>TextDecoder.decode()</code> overhead. Benchmarks show 2–5× speedup
+depending on text length.</p>
+<hr>
+<h2>TypeScript Declarations</h2>
+<pre><code class="language-typescript">export class WasmStoryCatalog {
+  constructor();
+  register(bytes: Uint8Array): void;
+  len(): number;
+  isEmpty(): boolean;
+  listStories(): Array&lt;{ name: string; tags: string[] }&gt;;
+  storiesWithTag(tag: string): Array&lt;{ name: string; tags: string[] }&gt;;
+  storiesWithAllTags(tagsJson: string): Array&lt;{ name: string; tags: string[] }&gt;;
+  storiesWithAnyTags(tagsJson: string): Array&lt;{ name: string; tags: string[] }&gt;;
+  createEngine(index: number): WasmEngine | undefined;
+  createEngineByName(name: string): WasmEngine | undefined;
+}
+
+export class WasmEngine {
+  constructor(bytes: Uint8Array);
+
+  currentEventId(): string;
+  getCurrentEvent(): { id: string; text: string[]; choices: string[] };
+  makeChoice(choiceIndex: number): { effectText: string[]; gameStateChanged: boolean };
+  getHistory(): Array&lt;{ eventId: string; choiceIndex: number; choiceText: string }&gt;;
+  getStateJson(): string;
+  setStateJson(json: string): void;
+  listStats(): { [key: string]: number };
+  getStat(name: string): bigint;
+  listStoryTags(): string[];
+  listTags(): string[];
+  listFlags(): string[];
+  canAccessEvent(id: string): boolean;
+  availableEvents(): string[];
+  isStoryComplete(): boolean;
+
+  // Zero-copy text API
+  currentEventTextBytes(): Uint8Array;
+  currentChoicesBytes(): Uint8Array;
+}
+
+export default function init(): Promise&lt;void&gt;;
+</code></pre>
+<p>The full <code>.d.ts</code> file is in <a href="../web-demo/cyoa.d.ts"><code>web-demo/cyoa.d.ts</code></a>.</p>
+
+      </article>
+    </main>
+  </div>
+
+  <script>
+    // Mobile sidebar toggle
+    const toggle = document.getElementById('menuToggle');
+    const sidebar = document.getElementById('sidebar');
+
+    // On mobile, move the sidebar into the fixed position container
+    if (window.innerWidth <= 800) {
+      const mobileSidebar = document.querySelector('.sidebar.mobile');
+      // The sidebar element itself gets cloned or shown inline
+    }
+
+    toggle.addEventListener('click', () => {
+      // For mobile: show/hide sidebar by toggling a class
+      const sidebar = document.querySelector('.sidebar');
+      if (sidebar.style.display === 'block' || sidebar.style.display === '') {
+        sidebar.style.display = 'none';
+      } else {
+        sidebar.style.display = 'block';
+      }
+    });
+
+    // Mark active link in sidebar
+    const currentPath = window.location.pathname;
+    const sidebarLinks = document.querySelectorAll('.sidebar a');
+    sidebarLinks.forEach(link => {
+      const href = link.getAttribute('href');
+      const linkPath = new URL(href, 'http://localhost').pathname;
+      if (currentPath === linkPath || currentPath.endsWith(href.replace(/^\//, ''))) {
+        link.classList.add('active');
+      }
+    });
+  </script>
+</body>
+</html>

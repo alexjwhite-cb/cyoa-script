@@ -1,0 +1,875 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>C-ABI API Reference — CYOA Engine</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card: #161b22;
+      --border: #30363d;
+      --text: #c9d1d9;
+      --text-dim: #8b949e;
+      --accent: #7c4cff;
+      --accent-hover: #996cff;
+      --success: #4ade80;
+      --warning: #facc15;
+      --code-bg: #010409;
+      --sidebar-width: 280px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: ui-system, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+                   'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      min-height: 100vh;
+    }
+
+    /* Header */
+    header {
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      padding: 0.75rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    header h1 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--accent);
+    }
+
+    header h1 a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .desktop-nav {
+      display: flex;
+      gap: 1rem;
+      font-size: 0.85rem;
+    }
+
+    .desktop-nav a {
+      color: var(--text-dim);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .desktop-nav a:hover {
+      color: var(--text);
+    }
+
+    /* Layout: sidebar + main */
+    .layout {
+      display: flex;
+      min-height: calc(100vh - 53px);
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: var(--sidebar-width);
+      background: var(--card);
+      border-right: 1px solid var(--border);
+      padding: 1.5rem;
+      overflow-y: auto;
+      position: sticky;
+      top: 0;
+      height: calc(100vh - 53px);
+    }
+
+    .sidebar h2 {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-dim);
+      margin-bottom: 1rem;
+    }
+
+    .sidebar ul {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .sidebar li {
+      margin: 0;
+    }
+
+    .sidebar a {
+      display: block;
+      padding: 0.4rem 0.6rem;
+      border-radius: 4px;
+      color: var(--text-dim);
+      text-decoration: none;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    }
+
+    .sidebar a:hover {
+      background: #1f2428;
+      color: var(--text);
+    }
+
+    .sidebar a.active {
+      background: rgba(124, 76, 255, 0.15);
+      color: var(--accent);
+    }
+
+    .sidebar .group-title {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-dim);
+      margin-top: 1rem;
+      margin-bottom: 0.3rem;
+      padding-left: 0.2rem;
+    }
+
+    .sidebar .group-title:first-child {
+      margin-top: 0;
+    }
+
+    /* Main content */
+    main {
+      flex: 1;
+      max-width: 900px;
+      padding: 2rem;
+    }
+
+    /* Content styling (rendered markdown) */
+    article {
+      max-width: 100%;
+    }
+
+    article h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 1rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.5rem;
+    }
+
+    article h2 {
+      font-size: 1.4rem;
+      font-weight: 600;
+      color: var(--text);
+      margin: 1.5rem 0 0.8rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.3rem;
+    }
+
+    article h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text);
+      margin: 1.2rem 0 0.5rem;
+    }
+
+    article h4 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin: 1rem 0 0.4rem;
+    }
+
+    article p {
+      margin-bottom: 1rem;
+    }
+
+    article a {
+      color: var(--accent);
+    }
+
+    article a:hover {
+      text-decoration: underline;
+    }
+
+    article code {
+      font-family: 'ui-monospace', 'Fira Code', 'Consolas', 'Menlo', monospace;
+      font-size: 0.9rem;
+      background: var(--code-bg);
+      padding: 0.15rem 0.4rem;
+      border-radius: 3px;
+      color: var(--success);
+    }
+
+    article code::before,
+    article code::after {
+      content: '\00a0'; /* non-breaking spaces to prevent zero-width issues */
+    }
+
+    article pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1rem;
+      margin: 1rem 0;
+      overflow-x: auto;
+    }
+
+    article pre code {
+      background: none;
+      padding: 0;
+      color: var(--text);
+      font-size: 0.85rem;
+      line-height: 1.5;
+    }
+
+    article pre code::before,
+    article pre code::after {
+      content: none;
+    }
+
+    article table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+      font-size: 0.9rem;
+    }
+
+    article th,
+    article td {
+      border: 1px solid var(--border);
+      padding: 0.5rem 0.75rem;
+      text-align: left;
+    }
+
+    article th {
+      background: #1f2428;
+      font-weight: 600;
+    }
+
+    article tr:nth-child(even) {
+      background: rgba(0, 0, 0, 0.1);
+    }
+
+    article ul,
+    article ol {
+      margin: 0.5rem 0 1rem 1.5rem;
+    }
+
+    article li {
+      margin-bottom: 0.25rem;
+    }
+
+    article blockquote {
+      border-left: 3px solid var(--accent);
+      padding: 0.5rem 1rem;
+      margin: 1rem 0;
+      background: #010409;
+      color: var(--text-dim);
+      font-style: italic;
+    }
+
+    article blockquote a {
+      color: var(--accent);
+    }
+
+    article hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 1.5rem 0;
+    }
+
+    article .highlight {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1.5rem;
+      margin: 1rem 0;
+    }
+
+    /* Tags */
+    .tag {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-family: 'ui-monospace', 'Fira Code', monospace;
+      background: #1f2428;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.1rem 0.6rem;
+      color: var(--text-dim);
+      margin-right: 0.25rem;
+    }
+
+    /* Mobile menu toggle */
+    .mobile-header {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.75rem 1.5rem;
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .menu-toggle {
+      background: #1f2428;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.4rem 0.8rem;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.8rem;
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .menu-toggle:hover {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    @media (max-width: 800px) {
+      header, .sidebar { display: none; }
+      .mobile-header { display: flex; }
+      .layout { display: block; }
+      main { padding: 2rem; }
+
+      .sidebar.mobile {
+        display: block;
+        position: fixed;
+        top: 53px;
+        left: 0;
+        right: 0;
+        background: var(--bg);
+        border-bottom: 1px solid var(--border);
+        z-index: 100;
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.3s ease;
+      }
+
+      .sidebar.mobile.open {
+        max-height: 600px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Desktop header -->
+  <header>
+    <h1><a href="/docs/index.html">CYOA Engine</a></h1>
+    <div class="desktop-nav">
+      <a href="/docs/index.html">Docs</a>
+      <a href="/web-demo/">Web Demo</a>
+      <a href="https://github.com/alexjwhite/cyoa-script">GitHub</a>
+    </div>
+  </header>
+
+  <!-- Mobile header -->
+  <div class="mobile-header">
+    <h1 style="font-size: 1.1rem; font-weight: 600; color: var(--accent);">CYOA Engine</h1>
+    <button class="menu-toggle" id="menuToggle">☰ Menu</button>
+  </div>
+
+  <div class="layout">
+    <!-- Sidebar -->
+    <nav class="sidebar" id="sidebar">
+      <h2>Documentation</h2>
+      <ul>
+        <li>
+          <div class="group-title">Getting Started</div>
+          <a href="/docs/installation.html">Installation Instructions</a>
+          <a href="/docs/index.html">Quick Start (README)</a>
+          <div class="group-title">Language</div>
+          <a href="/docs/syntax.html">Syntax Reference</a>
+          <div class="group-title">API Reference</div>
+          <a href="/docs/api-reference.html">API Overview</a>
+          <a href="/docs/wasm-api.html">WASM / JavaScript</a>
+          <a href="/docs/c-abi-api.html">C-ABI + C# / Unity</a>
+          <a href="/docs/rust-api.html">Rust Runtime API</a>
+          <a href="/docs/gdscript-api.html">GDScript (Godot)</a>
+          <div class="group-title">Deployment</div>
+          <a href="/docs/mobile.html">Mobile Guide</a>
+        </li>
+      </ul>
+    </nav>
+
+    <!-- Main content -->
+    <main>
+      <article>
+        <h1>C-ABI API Reference</h1>
+<p>The <code>cyoa-native</code> crate compiles to a native shared library with <code>extern &quot;C&quot;</code>
+FFI exports. Each story is a separate engine instance identified by an opaque
+handle, and a catalog handle manages multiple registered stories with tag
+filtering — mirroring the WASM <code>WasmStoryCatalog</code> / <code>WasmEngine</code> design.</p>
+<h2>Building</h2>
+<pre><code class="language-bash">cargo build -p cyoa-native --release
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Platform</th>
+<th>Output file</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Linux</td>
+<td><code>libcyoa_native.so</code></td>
+</tr>
+<tr>
+<td>macOS</td>
+<td><code>libcyoa_native.dylib</code></td>
+</tr>
+<tr>
+<td>Windows</td>
+<td><code>cyoa_native.dll</code></td>
+</tr>
+</tbody></table>
+<p>See <a href="/docs/mobile.html">mobile.md</a> for Android/iOS cross-compilation.</p>
+<hr>
+<h2>Memory Model</h2>
+<table>
+<thead>
+<tr>
+<th>Return type</th>
+<th>Lifetime</th>
+<th>Free with</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>const char *</code></td>
+<td>Engine-owned; valid until next call on same handle</td>
+<td>— (copy immediately)</td>
+</tr>
+<tr>
+<td><code>char *</code></td>
+<td>Heap-allocated</td>
+<td><code>cyoa_free_string()</code></td>
+</tr>
+</tbody></table>
+<p><strong>Rule</strong>: If a function returns <code>char *</code>, you must call <code>cyoa_free_string()</code>
+on it when done. If it returns <code>const char *</code>, the pointer is into
+engine-owned memory and is valid only until the next call on the same
+handle — copy it immediately if you need it to persist.</p>
+<hr>
+<h2>Engine Handle API</h2>
+<pre><code class="language-c">typedef struct CyoaEngine CyoaEngine;
+</code></pre>
+<h3>Lifecycle</h3>
+<pre><code class="language-c">CyoaEngine* cyoa_create(const uint8_t* bytecode, size_t len);
+void cyoa_destroy(CyoaEngine* engine);
+</code></pre>
+<ul>
+<li><code>cyoa_create</code>: Create an engine from compiled <code>.cyoa.bc</code> bytes. Returns a
+handle, or <code>NULL</code> on failure.</li>
+<li><code>cyoa_destroy</code>: Destroy an engine. Passing <code>NULL</code> is a no-op.</li>
+</ul>
+<h3>Event queries</h3>
+<pre><code class="language-c">const char* cyoa_current_event_id(CyoaEngine* engine);
+const char* cyoa_current_event_text(CyoaEngine* engine);
+int         cyoa_current_choice_count(CyoaEngine* engine);
+const char* cyoa_choice_text(CyoaEngine* engine, int index);
+</code></pre>
+<ul>
+<li><code>cyoa_current_event_id</code>: Internal event ID (name). Engine-owned string.</li>
+<li><code>cyoa_current_event_text</code>: Event text paragraphs joined by <code>\n</code>. Engine-owned.</li>
+<li><code>cyoa_current_choice_count</code>: Number of visible choices.</li>
+<li><code>cyoa_choice_text</code>: Text of choice at <code>index</code>, or <code>NULL</code> if out of bounds.</li>
+</ul>
+<h3>Make a choice</h3>
+<pre><code class="language-c">void cyoa_make_choice(CyoaEngine* engine, int index);
+const char* cyoa_last_effect_text(CyoaEngine* engine);
+</code></pre>
+<ul>
+<li><code>cyoa_make_choice</code>: Apply the player&#39;s choice at <code>index</code>. After this call,
+the engine has advanced to the next event.</li>
+<li><code>cyoa_last_effect_text</code>: Effect text from the most recent <code>make_choice</code> call.
+Multiple fragments joined by <code>\n</code>. Engine-owned.</li>
+</ul>
+<h3>History</h3>
+<pre><code class="language-c">int cyoa_history_length(CyoaEngine* engine);
+const char* cyoa_history_entry(CyoaEngine* engine, int index);
+</code></pre>
+<ul>
+<li><code>cyoa_history_length</code>: Number of entries in the choice history.</li>
+<li><code>cyoa_history_entry</code>: JSON string for one entry:
+<code>{&quot;eventId&quot;:&quot;...&quot;,&quot;choiceIndex&quot;:N,&quot;choiceText&quot;:&quot;...&quot;}</code>. Returns <code>NULL</code> if
+<code>index</code> is out of bounds. Engine-owned.</li>
+</ul>
+<h3>State management</h3>
+<pre><code class="language-c">char* cyoa_get_state_json(CyoaEngine* engine);
+void  cyoa_set_state_json(CyoaEngine* engine, const char* json);
+</code></pre>
+<ul>
+<li><code>cyoa_get_state_json</code>: Full player state as JSON (stats, flags, tags,
+current_event, choice_history, complete). <strong>Caller must free</strong> with <code>cyoa_free_string</code>.</li>
+<li><code>cyoa_set_state_json</code>: Restore state from a JSON string produced by
+<code>cyoa_get_state_json</code>. Pass <code>NULL</code> for <code>json</code> (no-op).</li>
+</ul>
+<h3>Queries</h3>
+<pre><code class="language-c">char* cyoa_available_events_json(CyoaEngine* engine);
+int   cyoa_can_access_event(CyoaEngine* engine, const char* id);
+</code></pre>
+<ul>
+<li><code>cyoa_available_events_json</code>: JSON array of all event IDs. <strong>Caller must free</strong>.</li>
+<li><code>cyoa_can_access_event</code>: Returns <code>1</code> (true) or <code>0</code> (false).</li>
+</ul>
+<h3>Stats / tags / flags</h3>
+<pre><code class="language-c">char* cyoa_list_stats_json(CyoaEngine* engine);
+char* cyoa_list_story_tags_json(CyoaEngine* engine);
+char* cyoa_list_tags_json(CyoaEngine* engine);
+char* cyoa_list_flags_json(CyoaEngine* engine);
+int   cyoa_get_stat(CyoaEngine* engine, const char* name);
+</code></pre>
+<ul>
+<li><code>cyoa_list_stats_json</code>: JSON object <code>{&quot;statName&quot;: value, ...}</code>. <strong>Caller must free</strong>.</li>
+<li><code>cyoa_list_story_tags_json</code>: JSON array of story-level tags. <strong>Caller must free</strong>.</li>
+<li><code>cyoa_list_tags_json</code>: JSON array of runtime tags. <strong>Caller must free</strong>.</li>
+<li><code>cyoa_list_flags_json</code>: JSON array of runtime flags. <strong>Caller must free</strong>.</li>
+<li><code>cyoa_get_stat</code>: Returns stat value as <code>i64</code>, or <code>0</code> if not found.</li>
+</ul>
+<h3>Freeing strings</h3>
+<pre><code class="language-c">void cyoa_free_string(char* s);
+</code></pre>
+<p>Free any string returned by <code>*_json</code> or <code>get_state_json</code> functions.
+Passing <code>NULL</code> is a no-op.</p>
+<hr>
+<h2>Catalog Handle API (multi-story + tag filtering)</h2>
+<pre><code class="language-c">typedef struct CyoaCatalog CyoaCatalog;
+</code></pre>
+<h3>Lifecycle</h3>
+<pre><code class="language-c">CyoaCatalog* cyoa_catalog_create(void);
+void cyoa_catalog_destroy(CyoaCatalog* catalog);
+</code></pre>
+<h3>Registration</h3>
+<pre><code class="language-c">int cyoa_catalog_register(CyoaCatalog* catalog, const uint8_t* bytecode, size_t len);
+int cyoa_catalog_story_count(const CyoaCatalog* catalog);
+</code></pre>
+<ul>
+<li><code>cyoa_catalog_register</code>: Register a story from bytecode. Returns 1 on success, 0 on failure.</li>
+<li><code>cyoa_catalog_story_count</code>: Number of registered stories.</li>
+</ul>
+<h3>Discovery</h3>
+<p>All return JSON arrays of <code>{&quot;name&quot;:&quot;string&quot;,&quot;tags&quot;:[&quot;...&quot;]}</code> objects.
+<strong>Caller must free</strong> the returned <code>char *</code> with <code>cyoa_free_string</code>.</p>
+<pre><code class="language-c">char* cyoa_catalog_list_stories_json(const CyoaCatalog* catalog);
+char* cyoa_catalog_stories_with_tag_json(const CyoaCatalog* catalog, const char* tag);
+char* cyoa_catalog_stories_with_all_tags_json(const CyoaCatalog* catalog, const char* tags_json);
+char* cyoa_catalog_stories_with_any_tags_json(const CyoaCatalog* catalog, const char* tags_json);
+</code></pre>
+<p><code>tags_json</code> arguments accept a JSON array of tag strings (e.g., <code>[&quot;fantasy&quot;,&quot;exploration&quot;]</code>).</p>
+<h3>Engine creation</h3>
+<pre><code class="language-c">CyoaEngine* cyoa_catalog_create_engine(CyoaCatalog* catalog, int index);
+CyoaEngine* cyoa_catalog_create_engine_by_name(CyoaCatalog* catalog, const char* name);
+</code></pre>
+<ul>
+<li><code>cyoa_catalog_create_engine</code>: Create an engine for the story at <code>index</code>. Returns <code>NULL</code> if out of bounds.</li>
+<li><code>cyoa_catalog_create_engine_by_name</code>: Create an engine for the named story. Returns <code>NULL</code> if not found.</li>
+</ul>
+<hr>
+<h2>C Header</h2>
+<p>The canonical C header is at <a href="../cyoa-native/include/cyoa.h"><code>bindings/c/cyoa.h</code></a>
+(mirrored in <code>bindings/c/</code>).</p>
+<pre><code class="language-c">#include &quot;cyoa.h&quot;
+</code></pre>
+<pre><code class="language-c">CyoaCatalog* catalog = cyoa_catalog_create();
+
+/* Load bytecode bytes (from file or embedded) */
+uint8_t* bytes = /* ... */;
+size_t len = /* ... */;
+cyoa_catalog_register(catalog, bytes, len);
+
+/* Filter and create engine */
+CyoaEngine* engine = cyoa_catalog_create_engine_by_name(catalog, &quot;ForestAdventure&quot;);
+
+/* Play */
+printf(&quot;Event: %s\n&quot;, cyoa_current_event_id(engine));
+printf(&quot;%s\n&quot;, cyoa_current_event_text(engine));
+
+int choiceCount = cyoa_current_choice_count(engine);
+for (int i = 0; i &lt; choiceCount; i++) {
+    printf(&quot;  [%d] %s\n&quot;, i, cyoa_choice_text(engine, i));
+}
+
+cyoa_make_choice(engine, 0);
+
+/* Save / load */
+char* stateJson = cyoa_get_state_json(engine);
+/* ... save stateJson to file, free later ... */
+cyoa_set_state_json(engine, savedJson);
+cyoa_free_string(stateJson);
+
+/* Cleanup */
+cyoa_destroy(engine);
+cyoa_catalog_destroy(catalog);
+</code></pre>
+<hr>
+<h2>C# (Unity) Wrapper</h2>
+<p>The C# wrapper class (<code>bindings/csharp/CyoaEngine.cs</code>) uses <code>DllImport</code> to
+call the native functions and provides a rich, memory-safe API mirroring the
+WASM/JS API.</p>
+<pre><code class="language-csharp">using Cyoa;
+
+// Catalog-based: load multiple stories and filter by tags
+using var catalog = new CyoaStoryCatalog();
+catalog.RegisterStory(File.ReadAllBytes(&quot;forest_adventure.cyoa.bc&quot;));
+catalog.RegisterStory(File.ReadAllBytes(&quot;tavern_tales.cyoa.bc&quot;));
+
+// Tag-based discovery
+StoryInfo[] fantasy = catalog.StoriesWithTag(&quot;fantasy&quot;);
+StoryInfo[] multiTag = catalog.StoriesWithAllTags(new[] { &quot;fantasy&quot;, &quot;exploration&quot; });
+
+// Create an engine for a story
+using var engine = catalog.CreateEngineByName(&quot;ForestAdventure&quot;);
+
+// Play
+string text = engine.CurrentEventText;
+string[] choices = engine.CurrentChoices;
+engine.MakeChoice(0);
+
+// Save / load
+string saveJson = engine.GetStateJson();
+engine.SetStateJson(saveJson);
+</code></pre>
+<h3>C# API surface</h3>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Returns</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>new CyoaStoryCatalog()</code></td>
+<td>—</td>
+<td>Create catalog</td>
+</tr>
+<tr>
+<td><code>RegisterStory(byte[] bytes)</code></td>
+<td><code>void</code></td>
+<td>Register a story</td>
+</tr>
+<tr>
+<td><code>StoryCount</code></td>
+<td><code>int</code></td>
+<td>Number of registered stories</td>
+</tr>
+<tr>
+<td><code>ListStories()</code></td>
+<td><code>StoryInfo[]</code></td>
+<td>All stories</td>
+</tr>
+<tr>
+<td><code>StoriesWithTag(string tag)</code></td>
+<td><code>StoryInfo[]</code></td>
+<td>Stories with tag</td>
+</tr>
+<tr>
+<td><code>StoriesWithAllTags(string[] tags)</code></td>
+<td><code>StoryInfo[]</code></td>
+<td>Stories with ALL tags</td>
+</tr>
+<tr>
+<td><code>StoriesWithAnyTags(string[] tags)</code></td>
+<td><code>StoryInfo[]</code></td>
+<td>Stories with ANY tags</td>
+</tr>
+<tr>
+<td><code>CreateEngine(int index)</code></td>
+<td><code>CyoaEngine</code></td>
+<td>Create engine from catalog</td>
+</tr>
+<tr>
+<td><code>CreateEngineByName(string name)</code></td>
+<td><code>CyoaEngine</code></td>
+<td>Create engine by name</td>
+</tr>
+<tr>
+<td><code>Dispose()</code></td>
+<td>—</td>
+<td>Free native resources</td>
+</tr>
+</tbody></table>
+<p><strong>Engine</strong> (same as Unity <code>CyoaEngine</code>):</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Returns</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>new CyoaEngine(byte[] bytecode)</code></td>
+<td>—</td>
+<td>Create from bytecode</td>
+</tr>
+<tr>
+<td><code>CurrentEventId</code></td>
+<td><code>string</code></td>
+<td>Current event ID</td>
+</tr>
+<tr>
+<td><code>CurrentEventText</code></td>
+<td><code>string</code></td>
+<td>Event text (\n-joined)</td>
+</tr>
+<tr>
+<td><code>CurrentChoices</code></td>
+<td><code>string[]</code></td>
+<td>Visible choice texts</td>
+</tr>
+<tr>
+<td><code>ChoiceCount</code></td>
+<td><code>int</code></td>
+<td>Number of visible choices</td>
+</tr>
+<tr>
+<td><code>GetChoiceText(int index)</code></td>
+<td><code>string</code></td>
+<td>One choice text</td>
+</tr>
+<tr>
+<td><code>MakeChoice(int index)</code></td>
+<td>—</td>
+<td>Apply a choice</td>
+</tr>
+<tr>
+<td><code>LastEffectText</code></td>
+<td><code>string</code></td>
+<td>Effect text from last choice</td>
+</tr>
+<tr>
+<td><code>GetHistory()</code></td>
+<td><code>HistoryEntry[]</code></td>
+<td>Choice history</td>
+</tr>
+<tr>
+<td><code>HistoryLength</code></td>
+<td><code>int</code></td>
+<td>History count</td>
+</tr>
+<tr>
+<td><code>GetHistoryEntry(int index)</code></td>
+<td><code>HistoryEntry</code></td>
+<td>One history entry</td>
+</tr>
+<tr>
+<td><code>GetStateJson()</code></td>
+<td><code>string</code></td>
+<td>Full state as JSON</td>
+</tr>
+<tr>
+<td><code>SetStateJson(string json)</code></td>
+<td>—</td>
+<td>Restore state</td>
+</tr>
+<tr>
+<td><code>GetStats()</code></td>
+<td><code>Dictionary&lt;string, int&gt;</code></td>
+<td>Stat name → value</td>
+</tr>
+<tr>
+<td><code>GetStat(string name)</code></td>
+<td><code>long</code></td>
+<td>Single stat</td>
+</tr>
+<tr>
+<td><code>GetStoryTags()</code></td>
+<td><code>string[]</code></td>
+<td>Story-level tags</td>
+</tr>
+<tr>
+<td><code>GetTags()</code></td>
+<td><code>string[]</code></td>
+<td>Runtime tags</td>
+</tr>
+<tr>
+<td><code>GetFlags()</code></td>
+<td><code>string[]</code></td>
+<td>Runtime flags</td>
+</tr>
+<tr>
+<td><code>CanAccessEvent(string id)</code></td>
+<td><code>bool</code></td>
+<td>Event reachable?</td>
+</tr>
+<tr>
+<td><code>IsStoryComplete</code></td>
+<td><code>bool</code></td>
+<td>True if a terminal choice was made</td>
+</tr>
+<tr>
+<td><code>GetAvailableEvents()</code></td>
+<td><code>string[]</code></td>
+<td>All event IDs</td>
+</tr>
+<tr>
+<td><code>Dispose()</code></td>
+<td>—</td>
+<td>Free native resources</td>
+</tr>
+</tbody></table>
+<p>Unity integration guide: <a href="https://github.com/alexjwhite/cyoa-script/blob/main/../bindings/csharp/README" target="_blank"><code>bindings/csharp/README.md</code></a></p>
+<hr>
+<h2>C# (Godot) Wrapper</h2>
+<p>The C# wrapper (<code>bindings/godot/csharp/CyoaEngine.cs</code>) uses <code>DllImport</code> to
+call the same native C-ABI functions. Since GDScript cannot call native C
+directly, this C# class serves as the FFI bridge, with a thin GDScript
+wrapper (<code>bindings/godot/gdscript/cyoa_engine.gd</code>) for scene-based usage.</p>
+<pre><code class="language-csharp">using Cyoa.Godot;
+
+// Load from a Godot resource path
+var engine = CyoaEngine.LoadFromFile(&quot;res://addons/cyoa/native/forest_adventure.cyoa.bc&quot;);
+
+GD.Print(engine.CurrentEventText);
+string[] choices = engine.CurrentChoices;
+engine.MakeChoice(0);
+
+// Multi-story with tag filtering
+using var catalog = new CyoaStoryCatalog();
+catalog.RegisterStory(FileAccess.GetFileAsBytes(&quot;res://addons/cyoa/native/forest_adventure.cyoa.bc&quot;));
+StoryInfo[] fantasy = catalog.StoriesWithTag(&quot;fantasy&quot;);
+</code></pre>
+<p>See <a href="https://github.com/alexjwhite/cyoa-script/blob/main/../bindings/godot/README" target="_blank"><code>bindings/godot/README.md</code></a> for the full
+Godot integration guide and GDScript API.</p>
+
+      </article>
+    </main>
+  </div>
+
+  <script>
+    // Mobile sidebar toggle
+    const toggle = document.getElementById('menuToggle');
+    const sidebar = document.getElementById('sidebar');
+
+    // On mobile, move the sidebar into the fixed position container
+    if (window.innerWidth <= 800) {
+      const mobileSidebar = document.querySelector('.sidebar.mobile');
+      // The sidebar element itself gets cloned or shown inline
+    }
+
+    toggle.addEventListener('click', () => {
+      // For mobile: show/hide sidebar by toggling a class
+      const sidebar = document.querySelector('.sidebar');
+      if (sidebar.style.display === 'block' || sidebar.style.display === '') {
+        sidebar.style.display = 'none';
+      } else {
+        sidebar.style.display = 'block';
+      }
+    });
+
+    // Mark active link in sidebar
+    const currentPath = window.location.pathname;
+    const sidebarLinks = document.querySelectorAll('.sidebar a');
+    sidebarLinks.forEach(link => {
+      const href = link.getAttribute('href');
+      const linkPath = new URL(href, 'http://localhost').pathname;
+      if (currentPath === linkPath || currentPath.endsWith(href.replace(/^\//, ''))) {
+        link.classList.add('active');
+      }
+    });
+  </script>
+</body>
+</html>

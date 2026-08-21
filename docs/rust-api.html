@@ -1,0 +1,682 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Rust Runtime API Reference — CYOA Engine</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card: #161b22;
+      --border: #30363d;
+      --text: #c9d1d9;
+      --text-dim: #8b949e;
+      --accent: #7c4cff;
+      --accent-hover: #996cff;
+      --success: #4ade80;
+      --warning: #facc15;
+      --code-bg: #010409;
+      --sidebar-width: 280px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: ui-system, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+                   'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      min-height: 100vh;
+    }
+
+    /* Header */
+    header {
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      padding: 0.75rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    header h1 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--accent);
+    }
+
+    header h1 a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .desktop-nav {
+      display: flex;
+      gap: 1rem;
+      font-size: 0.85rem;
+    }
+
+    .desktop-nav a {
+      color: var(--text-dim);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .desktop-nav a:hover {
+      color: var(--text);
+    }
+
+    /* Layout: sidebar + main */
+    .layout {
+      display: flex;
+      min-height: calc(100vh - 53px);
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: var(--sidebar-width);
+      background: var(--card);
+      border-right: 1px solid var(--border);
+      padding: 1.5rem;
+      overflow-y: auto;
+      position: sticky;
+      top: 0;
+      height: calc(100vh - 53px);
+    }
+
+    .sidebar h2 {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-dim);
+      margin-bottom: 1rem;
+    }
+
+    .sidebar ul {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .sidebar li {
+      margin: 0;
+    }
+
+    .sidebar a {
+      display: block;
+      padding: 0.4rem 0.6rem;
+      border-radius: 4px;
+      color: var(--text-dim);
+      text-decoration: none;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    }
+
+    .sidebar a:hover {
+      background: #1f2428;
+      color: var(--text);
+    }
+
+    .sidebar a.active {
+      background: rgba(124, 76, 255, 0.15);
+      color: var(--accent);
+    }
+
+    .sidebar .group-title {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-dim);
+      margin-top: 1rem;
+      margin-bottom: 0.3rem;
+      padding-left: 0.2rem;
+    }
+
+    .sidebar .group-title:first-child {
+      margin-top: 0;
+    }
+
+    /* Main content */
+    main {
+      flex: 1;
+      max-width: 900px;
+      padding: 2rem;
+    }
+
+    /* Content styling (rendered markdown) */
+    article {
+      max-width: 100%;
+    }
+
+    article h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 1rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.5rem;
+    }
+
+    article h2 {
+      font-size: 1.4rem;
+      font-weight: 600;
+      color: var(--text);
+      margin: 1.5rem 0 0.8rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.3rem;
+    }
+
+    article h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text);
+      margin: 1.2rem 0 0.5rem;
+    }
+
+    article h4 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin: 1rem 0 0.4rem;
+    }
+
+    article p {
+      margin-bottom: 1rem;
+    }
+
+    article a {
+      color: var(--accent);
+    }
+
+    article a:hover {
+      text-decoration: underline;
+    }
+
+    article code {
+      font-family: 'ui-monospace', 'Fira Code', 'Consolas', 'Menlo', monospace;
+      font-size: 0.9rem;
+      background: var(--code-bg);
+      padding: 0.15rem 0.4rem;
+      border-radius: 3px;
+      color: var(--success);
+    }
+
+    article code::before,
+    article code::after {
+      content: '\00a0'; /* non-breaking spaces to prevent zero-width issues */
+    }
+
+    article pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1rem;
+      margin: 1rem 0;
+      overflow-x: auto;
+    }
+
+    article pre code {
+      background: none;
+      padding: 0;
+      color: var(--text);
+      font-size: 0.85rem;
+      line-height: 1.5;
+    }
+
+    article pre code::before,
+    article pre code::after {
+      content: none;
+    }
+
+    article table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+      font-size: 0.9rem;
+    }
+
+    article th,
+    article td {
+      border: 1px solid var(--border);
+      padding: 0.5rem 0.75rem;
+      text-align: left;
+    }
+
+    article th {
+      background: #1f2428;
+      font-weight: 600;
+    }
+
+    article tr:nth-child(even) {
+      background: rgba(0, 0, 0, 0.1);
+    }
+
+    article ul,
+    article ol {
+      margin: 0.5rem 0 1rem 1.5rem;
+    }
+
+    article li {
+      margin-bottom: 0.25rem;
+    }
+
+    article blockquote {
+      border-left: 3px solid var(--accent);
+      padding: 0.5rem 1rem;
+      margin: 1rem 0;
+      background: #010409;
+      color: var(--text-dim);
+      font-style: italic;
+    }
+
+    article blockquote a {
+      color: var(--accent);
+    }
+
+    article hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 1.5rem 0;
+    }
+
+    article .highlight {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1.5rem;
+      margin: 1rem 0;
+    }
+
+    /* Tags */
+    .tag {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-family: 'ui-monospace', 'Fira Code', monospace;
+      background: #1f2428;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.1rem 0.6rem;
+      color: var(--text-dim);
+      margin-right: 0.25rem;
+    }
+
+    /* Mobile menu toggle */
+    .mobile-header {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.75rem 1.5rem;
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .menu-toggle {
+      background: #1f2428;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.4rem 0.8rem;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.8rem;
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .menu-toggle:hover {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    @media (max-width: 800px) {
+      header, .sidebar { display: none; }
+      .mobile-header { display: flex; }
+      .layout { display: block; }
+      main { padding: 2rem; }
+
+      .sidebar.mobile {
+        display: block;
+        position: fixed;
+        top: 53px;
+        left: 0;
+        right: 0;
+        background: var(--bg);
+        border-bottom: 1px solid var(--border);
+        z-index: 100;
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.3s ease;
+      }
+
+      .sidebar.mobile.open {
+        max-height: 600px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Desktop header -->
+  <header>
+    <h1><a href="/docs/index.html">CYOA Engine</a></h1>
+    <div class="desktop-nav">
+      <a href="/docs/index.html">Docs</a>
+      <a href="/web-demo/">Web Demo</a>
+      <a href="https://github.com/alexjwhite/cyoa-script">GitHub</a>
+    </div>
+  </header>
+
+  <!-- Mobile header -->
+  <div class="mobile-header">
+    <h1 style="font-size: 1.1rem; font-weight: 600; color: var(--accent);">CYOA Engine</h1>
+    <button class="menu-toggle" id="menuToggle">☰ Menu</button>
+  </div>
+
+  <div class="layout">
+    <!-- Sidebar -->
+    <nav class="sidebar" id="sidebar">
+      <h2>Documentation</h2>
+      <ul>
+        <li>
+          <div class="group-title">Getting Started</div>
+          <a href="/docs/installation.html">Installation Instructions</a>
+          <a href="/docs/index.html">Quick Start (README)</a>
+          <div class="group-title">Language</div>
+          <a href="/docs/syntax.html">Syntax Reference</a>
+          <div class="group-title">API Reference</div>
+          <a href="/docs/api-reference.html">API Overview</a>
+          <a href="/docs/wasm-api.html">WASM / JavaScript</a>
+          <a href="/docs/c-abi-api.html">C-ABI + C# / Unity</a>
+          <a href="/docs/rust-api.html">Rust Runtime API</a>
+          <a href="/docs/gdscript-api.html">GDScript (Godot)</a>
+          <div class="group-title">Deployment</div>
+          <a href="/docs/mobile.html">Mobile Guide</a>
+        </li>
+      </ul>
+    </nav>
+
+    <!-- Main content -->
+    <main>
+      <article>
+        <h1>Rust Runtime API Reference</h1>
+<p>The <code>cyoa-runtime</code> crate provides the full engine API used by both the WASM
+and native bindings. Writers building native Rust games can use this directly
+without FFI. Writers building game engines can also compile stories from
+source using <code>cyoa-compiler</code>.</p>
+<h2>Cargo dependency</h2>
+<pre><code class="language-toml">[dependencies]
+cyoa-runtime = { path = &quot;cyoa-runtime&quot; }
+cyoa-bytecode = { path = &quot;cyoa-bytecode&quot; }
+</code></pre>
+<h2>Engine</h2>
+<h3>Construction</h3>
+<pre><code class="language-rust">use cyoa_runtime::Engine;
+use cyoa_bytecode::Bytecode;
+
+let bytes: Vec&lt;u8&gt; = std::fs::read(&quot;forest_adventure.cyoa.bc&quot;)?;
+let bc = Bytecode::from_bytes(&amp;bytes)?;
+let mut engine = Engine::new(bc);
+</code></pre>
+<h3>Current event</h3>
+<pre><code class="language-rust">engine.current_event_id() -&gt; String           // internal event ID (name)
+engine.current_event_text() -&gt; Vec&lt;String&gt;    // text paragraphs
+engine.current_choices() -&gt; Vec&lt;String&gt;       // visible choice texts
+</code></pre>
+<p><strong>Example</strong>:</p>
+<pre><code class="language-rust">println!(&quot;Event: {}&quot;, engine.current_event_id());
+for paragraph in engine.current_event_text() {
+    println!(&quot;{}&quot;, paragraph);
+}
+let choices = engine.current_choices();
+for (i, choice) in choices.iter().enumerate() {
+    println!(&quot;  [{}] {}&quot;, i, choice);
+}
+</code></pre>
+<h3>Making choices</h3>
+<pre><code class="language-rust">engine.make_choice(index: i32) -&gt; Vec&lt;String&gt;   // effect text from the choice
+</code></pre>
+<p><strong>Example</strong>:</p>
+<pre><code class="language-rust">let effects = engine.make_choice(0);
+for text in effects {
+    println!(&quot;{}&quot;, text);
+}
+</code></pre>
+<h3>History</h3>
+<pre><code class="language-rust">engine.history() -&gt; &amp;[HistoryEntry]
+</code></pre>
+<p><code>HistoryEntry</code> fields:</p>
+<ul>
+<li><code>event_id: String</code> — the event where the choice was made</li>
+<li><code>choice_index: i32</code> — 0-based index of the choice</li>
+<li><code>choice_text: String</code> — text of the chosen choice</li>
+</ul>
+<p><strong>Example</strong>:</p>
+<pre><code class="language-rust">for entry in engine.history() {
+    println!(&quot;{}: chose &#39;{}&#39; ({})&quot;, entry.event_id, entry.choice_text, entry.choice_index);
+}
+</code></pre>
+<h3>State management</h3>
+<pre><code class="language-rust">engine.get_state_json() -&gt; String
+engine.set_state_json(&amp;json: &amp;str) -&gt; Result&lt;(), serde_json::Error&gt;
+</code></pre>
+<p><code>get_state_json()</code> returns a comprehensive JSON string containing stats,
+flags, tags, current_event index, choice_history, and the <code>complete</code> flag —
+enabling full save/load between sessions.</p>
+<p><code>set_state_json()</code> parses and restores all fields, including restoring the
+story cursor to the correct position and the story-completion state.</p>
+<p><strong>Example</strong>:</p>
+<pre><code class="language-rust">let save = engine.get_state_json();
+// ... save to disk / database / etc ...
+
+// Later, or in a new session:
+let mut engine2 = Engine::new(bytecode);
+engine2.set_state_json(&amp;save)?;
+</code></pre>
+<h3>Stats / tags / flags</h3>
+<pre><code class="language-rust">engine.stats_json() -&gt; String        // JSON: {&quot;statName&quot;: value, ...}
+engine.get_stat(name: &amp;str) -&gt; i64    // 0 if stat doesn&#39;t exist
+engine.list_flags() -&gt; Vec&lt;String&gt;   // runtime flags currently set
+engine.list_tags() -&gt; Vec&lt;String&gt;    // runtime tags applied during play
+engine.list_story_tags() -&gt; Vec&lt;String&gt;  // static story-level tags
+</code></pre>
+<h3>Queries</h3>
+<pre><code class="language-rust">engine.can_access_event(id: &amp;str) -&gt; bool    // event reachable?
+engine.available_events() -&gt; Vec&lt;String&gt;     // all event IDs
+engine.is_story_complete() -&gt; bool            // terminal choice made?
+</code></pre>
+<hr>
+<h2>StoryCatalog</h2>
+<p>Multi-story registry with tag-based filtering. Each story becomes an
+independent <code>Engine</code> instance.</p>
+<pre><code class="language-rust">use cyoa_runtime::{StoryCatalog, StoryMetadata};
+
+let mut catalog = StoryCatalog::new();
+catalog.register(bytecode1);
+catalog.register(bytecode2);
+
+// Discovery
+catalog.list_stories() -&gt; Vec&lt;StoryMetadata&gt;;
+catalog.stories_with_tag(tag: &amp;str) -&gt; Vec&lt;&amp;StoryMetadata&gt;;
+catalog.stories_with_all_tags(tags: &amp;[&amp;str]) -&gt; Vec&lt;&amp;StoryMetadata&gt;;
+catalog.stories_with_any_tags(tags: &amp;[&amp;str]) -&gt; Vec&lt;&amp;StoryMetadata&gt;;
+
+// Engine creation
+catalog.create_engine(index: usize) -&gt; Option&lt;Engine&gt;;
+catalog.create_engine_by_name(name: &amp;str) -&gt; Option&lt;Engine&gt;;
+
+// Metadata
+catalog.len() -&gt; usize;
+catalog.is_empty() -&gt; bool;
+</code></pre>
+<p><strong>Example</strong>:</p>
+<pre><code class="language-rust">let fantasy = catalog.stories_with_tag(&quot;fantasy&quot;);
+if let Some(story) = fantasy.first() {
+    let engine = catalog.create_engine_by_name(&amp;story.name).unwrap();
+    println!(&quot;Playing: {}&quot;, story.name);
+}
+</code></pre>
+<h3>StoryMetadata</h3>
+<pre><code class="language-rust">pub struct StoryMetadata {
+    pub name: String,
+    pub tags: Vec&lt;String&gt;,
+}
+</code></pre>
+<hr>
+<h2>PlayerState</h2>
+<p>The <code>PlayerState</code> struct is serializable via serde and is what
+<code>get_state_json()</code> / <code>set_state_json()</code> operate on.</p>
+<pre><code class="language-rust">pub struct PlayerState {
+    pub stats: BTreeMap&lt;String, i64&gt;,    // hp, gold, courage, ...
+    pub flags: BTreeSet&lt;String&gt;,           // visited_cave, obtained_key, ...
+    pub tags: BTreeSet&lt;String&gt;,            // combat, dangerous (current event tags)
+}
+</code></pre>
+<blockquote>
+<p><strong>Note</strong>: <code>PlayerState.tags</code> holds <strong>runtime-applied</strong> tags (added via the
+<code>AddTag</code> opcode during play). <strong>Story-level tags</strong> (declared via <code>tags:</code> at
+the story block scope) are static metadata stored in the <code>Bytecode</code> struct
+and accessed via <code>Engine::list_story_tags()</code> — they are distinct from runtime
+tags and never change during play.</p>
+</blockquote>
+<h2>StoryCursor</h2>
+<pre><code class="language-rust">pub struct StoryCursor {
+    pub current_event: u32,                // index of the current event
+    pub choice_history: Vec&lt;HistoryEntry&gt;, // choice history
+}
+</code></pre>
+<h2>HistoryEntry</h2>
+<pre><code class="language-rust">pub struct HistoryEntry {
+    pub event_id: String,
+    pub choice_index: i32,
+    pub choice_text: String,
+}
+</code></pre>
+<hr>
+<h2>Bytecode Format</h2>
+<p>The <code>.cyoa.bc</code> file is a binary format serialized with <code>postcard</code> (binary,
+no-std compatible, fast). It is designed for zero-copy mmap loading.</p>
+<h3>Binary Layout</h3>
+<pre><code>┌────────────────────┐
+│ Header (24 bytes)  │  magic (4B) + version (4B) + section offsets
+├────────────────────┤
+│ String Table       │  all text, deduplicated, interned
+├────────────────────┤
+│ Event Index        │  event_id → offset mapping
+├────────────────────┤
+│ Events             │  array of fixed-size EventEntry
+├────────────────────┤
+│ Choices            │  choice arrays (indexed by event)
+├────────────────────┤
+│ Effect Blocks      │  reusable effects
+├────────────────────┤
+│ Instruction Stream │  bytecode for events + effects + conditions
+└────────────────────┘
+</code></pre>
+<h3>Key Types</h3>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>BytecodeHeader</code></td>
+<td>Magic, version, section offsets</td>
+</tr>
+<tr>
+<td><code>StringRef</code></td>
+<td><code>(offset, length)</code> into string data</td>
+</tr>
+<tr>
+<td><code>EventEntry</code></td>
+<td><code>id</code>, <code>body_start</code>, <code>text_start</code>, <code>choice_start</code>, <code>requires</code>, <code>tag_start</code></td>
+</tr>
+<tr>
+<td><code>ChoiceEntry</code></td>
+<td><code>text</code>, <code>step_start</code>, <code>use_start</code>, <code>next</code>, <code>requires</code></td>
+</tr>
+<tr>
+<td><code>EffectEntry</code></td>
+<td><code>name</code>, <code>inst_start</code>, <code>inst_len</code></td>
+</tr>
+<tr>
+<td><code>Instruction</code></td>
+<td><code>opcode: u8</code>, <code>operand_a: u32</code>, <code>operand_b: u32</code></td>
+</tr>
+<tr>
+<td><code>Opcode</code></td>
+<td>13 variants: <code>GetText</code> through <code>Return</code></td>
+</tr>
+</tbody></table>
+<h3>Versioning</h3>
+<ul>
+<li><code>MAGIC = 0x43594F41</code> (&quot;CYOA&quot;)</li>
+<li><code>VERSION = 1</code></li>
+</ul>
+<h3>Serialization</h3>
+<pre><code class="language-rust">let bytes: Vec&lt;u8&gt; = bytecode.to_bytes()?;      // serialize
+let bc: Bytecode = Bytecode::from_bytes(&amp;bytes)?;  // deserialize
+</code></pre>
+<hr>
+<h2>CLI Reference</h2>
+<p>The <code>cyoa-cli</code> binary provides three commands:</p>
+<pre><code>cyoa compile &lt;story.cyoa&gt;      # Compile .cyoa → .cyoa.bc
+cyoa play &lt;story.cyoa.bc&gt;       # Interactive play mode
+cyoa validate &lt;story.cyoa&gt;       # Validate without output
+</code></pre>
+<p><strong>Examples</strong>:</p>
+<pre><code class="language-bash"># Compile a story
+cargo run -p cyoa-cli -- compile examples/forest_adventure.cyoa
+
+# Play interactively
+cargo run -p cyoa-cli -- play examples/forest_adventure.cyoa.bc
+
+# Validate without output
+cargo run -p cyoa-cli -- validate examples/forest_adventure.cyoa
+</code></pre>
+<h3>Compilation pipeline</h3>
+<ol>
+<li><strong>Parse pass</strong>: parse main + all transitively-imported files</li>
+<li><strong>Merge pass</strong>: build dependency graph, detect cycles, resolve name collisions</li>
+<li><strong>Codegen pass</strong>: emit unified bytecode</li>
+</ol>
+<p>See <a href="https://github.com/alexjwhite/cyoa-script/blob/main/../README#quick-start" target="_blank">README.md</a> for usage examples and <a href="https://github.com/alexjwhite/cyoa-script/blob/main/../SPEC" target="_blank">SPEC.md</a> for the full language specification.</p>
+
+      </article>
+    </main>
+  </div>
+
+  <script>
+    // Mobile sidebar toggle
+    const toggle = document.getElementById('menuToggle');
+    const sidebar = document.getElementById('sidebar');
+
+    // On mobile, move the sidebar into the fixed position container
+    if (window.innerWidth <= 800) {
+      const mobileSidebar = document.querySelector('.sidebar.mobile');
+      // The sidebar element itself gets cloned or shown inline
+    }
+
+    toggle.addEventListener('click', () => {
+      // For mobile: show/hide sidebar by toggling a class
+      const sidebar = document.querySelector('.sidebar');
+      if (sidebar.style.display === 'block' || sidebar.style.display === '') {
+        sidebar.style.display = 'none';
+      } else {
+        sidebar.style.display = 'block';
+      }
+    });
+
+    // Mark active link in sidebar
+    const currentPath = window.location.pathname;
+    const sidebarLinks = document.querySelectorAll('.sidebar a');
+    sidebarLinks.forEach(link => {
+      const href = link.getAttribute('href');
+      const linkPath = new URL(href, 'http://localhost').pathname;
+      if (currentPath === linkPath || currentPath.endsWith(href.replace(/^\//, ''))) {
+        link.classList.add('active');
+      }
+    });
+  </script>
+</body>
+</html>

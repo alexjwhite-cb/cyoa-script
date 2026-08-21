@@ -1,0 +1,740 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Installation Instructions — CYOA Engine</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card: #161b22;
+      --border: #30363d;
+      --text: #c9d1d9;
+      --text-dim: #8b949e;
+      --accent: #7c4cff;
+      --accent-hover: #996cff;
+      --success: #4ade80;
+      --warning: #facc15;
+      --code-bg: #010409;
+      --sidebar-width: 280px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: ui-system, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+                   'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      min-height: 100vh;
+    }
+
+    /* Header */
+    header {
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      padding: 0.75rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    header h1 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--accent);
+    }
+
+    header h1 a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .desktop-nav {
+      display: flex;
+      gap: 1rem;
+      font-size: 0.85rem;
+    }
+
+    .desktop-nav a {
+      color: var(--text-dim);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .desktop-nav a:hover {
+      color: var(--text);
+    }
+
+    /* Layout: sidebar + main */
+    .layout {
+      display: flex;
+      min-height: calc(100vh - 53px);
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: var(--sidebar-width);
+      background: var(--card);
+      border-right: 1px solid var(--border);
+      padding: 1.5rem;
+      overflow-y: auto;
+      position: sticky;
+      top: 0;
+      height: calc(100vh - 53px);
+    }
+
+    .sidebar h2 {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-dim);
+      margin-bottom: 1rem;
+    }
+
+    .sidebar ul {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .sidebar li {
+      margin: 0;
+    }
+
+    .sidebar a {
+      display: block;
+      padding: 0.4rem 0.6rem;
+      border-radius: 4px;
+      color: var(--text-dim);
+      text-decoration: none;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    }
+
+    .sidebar a:hover {
+      background: #1f2428;
+      color: var(--text);
+    }
+
+    .sidebar a.active {
+      background: rgba(124, 76, 255, 0.15);
+      color: var(--accent);
+    }
+
+    .sidebar .group-title {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-dim);
+      margin-top: 1rem;
+      margin-bottom: 0.3rem;
+      padding-left: 0.2rem;
+    }
+
+    .sidebar .group-title:first-child {
+      margin-top: 0;
+    }
+
+    /* Main content */
+    main {
+      flex: 1;
+      max-width: 900px;
+      padding: 2rem;
+    }
+
+    /* Content styling (rendered markdown) */
+    article {
+      max-width: 100%;
+    }
+
+    article h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 1rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.5rem;
+    }
+
+    article h2 {
+      font-size: 1.4rem;
+      font-weight: 600;
+      color: var(--text);
+      margin: 1.5rem 0 0.8rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.3rem;
+    }
+
+    article h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text);
+      margin: 1.2rem 0 0.5rem;
+    }
+
+    article h4 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin: 1rem 0 0.4rem;
+    }
+
+    article p {
+      margin-bottom: 1rem;
+    }
+
+    article a {
+      color: var(--accent);
+    }
+
+    article a:hover {
+      text-decoration: underline;
+    }
+
+    article code {
+      font-family: 'ui-monospace', 'Fira Code', 'Consolas', 'Menlo', monospace;
+      font-size: 0.9rem;
+      background: var(--code-bg);
+      padding: 0.15rem 0.4rem;
+      border-radius: 3px;
+      color: var(--success);
+    }
+
+    article code::before,
+    article code::after {
+      content: '\00a0'; /* non-breaking spaces to prevent zero-width issues */
+    }
+
+    article pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1rem;
+      margin: 1rem 0;
+      overflow-x: auto;
+    }
+
+    article pre code {
+      background: none;
+      padding: 0;
+      color: var(--text);
+      font-size: 0.85rem;
+      line-height: 1.5;
+    }
+
+    article pre code::before,
+    article pre code::after {
+      content: none;
+    }
+
+    article table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+      font-size: 0.9rem;
+    }
+
+    article th,
+    article td {
+      border: 1px solid var(--border);
+      padding: 0.5rem 0.75rem;
+      text-align: left;
+    }
+
+    article th {
+      background: #1f2428;
+      font-weight: 600;
+    }
+
+    article tr:nth-child(even) {
+      background: rgba(0, 0, 0, 0.1);
+    }
+
+    article ul,
+    article ol {
+      margin: 0.5rem 0 1rem 1.5rem;
+    }
+
+    article li {
+      margin-bottom: 0.25rem;
+    }
+
+    article blockquote {
+      border-left: 3px solid var(--accent);
+      padding: 0.5rem 1rem;
+      margin: 1rem 0;
+      background: #010409;
+      color: var(--text-dim);
+      font-style: italic;
+    }
+
+    article blockquote a {
+      color: var(--accent);
+    }
+
+    article hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 1.5rem 0;
+    }
+
+    article .highlight {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1.5rem;
+      margin: 1rem 0;
+    }
+
+    /* Tags */
+    .tag {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-family: 'ui-monospace', 'Fira Code', monospace;
+      background: #1f2428;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.1rem 0.6rem;
+      color: var(--text-dim);
+      margin-right: 0.25rem;
+    }
+
+    /* Mobile menu toggle */
+    .mobile-header {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.75rem 1.5rem;
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .menu-toggle {
+      background: #1f2428;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.4rem 0.8rem;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.8rem;
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .menu-toggle:hover {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    @media (max-width: 800px) {
+      header, .sidebar { display: none; }
+      .mobile-header { display: flex; }
+      .layout { display: block; }
+      main { padding: 2rem; }
+
+      .sidebar.mobile {
+        display: block;
+        position: fixed;
+        top: 53px;
+        left: 0;
+        right: 0;
+        background: var(--bg);
+        border-bottom: 1px solid var(--border);
+        z-index: 100;
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.3s ease;
+      }
+
+      .sidebar.mobile.open {
+        max-height: 600px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Desktop header -->
+  <header>
+    <h1><a href="/docs/index.html">CYOA Engine</a></h1>
+    <div class="desktop-nav">
+      <a href="/docs/index.html">Docs</a>
+      <a href="/web-demo/">Web Demo</a>
+      <a href="https://github.com/alexjwhite/cyoa-script">GitHub</a>
+    </div>
+  </header>
+
+  <!-- Mobile header -->
+  <div class="mobile-header">
+    <h1 style="font-size: 1.1rem; font-weight: 600; color: var(--accent);">CYOA Engine</h1>
+    <button class="menu-toggle" id="menuToggle">☰ Menu</button>
+  </div>
+
+  <div class="layout">
+    <!-- Sidebar -->
+    <nav class="sidebar" id="sidebar">
+      <h2>Documentation</h2>
+      <ul>
+        <li>
+          <div class="group-title">Getting Started</div>
+          <a href="/docs/installation.html">Installation Instructions</a>
+          <a href="/docs/index.html">Quick Start (README)</a>
+          <div class="group-title">Language</div>
+          <a href="/docs/syntax.html">Syntax Reference</a>
+          <div class="group-title">API Reference</div>
+          <a href="/docs/api-reference.html">API Overview</a>
+          <a href="/docs/wasm-api.html">WASM / JavaScript</a>
+          <a href="/docs/c-abi-api.html">C-ABI + C# / Unity</a>
+          <a href="/docs/rust-api.html">Rust Runtime API</a>
+          <a href="/docs/gdscript-api.html">GDScript (Godot)</a>
+          <div class="group-title">Deployment</div>
+          <a href="/docs/mobile.html">Mobile Guide</a>
+        </li>
+      </ul>
+    </nav>
+
+    <!-- Main content -->
+    <main>
+      <article>
+        <h1>Installation Instructions</h1>
+<p>This guide covers how to obtain and use the CYOA engine across different
+platforms and game engines. The engine is distributed as pre-built artifacts on
+<a href="https://github.com/alexjwhite/cyoa-script/releases">GitHub Releases</a>, so you
+don&#39;t need to compile from source unless you&#39;re contributing.</p>
+<h2>Table of Contents</h2>
+<ul>
+<li><a href="#latest-release">Latest Release</a></li>
+<li><a href="#cli-tool">CLI Tool</a></li>
+<li><a href="#web--browser">Web / Browser</a></li>
+<li><a href="#unity-c-abi">Unity (C-ABI)</a></li>
+<li><a href="#godot">Godot</a></li>
+<li><a href="#native-c-c">Native C/C++</a></li>
+<li><a href="#rust">Rust</a></li>
+<li><a href="#compiling-stories">Compiling Stories</a></li>
+<li><a href="#building-from-source">Building from Source</a></li>
+</ul>
+<hr>
+<h2>Latest Release</h2>
+<p>Pre-built artifacts for each release are published to
+<a href="https://github.com/alexjwhite/cyoa-script/releases">GitHub Releases</a>.</p>
+<p>Each release includes:</p>
+<table>
+<thead>
+<tr>
+<th>Artifact</th>
+<th>Contents</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>cyoa-cli-*</code></td>
+<td>Standalone CLI binary (compile, play, validate)</td>
+</tr>
+<tr>
+<td><code>cyoa-wasm/*</code></td>
+<td>WASM module (<code>cyoa_wasm.js</code> + <code>cyoa_wasm_bg.wasm</code>) + TypeScript declarations</td>
+</tr>
+<tr>
+<td><code>cyoa-native-*</code></td>
+<td>Native C-ABI shared/static library + C header (<code>cyoa.h</code>)</td>
+</tr>
+<tr>
+<td><code>cyoa-native-android/</code></td>
+<td>Android ABIs (<code>arm64-v8a</code>, <code>armeabi-v7a</code>)</td>
+</tr>
+<tr>
+<td><code>cyoa-native-ios/</code></td>
+<td>Universal iOS static library (<code>libcyoa_native.a</code>)</td>
+</tr>
+<tr>
+<td><code>*.cyoa.bc</code></td>
+<td>Compiled example story bytecode files</td>
+</tr>
+</tbody></table>
+<p>Download the appropriate files for your platform.</p>
+<hr>
+<h2>CLI Tool</h2>
+<p>The CLI binary provides three commands for story authors and testers.</p>
+<h3>Install</h3>
+<p>Download the <code>cyoa-cli-&lt;platform&gt;</code> binary from the latest
+<a href="https://github.com/alexjwhite/cyoa-script/releases/latest">release page</a>.</p>
+<h3>Usage</h3>
+<pre><code class="language-bash"># Compile a story from .cyoa source to bytecode
+cyoa compile examples/forest_adventure.cyoa
+
+# Play interactively in the terminal
+cyoa play examples/forest_adventure.cyoa.bc
+
+# Validate syntax without producing output
+cyoa validate examples/forest_adventure.cyoa
+</code></pre>
+<hr>
+<h2>Web / Browser</h2>
+<p>The WASM build lets you embed the CYOA engine in any web page or game engine
+that supports Web Workers / ES modules.</p>
+<h3>Install</h3>
+<ol>
+<li>Download <code>cyoa-wasm/*</code> from the latest release.</li>
+<li>Place the files where your web server can serve them:</li>
+</ol>
+<pre><code>your-web-project/
+├── cyoa_wasm.js      # WASM JS bindings
+├── cyoa_wasm_bg.wasm # The actual WASM binary
+├── cyoa_wasm.d.ts    # TypeScript declarations
+└── stories/
+    ├── forest_adventure.cyoa.bc
+    └── tavern_tales.cyoa.bc
+</code></pre>
+<h3>Usage</h3>
+<pre><code class="language-html">&lt;script type=&quot;module&quot;&gt;
+  import init, { WasmStoryCatalog, WasmEngine } from &#39;./cyoa_wasm.js&#39;;
+  await init();
+
+  // Register and discover stories by tag
+  const catalog = new WasmStoryCatalog();
+  const resp = await fetch(&#39;./stories/forest_adventure.cyoa.bc&#39;);
+  catalog.register(new Uint8Array(await resp.arrayBuffer()));
+
+  // Create an engine and play
+  const engine = catalog.createEngineByName(&quot;ForestAdventure&quot;);
+  const event = engine.getCurrentEvent();
+  console.log(event.text, event.choices);
+  engine.makeChoice(0);
+&lt;/script&gt;
+</code></pre>
+<p><strong>Live demo</strong>: Visit the
+<a href="https://cyoa-script.github.io/web-demo/">web demo</a> on GitHub Pages.</p>
+<hr>
+<h2>Unity (C-ABI)</h2>
+<p>The native C-ABI library integrates with Unity via a C# wrapper that uses
+<code>DllImport</code> to call the native functions.</p>
+<h3>Install</h3>
+<ol>
+<li>Download <code>cyoa-native-&lt;platform&gt;</code> from the latest release.</li>
+<li>Copy the shared library to your Unity project:</li>
+</ol>
+<pre><code>YourUnityProject/
+└── Assets/
+    └── Plugins/
+        ├── libcyoa_native.so   # Linux (or .dll / .dylib)
+        └── cyoa.h              # C header (optional)
+</code></pre>
+<h3>Setup</h3>
+<ol>
+<li>Copy <code>bindings/csharp/CyoaEngine.cs</code> into your Unity project
+(e.g., <code>Assets/Scripts/Cyoa/</code>).</li>
+<li>Copy compiled <code>.cyoa.bc</code> files into <code>Assets/StreamingAssets/</code>.</li>
+</ol>
+<h3>Usage</h3>
+<pre><code class="language-csharp">using Cyoa;
+
+// Load and register stories
+var catalog = new CyoaStoryCatalog();
+catalog.RegisterStory(File.ReadAllBytes(
+    &quot;Assets/StreamingAssets/forest_adventure.cyoa.bc&quot;));
+
+// Discover by tags
+StoryInfo[] fantasy = catalog.StoriesWithTag(&quot;fantasy&quot;);
+
+// Create engine and play
+using var engine = catalog.CreateEngineByName(&quot;ForestAdventure&quot;);
+Debug.Log(engine.CurrentEventText);
+Debug.Log(string.Join(&quot;\n&quot;, engine.CurrentChoices));
+engine.MakeChoice(0);
+
+// Save / load
+string saveJson = engine.GetStateJson();
+</code></pre>
+<p>Full integration guide: <a href="https://github.com/alexjwhite/cyoa-script/blob/main/../bindings/csharp/README" target="_blank"><code>bindings/csharp/README.md</code></a></p>
+<hr>
+<h2>Godot</h2>
+<p>The C-ABI library works with Godot 4.x via a C# wrapper (FFI bridge) and a
+thin GDScript convenience script.</p>
+<h3>Install</h3>
+<ol>
+<li>Download <code>cyoa-native-&lt;platform&gt;</code> from the latest release.</li>
+<li>Copy the library to your Godot addon folder:</li>
+</ol>
+<pre><code>YourGodotProject/
+├── addons/
+│   └── cyoa/
+│       ├── cyoa_engine.gd       # GDScript wrapper
+│       ├── scripts/
+│       │   └── CyoaEngine.cs    # C# FFI bridge
+│       └── native/
+│           ├── libcyoa_native.so   # (or .dll / .dylib)
+│           └── forest_adventure.cyoa.bc
+</code></pre>
+<h3>Usage (GDScript)</h3>
+<pre><code class="language-gdscript">var engine = preload(&quot;res://addons/cyoa/cyoa_engine.gd&quot;).new()
+engine.load_from_path(&quot;res://addons/cyoa/native/forest_adventure.cyoa.bc&quot;)
+
+print(engine.get_current_event_text())
+print(engine.get_current_choices())
+engine.make_choice(0)
+
+var save_json = engine.get_state_json()  # for saving
+</code></pre>
+<p>Full integration guide: <a href="https://github.com/alexjwhite/cyoa-script/blob/main/../bindings/godot/README" target="_blank"><code>bindings/godot/README.md</code></a></p>
+<hr>
+<h2>Native C/C++</h2>
+<p>Use the C-ABI shared library directly from C or C++.</p>
+<h3>Install</h3>
+<p>Download <code>cyoa-native-&lt;platform&gt;</code> which includes:</p>
+<ul>
+<li><code>libcyoa_native.so</code> / <code>cyoa_native.dll</code> / <code>libcyoa_native.dylib</code></li>
+<li><code>cyoa.h</code> (C header)</li>
+</ul>
+<h3>Usage</h3>
+<pre><code class="language-c">#include &quot;cyoa.h&quot;
+
+/* Load bytecode */
+uint8_t* bytes = /* ... read .cyoa.bc file ... */;
+CyoaEngine* engine = cyoa_create(bytes, len);
+
+/* Query current event */
+printf(&quot;Event: %s\n&quot;, cyoa_current_event_id(engine));
+printf(&quot;%s\n&quot;, cyoa_current_event_text(engine));
+
+/* Present choices and get input */
+int count = cyoa_current_choice_count(engine);
+for (int i = 0; i &lt; count; i++) {
+    printf(&quot;  [%d] %s\n&quot;, i, cyoa_choice_text(engine, i));
+}
+
+/* Make a choice */
+int choice = /* ... user input ... */;
+cyoa_make_choice(engine, choice);
+
+/* Save / load */
+char* state = cyoa_get_state_json(engine);
+/* ... store state ... */
+cyoa_set_state_json(engine, saved_state);
+cyoa_free_string(state);
+
+/* Cleanup */
+cyoa_destroy(engine);
+</code></pre>
+<p>C# / Unity wrapper: <a href="../bindings/csharp/CyoaEngine.cs"><code>bindings/csharp/CyoaEngine.cs</code></a>
+GDScript wrapper: <a href="../bindings/godot/gdscript/cyoa_engine.gd"><code>bindings/godot/gdscript/cyoa_engine.gd</code></a></p>
+<hr>
+<h2>Rust</h2>
+<p>If you&#39;re building a native Rust application, use the <code>cyoa-runtime</code> crate
+directly — no FFI overhead.</p>
+<h3>Install</h3>
+<p>Add to your <code>Cargo.toml</code>:</p>
+<pre><code class="language-toml">[dependencies]
+cyoa-runtime = { git = &quot;https://github.com/alexjwhite/cyoa-script&quot;, tag = &quot;v0.6.0&quot; }
+cyoa-bytecode = { git = &quot;https://github.com/alexjwhite/cyoa-script&quot;, tag = &quot;v0.6.0&quot; }
+</code></pre>
+<p>Or use the pre-built runtime crate from crates.io if published.</p>
+<h3>Usage</h3>
+<pre><code class="language-rust">use cyoa_runtime::Engine;
+use cyoa_bytecode::Bytecode;
+
+let bytes = std::fs::read(&quot;forest_adventure.cyoa.bc&quot;)?;
+let bc = Bytecode::from_bytes(&amp;bytes)?;
+let mut engine = Engine::new(bc);
+
+// Play
+println!(&quot;{}&quot;, engine.current_event_id());
+for para in engine.current_event_text() {
+    println!(&quot;{}&quot;, para);
+}
+let choices = engine.current_choices();
+for (i, choice) in choices.iter().enumerate() {
+    println!(&quot;  [{}] {}&quot;, i, choice);
+}
+
+engine.make_choice(0);
+
+// Save / load
+let save = engine.get_state_json();
+let mut engine2 = Engine::new(bc);
+engine2.set_state_json(&amp;save)?;
+</code></pre>
+<p>For compiling stories from <code>.cyoa</code> source, use <code>cyoa-compiler</code>:</p>
+<pre><code class="language-toml">cyoa-compiler = { git = &quot;https://github.com/alexjwhite/cyoa-script&quot; }
+</code></pre>
+<pre><code class="language-rust">use cyoa_compiler::Compiler;
+
+let mut compiler = Compiler::new();
+let bytecode = compiler.compile_file(&quot;forest_adventure.cyoa&quot;)?;
+std::fs::write(&quot;forest_adventure.cyoa.bc&quot;, bytecode.to_bytes()?)?;
+</code></pre>
+<p>Rust API reference: <a href="./rust-api.html"><code>docs/rust-api.html</code></a></p>
+<hr>
+<h2>Compiling Stories</h2>
+<p>Stories are compiled from <code>.cyoa</code> source files to <code>.cyoa.bc</code> bytecode using the
+CLI:</p>
+<pre><code class="language-bash"># Using the release binary
+cyoa compile my_story.cyoa
+# → produces my_story.cyoa.bc
+
+# Or from source via cargo
+cargo run -p cyoa-cli -- compile my_story.cyoa
+</code></pre>
+<p>The <code>.cyoa.bc</code> file is a single self-contained binary — all imports are merged
+at compile time, so no runtime file access is needed.</p>
+<hr>
+<h2>Building from Source</h2>
+<p>If you&#39;re contributing or need to build from source, see the
+<a href="#building-from-source">Quick Start</a> section of the
+<a href="https://github.com/alexjwhite/cyoa-script#quick-start">README</a>.</p>
+<pre><code class="language-bash"># Clone and build
+git clone https://github.com/alexjwhite/cyoa-script.git
+cd cyoa-script
+
+# Build all crates
+cargo build --release
+
+# Build WASM
+cargo build -p cyoa-wasm --target wasm32-unknown-unknown
+
+# Build native C-ABI
+cargo build -p cyoa-native --release
+
+# Run tests
+cargo test
+</code></pre>
+<p>For mobile cross-compilation (Android/iOS), see the
+<a href="./mobile.html">Mobile Guide</a>.</p>
+
+      </article>
+    </main>
+  </div>
+
+  <script>
+    // Mobile sidebar toggle
+    const toggle = document.getElementById('menuToggle');
+    const sidebar = document.getElementById('sidebar');
+
+    // On mobile, move the sidebar into the fixed position container
+    if (window.innerWidth <= 800) {
+      const mobileSidebar = document.querySelector('.sidebar.mobile');
+      // The sidebar element itself gets cloned or shown inline
+    }
+
+    toggle.addEventListener('click', () => {
+      // For mobile: show/hide sidebar by toggling a class
+      const sidebar = document.querySelector('.sidebar');
+      if (sidebar.style.display === 'block' || sidebar.style.display === '') {
+        sidebar.style.display = 'none';
+      } else {
+        sidebar.style.display = 'block';
+      }
+    });
+
+    // Mark active link in sidebar
+    const currentPath = window.location.pathname;
+    const sidebarLinks = document.querySelectorAll('.sidebar a');
+    sidebarLinks.forEach(link => {
+      const href = link.getAttribute('href');
+      const linkPath = new URL(href, 'http://localhost').pathname;
+      if (currentPath === linkPath || currentPath.endsWith(href.replace(/^\//, ''))) {
+        link.classList.add('active');
+      }
+    });
+  </script>
+</body>
+</html>
