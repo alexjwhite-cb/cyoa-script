@@ -33,7 +33,7 @@ jobs:
 
       - name: Fetch existing gh-pages content (WASM + web-demo)
         run: |
-          mkdir -p _site/web-demo _site/cyoa-wasm/pkg _site/examples _site/docs-site
+          mkdir -p _site/web-demo _site/cyoa-wasm/pkg _site/examples
           # Try to fetch the gh-pages branch; if it doesn't exist yet, skip
           git fetch origin gh-pages:gh-pages 2>/dev/null || true
           if [ -d gh-pages ]; then
@@ -54,14 +54,11 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install marked
-        run: npm install -g marked
+      - name: Install docs build deps
+        run: npm install
 
       - name: Build docs site HTML
-        run: |
-          cp docs-site/layout.html _site/docs-site/
-          cp docs-site/build-site.js _site/docs-site/
-          node docs-site/build-site.js --output-dir _site/docs
+        run: node docs-site/build-site.js --output-dir _site/docs
 
       - name: Root redirect
         run: |

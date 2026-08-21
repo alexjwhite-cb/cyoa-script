@@ -232,21 +232,19 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install marked
-        run: npm install -g marked
+      - name: Install docs build deps
+        run: npm install
 
       - name: Prepare web-demo for deployment
         run: |
           # Deploy at root so index.html's ../cyoa-wasm/pkg/ and ../examples/ paths work
-          mkdir -p _site/cyoa-wasm/pkg _site/examples _site/web-demo _site/docs _site/docs-site
+          mkdir -p _site/cyoa-wasm/pkg _site/examples _site/web-demo _site/docs
           cp cyoa-wasm/pkg/cyoa_wasm.js _site/cyoa-wasm/pkg/
           cp cyoa-wasm/pkg/cyoa_wasm_bg.wasm _site/cyoa-wasm/pkg/
           cp cyoa-wasm/pkg/cyoa_wasm.d.ts _site/cyoa-wasm/pkg/
           cp examples/*.cyoa.bc _site/examples/
           cp web-demo/index.html _site/web-demo/
           cp web-demo/cyoa.d.ts _site/web-demo/
-          cp docs-site/layout.html _site/docs-site/
-          cp docs-site/build-site.js _site/docs-site/
           # Build docs as rendered HTML pages (not raw .md)
           node docs-site/build-site.js
           # Root redirect to web demo (primary entry point on release)
