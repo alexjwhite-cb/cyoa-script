@@ -1,0 +1,79 @@
+name: Deploy Docs
+
+# This workflow builds and deploys the documentation website (HTML pages) to
+# GitHub Pages without requiring a release tag or rebuilding WASM.
+# Triggered by:
+# - Manual dispatch (workflow_dispatch)
+# - Pushes to docs/, web-demo/, README.md, docs-site/, or this workflow
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'docs/**'
+      - 'web-demo/**'
+      - 'README.md'
+      - 'docs-site/**'
+      - '.github/workflows/deploy-docs.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Build & Deploy Docs
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch existing gh-pages content (WASM + web-demo)
+        run: |
+          mkdir -p _site/web-demo _site/cyoa-wasm/pkg _site/examples _site/docs-site
+          # Try to fetch the gh-pages branch; if it doesn't exist yet, skip
+          git fetch origin gh-pages:gh-pages 2>/dev/null || true
+          if [ -d gh-pages ]; then
+            echo "Found existing gh-pages branch — preserving WASM and web-demo assets"
+            # Preserve existing WASM/web-demo/example assets from prior release deploy
+            cp -rn gh-pages/web-demo/. _site/web-demo/ 2>/dev/null || true
+            cp -rn gh-pages/cyoa-wasm/pkg/. _site/cyoa-wasm/pkg/ 2>/dev/null || true
+            cp -rn gh-pages/examples/. _site/examples/ 2>/dev/null || true
+          else
+            echo "No existing gh-pages branch — deploying docs only"
+          fi
+          # Always copy the latest web-demo entry point from this checkout
+          cp web-demo/index.html _site/web-demo/
+          cp web-demo/cyoa.d.ts _site/web-demo/ 2>/dev/null || true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install marked
+        run: npm install -g marked
+
+      - name: Build docs site HTML
+        run: |
+          cp docs-site/layout.html _site/docs-site/
+          cp docs-site/build-site.js _site/docs-site/
+          node docs-site/build-site.js --output-dir _site/docs
+
+      - name: Root redirect
+        run: |
+          printf '%s\n' '<!doctype html>' '<html>' '<head>' '<meta charset="utf-8">' \
+            '<meta http-equiv="refresh" content="0; url=./web-demo/">' \
+            '<title>CYOA Engine — Redirecting</title>' '</head>' '<body>' \
+            '<p>Redirecting to the <a href="./web-demo/">web demo</a>…</p>' \
+            '</body>' '</html>' > _site/index.html
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./_site
+          keep_reports: false

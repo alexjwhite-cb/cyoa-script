@@ -103,7 +103,8 @@ Updated per the [Documentation Sync Protocol](../CLAUDE.md#documentation-sync-pr
 1. `SPEC.md` — language spec, bytecode format, VM instructions
 2. `CLAUDE.md` — build/test commands, project structure
 3. `README.md` — user-facing quick start and examples
-4. `docs/syntax.md` — extended syntax reference
-5. `docs/api-reference.md` + language-specific pages — engine API reference
-6. `docs/mobile.md` — mobile cross-compilation
-7. `bindings/*/README.md` — language-specific integration guides
+4. `docs/installation.md` — installation instructions (consuming releases)
+5. `docs/syntax.md` — extended syntax reference
+6. `docs/api-reference.md` + language-specific pages — engine API reference
+7. `docs/mobile.md` — mobile cross-compilation
+8. `bindings/*/README.md` — language-specific integration guides

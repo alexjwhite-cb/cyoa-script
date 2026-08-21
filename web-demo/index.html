@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>CYOA WASM Demo</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Crimson+Text:wght@400;600;700&family=Fira+Code:wght@400;500&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&display=swap');
 
     :root {
       --bg: #0d1117;
@@ -22,7 +22,8 @@
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
-      font-family: 'Crimson Text', serif;
+      font-family: ui-system, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+                   'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
       background: var(--bg);
       color: var(--text);
       min-height: 100vh;
@@ -143,7 +144,8 @@
       padding: 0.8rem 1.2rem;
       background: #0a0d12;
       color: var(--text);
-      font-family: 'Crimson Text', serif;
+      font-family: ui-system, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+                   'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
       font-size: 1rem;
       cursor: pointer;
       transition: all 0.2s;
@@ -425,7 +427,7 @@
 
     // Filter catalog by tags
     function filterCatalog(mode) {
-      const tagStr = els.tagInput.value.trim();
+      const tagStr = els.tagInput.value.trim().toLowerCase();
       if (!tagStr) {
         renderCatalogList(state.catalog.listStories());
         return;

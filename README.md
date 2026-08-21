@@ -296,6 +296,7 @@ cargo build -p cyoa-lsp
 |----------|---------|
 | [SPEC.md](SPEC.md) | Language specification (canonical) |
 | [CLAUDE.md](CLAUDE.md) | Claude Code context (build/test) |
+| [docs/installation.md](docs/installation.md) | Installation instructions (consuming releases) |
 | [docs/syntax.md](docs/syntax.md) | Extended syntax reference |
 | [docs/api-reference.md](docs/api-reference.md) | API reference index + architecture overview |
 | [docs/wasm-api.md](docs/wasm-api.md) | WASM / JavaScript API |

@@ -227,25 +227,29 @@ jobs:
         run: |
           wasm-pack build cyoa-wasm --target web --out-dir pkg
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install marked
+        run: npm install -g marked
+
       - name: Prepare web-demo for deployment
         run: |
           # Deploy at root so index.html's ../cyoa-wasm/pkg/ and ../examples/ paths work
-          mkdir -p _site/cyoa-wasm/pkg _site/examples _site/web-demo _site/docs
+          mkdir -p _site/cyoa-wasm/pkg _site/examples _site/web-demo _site/docs _site/docs-site
           cp cyoa-wasm/pkg/cyoa_wasm.js _site/cyoa-wasm/pkg/
           cp cyoa-wasm/pkg/cyoa_wasm_bg.wasm _site/cyoa-wasm/pkg/
           cp cyoa-wasm/pkg/cyoa_wasm.d.ts _site/cyoa-wasm/pkg/
           cp examples/*.cyoa.bc _site/examples/
           cp web-demo/index.html _site/web-demo/
           cp web-demo/cyoa.d.ts _site/web-demo/
-          # Deploy API reference docs alongside the web demo
-          cp docs/api-reference.md _site/docs/
-          cp docs/wasm-api.md _site/docs/
-          cp docs/c-abi-api.md _site/docs/
-          cp docs/rust-api.md _site/docs/
-          cp docs/gdscript-api.md _site/docs/
-          cp docs/syntax.md _site/docs/
-          cp docs/mobile.md _site/docs/
-          # Root redirect index.html (relative path works for both user and project pages)
+          cp docs-site/layout.html _site/docs-site/
+          cp docs-site/build-site.js _site/docs-site/
+          # Build docs as rendered HTML pages (not raw .md)
+          node docs-site/build-site.js
+          # Root redirect to web demo (primary entry point on release)
           printf '%s\n' '<!doctype html>' '<html>' '<head>' '<meta charset="utf-8">' '<meta http-equiv="refresh" content="0; url=./web-demo/">' '<title>CYOA Engine — Redirecting</title>' '</head>' '<body>' '<p>Redirecting to the <a href="./web-demo/">web demo</a>…</p>' '</body>' '</html>' > _site/index.html
 
       - name: Deploy to GitHub Pages
