@@ -357,10 +357,10 @@
 <body>
   <!-- Desktop header -->
   <header>
-    <h1><a href="/docs/index.html">CYOA Engine</a></h1>
+    <h1><a href="index.html">CYOA Engine</a></h1>
     <div class="desktop-nav">
-      <a href="/docs/index.html">Docs</a>
-      <a href="/web-demo/">Web Demo</a>
+      <a href="index.html">Docs</a>
+      <a href="../web-demo/">Web Demo</a>
       <a href="https://github.com/alexjwhite/cyoa-script">GitHub</a>
     </div>
   </header>
@@ -378,18 +378,18 @@
       <ul>
         <li>
           <div class="group-title">Getting Started</div>
-          <a href="/docs/installation.html">Installation Instructions</a>
-          <a href="/docs/index.html">Quick Start (README)</a>
+          <a href="installation.html">Installation Instructions</a>
+          <a href="index.html">Quick Start (README)</a>
           <div class="group-title">Language</div>
-          <a href="/docs/syntax.html">Syntax Reference</a>
+          <a href="syntax.html">Syntax Reference</a>
           <div class="group-title">API Reference</div>
-          <a href="/docs/api-reference.html">API Overview</a>
-          <a href="/docs/wasm-api.html">WASM / JavaScript</a>
-          <a href="/docs/c-abi-api.html">C-ABI + C# / Unity</a>
-          <a href="/docs/rust-api.html">Rust Runtime API</a>
-          <a href="/docs/gdscript-api.html">GDScript (Godot)</a>
+          <a href="api-reference.html">API Overview</a>
+          <a href="wasm-api.html">WASM / JavaScript</a>
+          <a href="c-abi-api.html">C-ABI + C# / Unity</a>
+          <a href="rust-api.html">Rust Runtime API</a>
+          <a href="gdscript-api.html">GDScript (Godot)</a>
           <div class="group-title">Deployment</div>
-          <a href="/docs/mobile.html">Mobile Guide</a>
+          <a href="mobile.html">Mobile Guide</a>
         </li>
       </ul>
     </nav>
@@ -545,7 +545,7 @@ engine.MakeChoice(0);
 // Save / load
 string saveJson = engine.GetStateJson();
 </code></pre>
-<p>Full integration guide: <a href="https://github.com/alexjwhite/cyoa-script/blob/main/../bindings/csharp/README" target="_blank"><code>bindings/csharp/README.md</code></a></p>
+<p>Full integration guide: <a href="https://github.com/alexjwhite/cyoa-script/blob/main/../bindings/csharp/README.md" target="_blank"><code>bindings/csharp/README.md</code></a></p>
 <hr>
 <h2>Godot</h2>
 <p>The C-ABI library works with Godot 4.x via a C# wrapper (FFI bridge) and a
@@ -575,7 +575,7 @@ engine.make_choice(0)
 
 var save_json = engine.get_state_json()  # for saving
 </code></pre>
-<p>Full integration guide: <a href="https://github.com/alexjwhite/cyoa-script/blob/main/../bindings/godot/README" target="_blank"><code>bindings/godot/README.md</code></a></p>
+<p>Full integration guide: <a href="https://github.com/alexjwhite/cyoa-script/blob/main/../bindings/godot/README.md" target="_blank"><code>bindings/godot/README.md</code></a></p>
 <hr>
 <h2>Native C/C++</h2>
 <p>Use the C-ABI shared library directly from C or C++.</p>
@@ -730,8 +730,10 @@ cargo test
     const sidebarLinks = document.querySelectorAll('.sidebar a');
     sidebarLinks.forEach(link => {
       const href = link.getAttribute('href');
-      const linkPath = new URL(href, 'http://localhost').pathname;
-      if (currentPath === linkPath || currentPath.endsWith(href.replace(/^\//, ''))) {
+      // Compare basename since all docs pages are in the same directory
+      const hrefBasename = href.split('/').pop();
+      const currentBasename = currentPath.split('/').pop();
+      if (currentBasename === hrefBasename) {
         link.classList.add('active');
       }
     });

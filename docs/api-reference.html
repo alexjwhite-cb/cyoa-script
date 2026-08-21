@@ -357,10 +357,10 @@
 <body>
   <!-- Desktop header -->
   <header>
-    <h1><a href="/docs/index.html">CYOA Engine</a></h1>
+    <h1><a href="index.html">CYOA Engine</a></h1>
     <div class="desktop-nav">
-      <a href="/docs/index.html">Docs</a>
-      <a href="/web-demo/">Web Demo</a>
+      <a href="index.html">Docs</a>
+      <a href="../web-demo/">Web Demo</a>
       <a href="https://github.com/alexjwhite/cyoa-script">GitHub</a>
     </div>
   </header>
@@ -378,18 +378,18 @@
       <ul>
         <li>
           <div class="group-title">Getting Started</div>
-          <a href="/docs/installation.html">Installation Instructions</a>
-          <a href="/docs/index.html">Quick Start (README)</a>
+          <a href="installation.html">Installation Instructions</a>
+          <a href="index.html">Quick Start (README)</a>
           <div class="group-title">Language</div>
-          <a href="/docs/syntax.html">Syntax Reference</a>
+          <a href="syntax.html">Syntax Reference</a>
           <div class="group-title">API Reference</div>
-          <a href="/docs/api-reference.html">API Overview</a>
-          <a href="/docs/wasm-api.html">WASM / JavaScript</a>
-          <a href="/docs/c-abi-api.html">C-ABI + C# / Unity</a>
-          <a href="/docs/rust-api.html">Rust Runtime API</a>
-          <a href="/docs/gdscript-api.html">GDScript (Godot)</a>
+          <a href="api-reference.html">API Overview</a>
+          <a href="wasm-api.html">WASM / JavaScript</a>
+          <a href="c-abi-api.html">C-ABI + C# / Unity</a>
+          <a href="rust-api.html">Rust Runtime API</a>
+          <a href="gdscript-api.html">GDScript (Godot)</a>
           <div class="group-title">Deployment</div>
-          <a href="/docs/mobile.html">Mobile Guide</a>
+          <a href="mobile.html">Mobile Guide</a>
         </li>
       </ul>
     </nav>
@@ -413,27 +413,27 @@ all available functions in that language with examples and memory contracts.</p>
 </tr>
 </thead>
 <tbody><tr>
-<td><a href="/docs/wasm-api.html">WASM / JavaScript API</a></td>
+<td><a href="wasm-api.html">WASM / JavaScript API</a></td>
 <td>JavaScript / TypeScript / Web</td>
 <td>Web apps, browser games, web-based story editors</td>
 </tr>
 <tr>
-<td><a href="/docs/c-abi-api.html">C-ABI API</a></td>
+<td><a href="c-abi-api.html">C-ABI API</a></td>
 <td>C / C++ / C#</td>
 <td>Native apps, Unity, any language with FFI</td>
 </tr>
 <tr>
-<td><a href="/docs/c-abi-api.html#csharp-unity-wrapper">C# API</a></td>
+<td><a href="c-abi-api.html#csharp-unity-wrapper">C# API</a></td>
 <td>C# (Unity)</td>
 <td>Unity game engine integration</td>
 </tr>
 <tr>
-<td><a href="/docs/rust-api.html">Rust Runtime API</a></td>
+<td><a href="rust-api.html">Rust Runtime API</a></td>
 <td>Rust</td>
 <td>Native Rust games, engine development</td>
 </tr>
 <tr>
-<td><a href="/docs/gdscript-api.html">GDScript API</a></td>
+<td><a href="gdscript-api.html">GDScript API</a></td>
 <td>GDScript (Godot)</td>
 <td>Godot game engine integration</td>
 </tr>
@@ -536,7 +536,7 @@ the state JSON.</p>
 </tr>
 </tbody></table>
 <h2>Documentation Sync</h2>
-<p>Updated per the <a href="https://github.com/alexjwhite/cyoa-script/blob/main/../CLAUDE#documentation-sync-protocol" target="_blank">Documentation Sync Protocol</a>:</p>
+<p>Updated per the <a href="https://github.com/alexjwhite/cyoa-script/blob/main/CLAUDE.md#documentation-sync-protocol" target="_blank">Documentation Sync Protocol</a>:</p>
 <ol>
 <li><code>SPEC.md</code> — language spec, bytecode format, VM instructions</li>
 <li><code>CLAUDE.md</code> — build/test commands, project structure</li>
@@ -578,8 +578,10 @@ the state JSON.</p>
     const sidebarLinks = document.querySelectorAll('.sidebar a');
     sidebarLinks.forEach(link => {
       const href = link.getAttribute('href');
-      const linkPath = new URL(href, 'http://localhost').pathname;
-      if (currentPath === linkPath || currentPath.endsWith(href.replace(/^\//, ''))) {
+      // Compare basename since all docs pages are in the same directory
+      const hrefBasename = href.split('/').pop();
+      const currentBasename = currentPath.split('/').pop();
+      if (currentBasename === hrefBasename) {
         link.classList.add('active');
       }
     });

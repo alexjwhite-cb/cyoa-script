@@ -357,10 +357,10 @@
 <body>
   <!-- Desktop header -->
   <header>
-    <h1><a href="/docs/index.html">CYOA Engine</a></h1>
+    <h1><a href="index.html">CYOA Engine</a></h1>
     <div class="desktop-nav">
-      <a href="/docs/index.html">Docs</a>
-      <a href="/web-demo/">Web Demo</a>
+      <a href="index.html">Docs</a>
+      <a href="../web-demo/">Web Demo</a>
       <a href="https://github.com/alexjwhite/cyoa-script">GitHub</a>
     </div>
   </header>
@@ -378,18 +378,18 @@
       <ul>
         <li>
           <div class="group-title">Getting Started</div>
-          <a href="/docs/installation.html">Installation Instructions</a>
-          <a href="/docs/index.html">Quick Start (README)</a>
+          <a href="installation.html">Installation Instructions</a>
+          <a href="index.html">Quick Start (README)</a>
           <div class="group-title">Language</div>
-          <a href="/docs/syntax.html">Syntax Reference</a>
+          <a href="syntax.html">Syntax Reference</a>
           <div class="group-title">API Reference</div>
-          <a href="/docs/api-reference.html">API Overview</a>
-          <a href="/docs/wasm-api.html">WASM / JavaScript</a>
-          <a href="/docs/c-abi-api.html">C-ABI + C# / Unity</a>
-          <a href="/docs/rust-api.html">Rust Runtime API</a>
-          <a href="/docs/gdscript-api.html">GDScript (Godot)</a>
+          <a href="api-reference.html">API Overview</a>
+          <a href="wasm-api.html">WASM / JavaScript</a>
+          <a href="c-abi-api.html">C-ABI + C# / Unity</a>
+          <a href="rust-api.html">Rust Runtime API</a>
+          <a href="gdscript-api.html">GDScript (Godot)</a>
           <div class="group-title">Deployment</div>
-          <a href="/docs/mobile.html">Mobile Guide</a>
+          <a href="mobile.html">Mobile Guide</a>
         </li>
       </ul>
     </nav>
@@ -594,7 +594,7 @@ cyoa-cli/       CLI: compile, play, validate
 cyoa-lsp/       LSP server (Phase 4)
 </code></pre>
 <h2>Web Demo (WASM)</h2>
-<p>A working demo is in <a href="web-demo/"><code>web-demo/</code></a>. It loads two stories
+<p>A working demo is in <a href="../web-demo/"><code>web-demo/</code></a>. It loads two stories
 (<code>forest_adventure.cyoa</code> and <code>tavern_tales.cyoa</code>) into a <code>StoryCatalog</code>,
 filters them by tags, and plays them with zero-copy text rendering.</p>
 <pre><code class="language-bash"># From the project root:
@@ -626,7 +626,7 @@ engine.setStateJson(json); // to load
 const bytes = engine.currentEventTextBytes();
 const text = new TextDecoder().decode(bytes);
 </code></pre>
-<p>Full API reference: <a href="/docs/api-reference.html"><code>docs/api-reference.md</code></a></p>
+<p>Full API reference: <a href="api-reference.html"><code>docs/api-reference.md</code></a></p>
 <h2>Unity Integration (C-ABI)</h2>
 <p><code>cyoa-native</code> compiles to a native C-ABI shared library for use with
 Unity, Godot, desktop C/C++ apps, and mobile platforms.</p>
@@ -657,7 +657,7 @@ engine.MakeChoice(0);
 string saveJson = engine.GetStateJson();  // for saving
 engine.SetStateJson(saveJson);            // for loading
 </code></pre>
-<p>Unity integration guide: <a href="https://github.com/alexjwhite/cyoa-script/blob/main/bindings/csharp/UnityDemo/README" target="_blank"><code>bindings/csharp/UnityDemo/README.md</code></a></p>
+<p>Unity integration guide: <a href="https://github.com/alexjwhite/cyoa-script/blob/main/bindings/csharp/UnityDemo/README.md" target="_blank"><code>bindings/csharp/UnityDemo/README.md</code></a></p>
 <h3>Mobile (Android + iOS)</h3>
 <p>Cross-compile the native library for mobile platforms:</p>
 <pre><code class="language-bash"># Android (requires cargo-ndk)
@@ -666,7 +666,7 @@ cargo ndk -t arm64-v8a -t armeabi-v7a build -p cyoa-native --release
 # iOS (requires cargo-lipo, macOS + Xcode)
 cargo lipo -p cyoa-native --release
 </code></pre>
-<p>Full setup guide: <a href="/docs/mobile.html"><code>docs/mobile.md</code></a></p>
+<p>Full setup guide: <a href="mobile.html"><code>docs/mobile.md</code></a></p>
 <h2>Godot Integration (GDScript + C#)</h2>
 <p><code>cyoa-native</code> provides C-ABI bindings for Godot 4.x via a C# wrapper
 (<code>bindings/godot/csharp/</code>) and a GDScript convenience script
@@ -687,7 +687,7 @@ engine.make_choice(0)
 var engine = CyoaEngine.LoadFromFile(&quot;res://addons/cyoa/native/forest_adventure.cyoa.bc&quot;);
 GD.Print(engine.CurrentEventText);
 </code></pre>
-<p>Godot integration guide: <a href="https://github.com/alexjwhite/cyoa-script/blob/main/bindings/godot/README" target="_blank"><code>bindings/godot/README.md</code></a></p>
+<p>Godot integration guide: <a href="https://github.com/alexjwhite/cyoa-script/blob/main/bindings/godot/README.md" target="_blank"><code>bindings/godot/README.md</code></a></p>
 <h2>Language Server Protocol (LSP)</h2>
 <p>The <code>cyoa-lsp</code> crate provides a language server for <code>.cyoa</code> files with syntax
 diagnostics, hover info, and completion. It communicates over stdio (JSON-RPC),
@@ -720,43 +720,43 @@ cargo build -p cyoa-lsp
 </tr>
 </thead>
 <tbody><tr>
-<td><a href="/docs/SPEC.html">SPEC.md</a></td>
+<td><a href="https://github.com/alexjwhite/cyoa-script/blob/main/SPEC.md" target="_blank">SPEC.md</a></td>
 <td>Language specification (canonical)</td>
 </tr>
 <tr>
-<td><a href="/docs/CLAUDE.html">CLAUDE.md</a></td>
+<td><a href="https://github.com/alexjwhite/cyoa-script/blob/main/CLAUDE.md" target="_blank">CLAUDE.md</a></td>
 <td>Claude Code context (build/test)</td>
 </tr>
 <tr>
-<td><a href="/docs/installation.html">docs/installation.md</a></td>
+<td><a href="installation.html">docs/installation.md</a></td>
 <td>Installation instructions (consuming releases)</td>
 </tr>
 <tr>
-<td><a href="/docs/syntax.html">docs/syntax.md</a></td>
+<td><a href="syntax.html">docs/syntax.md</a></td>
 <td>Extended syntax reference</td>
 </tr>
 <tr>
-<td><a href="/docs/api-reference.html">docs/api-reference.md</a></td>
+<td><a href="api-reference.html">docs/api-reference.md</a></td>
 <td>API reference index + architecture overview</td>
 </tr>
 <tr>
-<td><a href="/docs/wasm-api.html">docs/wasm-api.md</a></td>
+<td><a href="wasm-api.html">docs/wasm-api.md</a></td>
 <td>WASM / JavaScript API</td>
 </tr>
 <tr>
-<td><a href="/docs/c-abi-api.html">docs/c-abi-api.md</a></td>
+<td><a href="c-abi-api.html">docs/c-abi-api.md</a></td>
 <td>C-ABI + C# (Unity) API</td>
 </tr>
 <tr>
-<td><a href="/docs/rust-api.html">docs/rust-api.md</a></td>
+<td><a href="rust-api.html">docs/rust-api.md</a></td>
 <td>Rust runtime API + bytecode format + CLI</td>
 </tr>
 <tr>
-<td><a href="/docs/gdscript-api.html">docs/gdscript-api.md</a></td>
+<td><a href="gdscript-api.html">docs/gdscript-api.md</a></td>
 <td>GDScript API (Godot)</td>
 </tr>
 <tr>
-<td><a href="/docs/mobile.html">docs/mobile.md</a></td>
+<td><a href="mobile.html">docs/mobile.md</a></td>
 <td>Mobile cross-compilation (Android/iOS)</td>
 </tr>
 </tbody></table>
@@ -798,8 +798,10 @@ Claude Code across multiple implementation phases.</p>
     const sidebarLinks = document.querySelectorAll('.sidebar a');
     sidebarLinks.forEach(link => {
       const href = link.getAttribute('href');
-      const linkPath = new URL(href, 'http://localhost').pathname;
-      if (currentPath === linkPath || currentPath.endsWith(href.replace(/^\//, ''))) {
+      // Compare basename since all docs pages are in the same directory
+      const hrefBasename = href.split('/').pop();
+      const currentBasename = currentPath.split('/').pop();
+      if (currentBasename === hrefBasename) {
         link.classList.add('active');
       }
     });
