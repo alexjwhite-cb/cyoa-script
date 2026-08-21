@@ -125,4 +125,10 @@ for (const filename of docFiles) {
   processFile(mdPath, htmlFilename);
 }
 
+// 3. Copy favicon to output directory
+const faviconSrc = path.join(__dirname, 'favicon.svg');
+if (fs.existsSync(faviconSrc)) {
+  fs.copyFileSync(faviconSrc, path.join(outDir, 'favicon.svg'));
+}
+
 console.log(`\nDone! Built ${docFiles.length + 1} pages → ${outDir}/`);
