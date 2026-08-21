@@ -4,7 +4,7 @@ name: Deploy Docs
 # GitHub Pages without requiring a release tag or rebuilding WASM.
 # Triggered by:
 # - Manual dispatch (workflow_dispatch)
-# - Pushes to docs/, web-demo/, README.md, docs-site/, or this workflow
+# - Pushes to docs/, web-demo/, README.md, docs-site/, package.json, or this workflow
 
 on:
   workflow_dispatch:
@@ -14,8 +14,8 @@ on:
       - 'web-demo/**'
       - 'README.md'
       - 'docs-site/**'
-      - '.github/workflows/deploy-docs.yml'
       - 'package.json'
+      - '.github/workflows/deploy-docs.yml'
 
 permissions:
   contents: read
@@ -32,23 +32,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Fetch existing gh-pages content (WASM + web-demo)
+      - name: Fetch latest release WASM artifacts
         run: |
-          mkdir -p _site/web-demo _site/cyoa-wasm/pkg _site/examples
-          # Try to fetch the gh-pages branch; if it doesn't exist yet, skip
-          git fetch origin gh-pages:gh-pages 2>/dev/null || true
-          if [ -d gh-pages ]; then
-            echo "Found existing gh-pages branch — preserving WASM and web-demo assets"
-            # Preserve existing WASM/web-demo/example assets from prior release deploy
-            cp -rn gh-pages/web-demo/. _site/web-demo/ 2>/dev/null || true
-            cp -rn gh-pages/cyoa-wasm/pkg/. _site/cyoa-wasm/pkg/ 2>/dev/null || true
-            cp -rn gh-pages/examples/. _site/examples/ 2>/dev/null || true
-          else
-            echo "No existing gh-pages branch — deploying docs only"
+          mkdir -p _site/cyoa-wasm/pkg _site/examples _site/web-demo
+          # Download the WASM package and CLI/binary artifacts from the latest release
+          # This avoids rebuilding WASM — WASM is only changed on release
+          gh release download --pattern "cyoa-wasm" --dir _site_wasm 2>/dev/null || echo "No WASM release found — docs-only deploy"
+          if [ -d _site_wasm/cyoa-wasm ]; then
+            cp -r _site_wasm/cyoa-wasm/* _site/cyoa-wasm/pkg/ 2>/dev/null || true
           fi
-          # Always copy the latest web-demo entry point from this checkout
-          cp web-demo/index.html _site/web-demo/
-          cp web-demo/cyoa.d.ts _site/web-demo/ 2>/dev/null || true
+          # Also fetch example bytecode from the release
+          gh release download --pattern "*examples*" --dir _site_wasm 2>/dev/null || true
+          if [ -d _site_wasm ]; then
+            find _site_wasm -name "*.cyoa.bc" -exec cp {} _site/examples/ \; 2>/dev/null || true
+          fi
+          # Fetch native libraries for C-ABI docs reference
+          gh release download --pattern "cyoa-native-*" --dir _site_wasm 2>/dev/null || true
+          rm -rf _site_wasm
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -61,12 +61,17 @@ jobs:
       - name: Build docs site HTML
         run: node docs-site/build-site.js --output-dir _site/docs
 
+      - name: Copy web-demo entry point
+        run: |
+          cp web-demo/index.html _site/web-demo/
+          cp web-demo/cyoa.d.ts _site/web-demo/ 2>/dev/null || true
+
       - name: Root redirect
         run: |
           printf '%s\n' '<!doctype html>' '<html>' '<head>' '<meta charset="utf-8">' \
-            '<meta http-equiv="refresh" content="0; url=./web-demo/">' \
+            '<meta http-equiv="refresh" content="0; url=./docs/">' \
             '<title>CYOA Engine — Redirecting</title>' '</head>' '<body>' \
-            '<p>Redirecting to the <a href="./web-demo/">web demo</a>…</p>' \
+            '<p>Redirecting to the <a href="./docs/">documentation site</a>…</p>' \
             '</body>' '</html>' > _site/index.html
 
       - name: Deploy to GitHub Pages
@@ -74,4 +79,3 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./_site
-          keep_reports: false
