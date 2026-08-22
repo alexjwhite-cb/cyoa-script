@@ -679,26 +679,44 @@ at compile time, so no runtime file access is needed.</p>
 <hr>
 <h2>Building from Source</h2>
 <p>If you&#39;re contributing or need to build from source, see the
-<a href="#building-from-source">Quick Start</a> section of the
-<a href="https://github.com/alexjwhite-cb/cyoa-script#quick-start">README</a>.</p>
-<pre><code class="language-bash"># Clone and build
+<a href="https://github.com/alexjwhite-cb/cyoa-script#development">Development</a>
+section of the <a href="https://github.com/alexjwhite-cb/cyoa-script">README</a>, or
+the individual crate READMEs for crate-specific build commands:</p>
+<table>
+<thead>
+<tr>
+<th>Crate</th>
+<th>Build command</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><a href="https://github.com/alexjwhite-cb/cyoa-script/blob/main/../cyoa-cli/README.md" target="_blank">cyoa-cli</a></td>
+<td><code>cargo build -p cyoa-cli --release</code></td>
+</tr>
+<tr>
+<td><a href="https://github.com/alexjwhite-cb/cyoa-script/blob/main/../cyoa-compiler/README.md" target="_blank">cyoa-compiler</a></td>
+<td><code>cargo build -p cyoa-compiler</code></td>
+</tr>
+<tr>
+<td><a href="https://github.com/alexjwhite-cb/cyoa-script/blob/main/../cyoa-wasm/README.md" target="_blank">cyoa-wasm</a></td>
+<td><code>cargo build -p cyoa-wasm --target wasm32-unknown-unknown</code></td>
+</tr>
+<tr>
+<td><a href="https://github.com/alexjwhite-cb/cyoa-script/blob/main/../cyoa-native/README.md" target="_blank">cyoa-native</a></td>
+<td><code>cargo build -p cyoa-native --release</code></td>
+</tr>
+<tr>
+<td><a href="https://github.com/alexjwhite-cb/cyoa-script/blob/main/../cyoa-lsp/README.md" target="_blank">cyoa-lsp</a></td>
+<td><code>cargo build -p cyoa-lsp</code></td>
+</tr>
+</tbody></table>
+<pre><code class="language-bash"># Clone and build everything
 git clone https://github.com/alexjwhite-cb/cyoa-script.git
 cd cyoa-script
-
-# Build all crates
 cargo build --release
-
-# Build WASM
-cargo build -p cyoa-wasm --target wasm32-unknown-unknown
-
-# Build native C-ABI
-cargo build -p cyoa-native --release
-
-# Run tests
-cargo test
 </code></pre>
 <p>For mobile cross-compilation (Android/iOS), see the
-<a href="./mobile.html">Mobile Guide</a>.</p>
+<a href="mobile.html">Mobile Guide</a>.</p>
 
       </article>
     </main>
