@@ -331,26 +331,24 @@ at compile time, so no runtime file access is needed.
 ## Building from Source
 
 If you're contributing or need to build from source, see the
-[Quick Start](#building-from-source) section of the
-[README](https://github.com/alexjwhite-cb/cyoa-script#quick-start).
+[Development](https://github.com/alexjwhite-cb/cyoa-script#development)
+section of the [README](https://github.com/alexjwhite-cb/cyoa-script), or
+the individual crate READMEs for crate-specific build commands:
+
+| Crate | Build command |
+|-------|---------------|
+| [cyoa-cli](../cyoa-cli/README.md) | `cargo build -p cyoa-cli --release` |
+| [cyoa-compiler](../cyoa-compiler/README.md) | `cargo build -p cyoa-compiler` |
+| [cyoa-wasm](../cyoa-wasm/README.md) | `cargo build -p cyoa-wasm --target wasm32-unknown-unknown` |
+| [cyoa-native](../cyoa-native/README.md) | `cargo build -p cyoa-native --release` |
+| [cyoa-lsp](../cyoa-lsp/README.md) | `cargo build -p cyoa-lsp` |
 
 ```bash
-# Clone and build
+# Clone and build everything
 git clone https://github.com/alexjwhite-cb/cyoa-script.git
 cd cyoa-script
-
-# Build all crates
 cargo build --release
-
-# Build WASM
-cargo build -p cyoa-wasm --target wasm32-unknown-unknown
-
-# Build native C-ABI
-cargo build -p cyoa-native --release
-
-# Run tests
-cargo test
 ```
 
 For mobile cross-compilation (Android/iOS), see the
-[Mobile Guide](./mobile.html).
+[Mobile Guide](./mobile.md).

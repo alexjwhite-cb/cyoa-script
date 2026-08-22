@@ -1,14 +1,12 @@
 # cyoa — A Declarative Language Engine for Choose-Your-Own-Adventure Games
 
-> **Version 0.5.0** — Phase 1 + 2 + 3 + 4 complete (incl. LSP server + mobile docs).
-
 ## What Is This?
 
 `cyoa` is a **declarative language and engine** for writing Choose-Your-Own-
 Adventure-style stories in games. Writers and game designers use a simple,
 prose-like DSL (no programming required) to create branching narratives with
-stats, tags, reusable consequences, and prerequisites. Stories compile ahead of
-time into compact bytecode that a lightweight VM interprets at runtime —
+stats, tags, reusable consequences, and prerequisites. Stories compile ahead
+of time into compact bytecode that a lightweight VM interprets at runtime —
 fast enough for large stories across web, desktop, mobile, and game engines.
 
 ## Why?
@@ -21,31 +19,44 @@ fast enough for large stories across web, desktop, mobile, and game engines.
 - **Writer-friendly features**: `{{templating}}`, reusable `effect` blocks,
   AND/OR + stat threshold `requires:`, choice history, multi-story
 
+## Web Demo
+
+An interactive web demo including two stories is available at
+[alexjwhite-cb.github.io/cyoa-script/web-demo](https://alexjwhite-cb.github.io/cyoa-script/web-demo).
+
 ## Quick Start
 
+### Install
+
+Pre-built artifacts are published to
+[GitHub Releases](https://github.com/alexjwhite-cb/cyoa-script/releases).
+No Rust toolchain required — download the package for your platform:
+
+| Target | Artifact |
+|--------|----------|
+| CLI tool | `cyoa-cli-<platform>` — standalone binary |
+| Web (WASM) | `cyoa-wasm/*` — `cyoa_wasm.js` + `cyoa_wasm_bg.wasm` |
+| Unity / Godot / C++ | `cyoa-native-<platform>` — shared library + `cyoa.h` |
+| Android | `cyoa-native-android/` — ABIs for `arm64-v8a`, `armeabi-v7a` |
+| iOS | `cyoa-native-ios/` — universal static library |
+| Example stories | `*.cyoa.bc` — compiled bytecode files |
+
+To compile stories from `.cyoa` source or build from source, install
+[Rust 1.80+](https://rustup.rs):
+
 ```bash
-# Install (requires Rust 1.80+)
-git clone https://github.com/yourname/cyoa.git
-cd cyoa
-
-# Compile a story
-cargo run -p cyoa-cli -- compile examples/forest_adventure.cyoa
-
-# Play in the CLI
-cargo run -p cyoa-cli -- play examples/forest_adventure.cyoa.bc
-
-# Run tests
-cargo test
-
-# Build WASM (for web/Unity/Godot)
-cargo build -p cyoa-wasm --target wasm32-unknown-unknown
-
-# Run the web demo
-python3 -m http.server 8080 --directory .
-# Then open http://localhost:8080/web-demo/
+git clone https://github.com/alexjwhite-cb/cyoa-script.git
+cd cyoa-script
+cargo build --release
 ```
 
-## Example Story
+Detailed installation for every platform and game engine:
+[docs/installation.md](docs/installation.md)
+
+### Example Story
+
+The CYOA DSL reads like a story outline. Writers declare stats, tags, effects,
+events, and choices — prerequisites are checked automatically.
 
 ```cyoa
 story ForestAdventure:
@@ -87,7 +98,91 @@ story ForestAdventure:
   event tavern:
     "The barkeep eyes your coin purse."
     "You have {{gold}} gold pieces."  # template interpolation
+
+    choice "Buy ale (5 gold)":
+      requires: gold >= 5
+      - gold by 5
+      "You buy an ale."
+      next tavern
 ```
+
+### JavaScript (WASM)
+
+Compile the engine to WASM and load stories in any browser or web-based game
+engine:
+
+```html
+<script type="module">
+  import init, { WasmStoryCatalog } from './cyoa_wasm.js';
+  await init();
+
+  // Register stories from compiled .cyoa.bc bytecode
+  const catalog = new WasmStoryCatalog();
+  const resp = await fetch('./forest_adventure.cyoa.bc');
+  catalog.register(new Uint8Array(await resp.arrayBuffer()));
+
+  // Discover and play
+  const engine = catalog.createEngineByName("ForestAdventure");
+  const event = engine.getCurrentEvent();
+  console.log(event.text, event.choices);
+  engine.makeChoice(0);
+
+  // Zero-copy text (returns a view into WASM linear memory)
+  const bytes = engine.currentEventTextBytes();
+  const text = new TextDecoder().decode(bytes);
+</script>
+```
+
+Full API: [docs/wasm-api.md](docs/wasm-api.md) · Web demo: [web-demo/](web-demo/)
+
+### C# (Unity)
+
+Use the C-ABI native library through a memory-safe C# wrapper via `DllImport`:
+
+```csharp
+using Cyoa;
+
+// Register multiple stories with tag-based discovery
+using var catalog = new CyoaStoryCatalog();
+catalog.RegisterStory(File.ReadAllBytes(
+    "Assets/StreamingAssets/forest_adventure.cyoa.bc"));
+
+// Discover and filter
+StoryInfo[] fantasy = catalog.StoriesWithTag("fantasy");
+
+// Create an engine and play
+using var engine = catalog.CreateEngineByName("ForestAdventure");
+Console.WriteLine(engine.CurrentEventText);
+Console.WriteLine(string.Join("\n", engine.CurrentChoices));
+engine.MakeChoice(0);
+
+// Save / load
+string saveJson = engine.GetStateJson();
+engine.SetStateJson(saveJson);
+```
+
+Full guide: [bindings/csharp/README.md](bindings/csharp/README.md) ·
+Unity demo: [bindings/csharp/UnityDemo/README.md](bindings/csharp/UnityDemo/README.md)
+
+### GDScript (Godot)
+
+The C# wrapper serves as the FFI bridge from GDScript to the native C-ABI:
+
+```gdscript
+# Catalog mode — register and filter stories
+var catalog = preload("res://addons/cyoa/cyoa_engine.gd").new()
+catalog.register_story("res://addons/cyoa/native/forest_adventure.cyoa.bc")
+
+var fantasy_stories = catalog.stories_with_tag("fantasy")
+
+# Create an engine and play
+var engine = catalog.create_engine_by_name("ForestAdventure")
+print(engine.get_current_event_text())
+print(engine.get_current_choices())
+engine.make_choice(0)
+```
+
+Full guide: [bindings/godot/README.md](bindings/godot/README.md)
 
 ## Features
 
@@ -128,141 +223,23 @@ story ForestAdventure:
 
 ### Crate Layout
 
-```
-cyoa-ast/       AST types (foundation)
-cyoa-bytecode/  Binary format + postcard serialization
-cyoa-compiler/  Pest grammar + parser + bytecode codegen
-cyoa-runtime/   VM + PlayerState + StoryCursor
-cyoa-wasm/      WASM bindings (Phase 2)
-cyoa-native/    C-ABI bindings (Phase 3)
-cyoa-cli/       CLI: compile, play, validate
-cyoa-lsp/       LSP server (Phase 4)
-```
+Each crate has its own [`README`](cyoa-ast/README.md) with build and usage
+details:
 
-## Web Demo (WASM)
+| Crate | Purpose |
+|-------|---------|
+| [`cyoa-ast/`](cyoa-ast/README.md) | AST types — foundation crate (no deps) |
+| [`cyoa-bytecode/`](cyoa-bytecode/README.md) | Binary format + postcard serialization |
+| [`cyoa-compiler/`](cyoa-compiler/README.md) | Pest grammar + parser + bytecode codegen |
+| [`cyoa-runtime/`](cyoa-runtime/README.md) | VM + PlayerState + StoryCursor |
+| [`cyoa-wasm/`](cyoa-wasm/README.md) | WASM bindings (ES module) |
+| [`cyoa-native/`](cyoa-native/README.md) | C-ABI bindings (shared/static library) |
+| [`cyoa-cli/`](cyoa-cli/README.md) | CLI: compile, play, validate |
+| [`cyoa-lsp/`](cyoa-lsp/README.md) | LSP server (diagnostics, hover, completion) |
 
-A working demo is in [`web-demo/`](web-demo/). It loads two stories
-(`forest_adventure.cyoa` and `tavern_tales.cyoa`) into a `StoryCatalog`,
-filters them by tags, and plays them with zero-copy text rendering.
-
-```bash
-# From the project root:
-python3 -m http.server 8080
-# Open http://localhost:8080/web-demo/
-```
-
-### WASM API (JavaScript)
-
-```typescript
-import init, { WasmStoryCatalog, WasmEngine } from './cyoa-wasm/pkg/cyoa_wasm.js';
-await init();
-
-// Register and filter stories by tag
-const catalog = new WasmStoryCatalog();
-catalog.register(bytecodeBytes);   // Uint8Array from fetch
-
-catalog.storiesWithTag("fantasy");          // array of { name, tags }
-catalog.storiesWithAllTags('["fantasy","exploration"]');
-
-// Create and play a story engine
-const engine = catalog.createEngine(0);
-
-const event = engine.getCurrentEvent();
-// { id: "old_ruins", text: [...], choices: [...] }
-
-engine.makeChoice(0);      // { effectText: [...], gameStateChanged: true }
-engine.getStateJson();     // for save files
-engine.setStateJson(json); // to load
-
-// Zero-copy text (returns Uint8Array view into WASM memory)
-const bytes = engine.currentEventTextBytes();
-const text = new TextDecoder().decode(bytes);
-```
-
-Full API reference: [`docs/api-reference.md`](docs/api-reference.md)
-
-## Unity Integration (C-ABI)
-
-`cyoa-native` compiles to a native C-ABI shared library for use with
-Unity, Godot, desktop C/C++ apps, and mobile platforms.
-
-```bash
-# Build the native plugin
-cargo build -p cyoa-native --release
-
-# Copy to Unity project
-cp target/release/libcyoa_native.* YourUnityProject/Assets/Plugins/
-```
-
-A C# wrapper (`CyoaEngine.cs`) provides a rich, memory-safe API mirroring
-the WASM/JS API. The Unity demo (`CyoaUnityDemo.cs`) shows two stories
-loaded simultaneously with tag filtering, choice handling, stats display,
-and save/load.
-
-```csharp
-using Cyoa;
-
-// Multi-story with tag filtering
-using var catalog = new CyoaStoryCatalog();
-catalog.RegisterStory(File.ReadAllBytes("forest_adventure.cyoa.bc"));
-catalog.RegisterStory(File.ReadAllBytes("tavern_tales.cyoa.bc"));
-
-var fantasyStories = catalog.StoriesWithTag("fantasy");
-using var engine = catalog.CreateEngineByName("ForestAdventure");
-
-string text = engine.CurrentEventText;
-string[] choices = engine.CurrentChoices;
-engine.MakeChoice(0);
-
-string saveJson = engine.GetStateJson();  // for saving
-engine.SetStateJson(saveJson);            // for loading
-```
-
-Unity integration guide: [`bindings/csharp/UnityDemo/README.md`](bindings/csharp/UnityDemo/README.md)
-
-### Mobile (Android + iOS)
-
-Cross-compile the native library for mobile platforms:
-
-```bash
-# Android (requires cargo-ndk)
-cargo ndk -t arm64-v8a -t armeabi-v7a build -p cyoa-native --release
-
-# iOS (requires cargo-lipo, macOS + Xcode)
-cargo lipo -p cyoa-native --release
-```
-
-Full setup guide: [`docs/mobile.md`](docs/mobile.md)
-
-## Godot Integration (GDScript + C#)
-
-`cyoa-native` provides C-ABI bindings for Godot 4.x via a C# wrapper
-(`bindings/godot/csharp/`) and a GDScript convenience script
-(`bindings/godot/gdscript/`). Since GDScript cannot call native C functions
-directly, the C# class serves as the FFI bridge.
-
-```bash
-# Build the native plugin (same as Unity)
-cargo build -p cyoa-native --release
-# Copy target/release/libcyoa_native.* to YourProject/addons/cyoa/native/
-```
-
-```gdscript
-# GDScript usage
-var engine = preload("res://addons/cyoa/cyoa_engine.gd").new()
-engine.load_from_path("res://addons/cyoa/native/forest_adventure.cyoa.bc")
-print(engine.get_current_event_text())
-print(engine.get_current_choices())
-engine.make_choice(0)
-```
-
-```csharp
-// C# direct usage
-var engine = CyoaEngine.LoadFromFile("res://addons/cyoa/native/forest_adventure.cyoa.bc");
-GD.Print(engine.CurrentEventText);
-```
-
-Godot integration guide: [`bindings/godot/README.md`](bindings/godot/README.md)
+**Key insight**: `cyoa-compiler` and `cyoa-runtime` are independent — they
+share `cyoa-ast` + `cyoa-bytecode` but don't depend on each other. Compilation
+(build time) and execution (runtime) are separate phases.
 
 ## Language Server Protocol (LSP)
 
@@ -273,15 +250,6 @@ making it compatible with any LSP-compatible editor (VS Code, Neovim, etc.).
 ```bash
 # Build the LSP server
 cargo build -p cyoa-lsp
-
-# Example: configure VS Code (settings.json)
-{
-  "cyoa-lsp": {
-    "command": ["cyoa-lsp"],
-    "languageId": "cyoa",
-    "uri": "file:///path/to/cyoa-lsp"
-  }
-}
 ```
 
 **Features:**
@@ -290,12 +258,23 @@ cargo build -p cyoa-lsp
 - Completion suggests event IDs, stat/flag/effect names, and DSL keywords
 - Error hover shows line/column info
 
+## Development
+
+Build everything from source:
+
+```bash
+cargo build            # all crates
+cargo test             # all unit + integration tests
+cargo fmt --check      # formatting
+cargo clippy -- -D warnings   # lint (native)
+```
+
 ## Documentation
 
 | Document | Purpose |
 |----------|---------|
 | [SPEC.md](SPEC.md) | Language specification (canonical) |
-| [CLAUDE.md](CLAUDE.md) | Claude Code context (build/test) |
+| [CLAUDE.md](CLAUDE.md) | Build/test commands (Claude Code context) |
 | [docs/installation.md](docs/installation.md) | Installation instructions (consuming releases) |
 | [docs/syntax.md](docs/syntax.md) | Extended syntax reference |
 | [docs/api-reference.md](docs/api-reference.md) | API reference index + architecture overview |
@@ -304,6 +283,7 @@ cargo build -p cyoa-lsp
 | [docs/rust-api.md](docs/rust-api.md) | Rust runtime API + bytecode format + CLI |
 | [docs/gdscript-api.md](docs/gdscript-api.md) | GDScript API (Godot) |
 | [docs/mobile.md](docs/mobile.md) | Mobile cross-compilation (Android/iOS) |
+| [Per-crate READMEs](cyoa-ast/README.md) | Build & usage for each crate |
 
 ## License
 
