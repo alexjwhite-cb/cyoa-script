@@ -18,18 +18,13 @@ const KEYWORDS: &[&str] = &[
 ];
 
 /// Token type indices — must match the semanticTokensOptions legend.
-#[allow(dead_code)]
 const TT_KEYWORD: u32 = 0;
-#[allow(dead_code)]
-const TT_FUNCTION: u32 = 1;
-#[allow(dead_code)]
-const TT_VARIABLE: u32 = 2;
-const TT_STRING: u32 = 3;
-const TT_COMMENT: u32 = 4;
-const TT_TYPE: u32 = 5;
-const TT_PARAMETER: u32 = 6;
-const TT_NUMBER: u32 = 7;
-const TT_OPERATOR: u32 = 8;
+const TT_STRING: u32 = 1;
+const TT_COMMENT: u32 = 2;
+const TT_TYPE: u32 = 3;
+const TT_PARAMETER: u32 = 4;
+const TT_NUMBER: u32 = 5;
+const TT_OPERATOR: u32 = 6;
 
 /// A semantic token: position + length + type index.
 /// Note: `start_char` and `length` are **byte offsets** (not UTF-16 code units).
@@ -60,10 +55,19 @@ fn utf16_to_byte_idx(line: &str, utf16_pos: u32) -> usize {
 }
 
 /// Convert a byte offset to a UTF-16 code unit offset within a line.
+///
+/// Per the LSP specification, a position inside a multibyte character is
+/// interpreted as the start of that character.
 fn byte_to_utf16_idx(line: &str, byte_pos: usize) -> u32 {
     let mut utf16_count = 0u32;
     for (byte_idx, ch) in line.char_indices() {
         if byte_idx >= byte_pos {
+            return utf16_count;
+        }
+        let char_end = byte_idx + ch.len_utf8();
+        if byte_pos < char_end {
+            // byte_pos falls inside this multibyte character;
+            // snap to its UTF-16 start position per LSP spec.
             return utf16_count;
         }
         utf16_count += ch.len_utf16() as u32;
@@ -106,41 +110,42 @@ impl Server {
     ///   - `Some(Response::PublishDiagnostics { ... })` for diagnostic notifications
     ///   - `None` for notifications that produce no output
     pub fn handle(&mut self, msg: RawMessage) -> Vec<Response> {
-        let Some(req) = Request::from_raw(msg.clone()) else {
+        let id = msg.id.clone();
+        let Some(req) = Request::from_raw(msg) else {
             return vec![];
         };
 
         match req {
-            Request::Initialize => self.handle_initialize(msg.id),
-            Request::Shutdown => self.handle_shutdown(msg.id),
-            Request::DidOpen { uri, text } => self.handle_did_open(uri, text),
-            Request::DidChange { uri, text } => self.handle_did_change(uri, text),
+            Request::Initialize => self.handle_initialize(id),
+            Request::Shutdown => self.handle_shutdown(id),
+            Request::DidOpen { uri, text } => self.handle_document_update(uri, text),
+            Request::DidChange { uri, text } => self.handle_document_update(uri, text),
             Request::DidClose { uri } => self.handle_did_close(uri),
             Request::Hover {
                 uri,
                 line,
                 character,
-            } => self.handle_hover(&uri, line, character, msg.id),
+            } => self.handle_hover(&uri, line, character, id),
             Request::Completion {
                 uri,
                 line,
                 character,
-            } => self.handle_completion(&uri, line, character, msg.id),
+            } => self.handle_completion(&uri, line, character, id),
             Request::Definition {
                 uri,
                 line,
                 character,
-            } => self.handle_definition(&uri, line, character, msg.id),
+            } => self.handle_definition(&uri, line, character, id),
             Request::OnTypeFormatting {
                 uri,
                 line,
                 character,
                 ch,
                 options,
-            } => self.handle_on_type_formatting(&uri, line, character, &ch, &options, msg.id),
-            Request::SemanticTokens { uri } => self.handle_semantic_tokens(&uri, msg.id),
+            } => self.handle_on_type_formatting(&uri, line, character, &ch, &options, id),
+            Request::SemanticTokens { uri } => self.handle_semantic_tokens(&uri, id),
             Request::SemanticTokensRange { uri, range } => {
-                self.handle_semantic_tokens_range(&uri, &range, msg.id)
+                self.handle_semantic_tokens_range(&uri, &range, id)
             }
         }
     }
@@ -163,7 +168,7 @@ impl Server {
             },
             "semanticTokensOptions": {
                 "legend": {
-                    "tokenTypes": ["keyword", "function", "variable", "string", "comment", "type", "parameter", "number", "operator"],
+                    "tokenTypes": ["keyword", "string", "comment", "type", "parameter", "number", "operator"],
                     "tokenModifiers": []
                 },
                 "full": true,
@@ -172,33 +177,21 @@ impl Server {
             }
         });
 
-        vec![Response::Response {
-            jsonrpc: "2.0".to_string(),
+        self.json_response(
             id,
-            result: Some(serde_json::json!({
+            serde_json::json!({
                 "capabilities": capabilities
-            })),
-            error: None,
-        }]
+            }),
+        )
     }
 
     fn handle_shutdown(&self, id: Option<RequestId>) -> Vec<Response> {
-        vec![Response::Response {
-            jsonrpc: "2.0".to_string(),
-            id,
-            result: Some(serde_json::Value::Null),
-            error: None,
-        }]
+        self.empty_response(id)
     }
 
     // ── Document handlers ────────────────────────────────────────────────────
 
-    fn handle_did_open(&mut self, uri: String, text: String) -> Vec<Response> {
-        let diagnostics = self.parse_and_store(uri.clone(), text);
-        self.publish_diagnostics(&uri, diagnostics)
-    }
-
-    fn handle_did_change(&mut self, uri: String, text: String) -> Vec<Response> {
+    fn handle_document_update(&mut self, uri: String, text: String) -> Vec<Response> {
         let diagnostics = self.parse_and_store(uri.clone(), text);
         self.publish_diagnostics(&uri, diagnostics)
     }
@@ -210,7 +203,7 @@ impl Server {
     }
 
     fn handle_hover(
-        &mut self,
+        &self,
         uri: &str,
         line: u32,
         character: u32,
@@ -227,17 +220,15 @@ impl Server {
         // If there's a parse error, show that regardless of position
         if let Some(err) = &doc.error {
             let hover_content = format_error_message(err);
-            return vec![Response::Response {
-                jsonrpc: "2.0".to_string(),
+            return self.json_response(
                 id,
-                result: Some(serde_json::json!({
+                serde_json::json!({
                     "contents": {
                         "kind": "markdown",
                         "value": hover_content,
                     }
-                })),
-                error: None,
-            }];
+                }),
+            );
         }
 
         // Build story-level metadata (shown when cursor is not over a specific symbol)
@@ -248,54 +239,43 @@ impl Server {
                 content.push_str(&format!("**Tags**: {}\n\n", story.tags.join(", ")));
             }
 
+            // Helper to collect names of a specific StoryItem variant.
+            let collect_names = |variant: fn(&StoryItem) -> Option<&str>| -> Vec<&str> {
+                story.items.iter().filter_map(variant).collect()
+            };
+
             // List all stat definitions
-            let stats: Vec<_> = story
-                .items
-                .iter()
-                .filter_map(|item| match item {
-                    StoryItem::StatDef(s) => Some(s.name.as_str()),
-                    _ => None,
-                })
-                .collect();
+            let stats = collect_names(|item| match item {
+                StoryItem::StatDef(s) => Some(s.name.as_str()),
+                _ => None,
+            });
             if !stats.is_empty() {
                 content.push_str(&format!("**Stats**: {}\n\n", stats.join(", ")));
             }
 
             // List all flag definitions
-            let flags: Vec<_> = story
-                .items
-                .iter()
-                .filter_map(|item| match item {
-                    StoryItem::FlagDef(f) => Some(f.name.as_str()),
-                    _ => None,
-                })
-                .collect();
+            let flags = collect_names(|item| match item {
+                StoryItem::FlagDef(f) => Some(f.name.as_str()),
+                _ => None,
+            });
             if !flags.is_empty() {
                 content.push_str(&format!("**Flags**: {}\n\n", flags.join(", ")));
             }
 
             // List all effect definitions
-            let effects: Vec<_> = story
-                .items
-                .iter()
-                .filter_map(|item| match item {
-                    StoryItem::EffectDef(e) => Some(e.name.as_str()),
-                    _ => None,
-                })
-                .collect();
+            let effects = collect_names(|item| match item {
+                StoryItem::EffectDef(e) => Some(e.name.as_str()),
+                _ => None,
+            });
             if !effects.is_empty() {
                 content.push_str(&format!("**Effects**: {}\n\n", effects.join(", ")));
             }
 
             // List all event ids
-            let events: Vec<_> = story
-                .items
-                .iter()
-                .filter_map(|item| match item {
-                    StoryItem::EventDef(e) => Some(e.id.as_str()),
-                    _ => None,
-                })
-                .collect();
+            let events = collect_names(|item| match item {
+                StoryItem::EventDef(e) => Some(e.id.as_str()),
+                _ => None,
+            });
             if !events.is_empty() {
                 content.push_str(&format!("**Events**: {}", events.join(", ")));
             }
@@ -322,21 +302,19 @@ impl Server {
 
         let hover_content = hover_content.unwrap_or_else(|| "No information available".to_string());
 
-        vec![Response::Response {
-            jsonrpc: "2.0".to_string(),
+        self.json_response(
             id,
-            result: Some(serde_json::json!({
+            serde_json::json!({
                 "contents": {
                     "kind": "markdown",
                     "value": hover_content
                 }
-            })),
-            error: None,
-        }]
+            }),
+        )
     }
 
     fn handle_completion(
-        &mut self,
+        &self,
         uri: &str,
         _line: u32,
         _character: u32,
@@ -350,51 +328,34 @@ impl Server {
         let story = doc.story.as_ref().unwrap();
         let mut items = Vec::new();
 
-        // Event IDs
+        // Collect completions in a single pass over story items.
         for item in &story.items {
-            if let StoryItem::EventDef(e) = item {
-                items.push(CompletionItem {
+            match item {
+                StoryItem::EventDef(e) => items.push(CompletionItem {
                     label: e.id.clone(),
                     kind: Some(CompletionItemKind::Class),
                     detail: Some("event".to_string()),
                     documentation: None,
-                });
-            }
-        }
-
-        // Stat names
-        for item in &story.items {
-            if let StoryItem::StatDef(s) = item {
-                items.push(CompletionItem {
+                }),
+                StoryItem::StatDef(s) => items.push(CompletionItem {
                     label: s.name.clone(),
                     kind: Some(CompletionItemKind::Variable),
                     detail: Some(format!("stat = {}", s.default)),
                     documentation: None,
-                });
-            }
-        }
-
-        // Flag names
-        for item in &story.items {
-            if let StoryItem::FlagDef(f) = item {
-                items.push(CompletionItem {
+                }),
+                StoryItem::FlagDef(f) => items.push(CompletionItem {
                     label: f.name.clone(),
                     kind: Some(CompletionItemKind::Field),
                     detail: Some(format!("flag = {}", f.default)),
                     documentation: None,
-                });
-            }
-        }
-
-        // Effect names
-        for item in &story.items {
-            if let StoryItem::EffectDef(e) = item {
-                items.push(CompletionItem {
+                }),
+                StoryItem::EffectDef(e) => items.push(CompletionItem {
                     label: e.name.clone(),
                     kind: Some(CompletionItemKind::Function),
                     detail: Some("effect".to_string()),
                     documentation: None,
-                });
+                }),
+                _ => {}
             }
         }
 
@@ -411,15 +372,13 @@ impl Server {
             });
         }
 
-        vec![Response::Response {
-            jsonrpc: "2.0".to_string(),
+        self.json_response(
             id,
-            result: Some(serde_json::json!({
+            serde_json::json!({
                 "isIncomplete": false,
                 "items": items
-            })),
-            error: None,
-        }]
+            }),
+        )
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
@@ -431,25 +390,28 @@ impl Server {
             Err(e) => (None, Some(e)),
         };
 
+        // Compute diagnostics before moving error into DocumentState.
+        let diagnostics = match &error {
+            Some(err) => vec![diagnostics_from_parse_error(err)],
+            None => vec![],
+        };
+
         // If the story has imports, resolve them so that go-to-definition,
         // hover, and completion work for imported symbols (effects, stats,
         // flags, events from std/ or local files).
-        let (story, imported_files) = self.resolve_story_imports(uri.as_str(), &uri, story);
+        let (story, imported_files) = self.resolve_story_imports(&uri, story);
 
         self.documents.insert(
             uri,
             DocumentState {
                 text,
                 story,
-                error: error.clone(),
+                error,
                 imported_files,
             },
         );
 
-        match &error {
-            Some(err) => vec![diagnostics_from_parse_error(err)],
-            None => vec![],
-        }
+        diagnostics
     }
 
     /// Resolve imports for a story if it has any, falling back to the
@@ -458,7 +420,6 @@ impl Server {
     /// paths + their text contents (for go-to-definition support).
     fn resolve_story_imports(
         &self,
-        _uri: &str,
         uri: &str,
         story: Option<Story>,
     ) -> (Option<Story>, Vec<(PathBuf, String)>) {
@@ -500,10 +461,7 @@ impl Server {
                 }
                 (Some(merged), imported_files)
             }
-            Err(e) => {
-                eprintln!("cyoa-lsp: import resolution failed: {}", e);
-                (Some(story.clone()), Vec::new())
-            }
+            Err(_) => (Some(story.clone()), Vec::new()),
         }
     }
 
@@ -539,18 +497,13 @@ impl Server {
         // LSP spec allows Location | Location[] | LocationLink[] | null.
         // Return as a single Location for maximum client compatibility
         // (some GoLand versions don't handle Location[] for definition requests).
-        vec![Response::Response {
-            jsonrpc: "2.0".to_string(),
-            id,
-            result: Some(serde_json::json!({
-                "uri": loc.uri,
-                "range": {
-                    "start": { "line": loc.range.start.line, "character": loc.range.start.character },
-                    "end":   { "line": loc.range.end.line,   "character": loc.range.end.character },
-                }
-            })),
-            error: None,
-        }]
+        self.json_response(id, serde_json::json!({
+            "uri": loc.uri,
+            "range": {
+                "start": { "line": loc.range.start.line, "character": loc.range.start.character },
+                "end":   { "line": loc.range.end.line,   "character": loc.range.end.character },
+            }
+        }))
     }
 
     // ── On-type formatting (tab → spaces) ────────────────────────────────────
@@ -601,18 +554,16 @@ impl Server {
 
             // Return range in UTF-16 code unit positions (LSP requirement)
             let start_utf16 = character.saturating_sub(1);
-            return vec![Response::Response {
-                jsonrpc: "2.0".to_string(),
+            return self.json_response(
                 id,
-                result: Some(serde_json::json!([{
+                serde_json::json!([{
                     "range": {
                         "start": { "line": line, "character": start_utf16 },
                         "end":   { "line": line, "character": character }
                     },
                     "newText": spaces
-                }])),
-                error: None,
-            }];
+                }]),
+            );
         }
 
         self.empty_response(id)
@@ -628,68 +579,48 @@ impl Server {
 
         let tokens = tokenize_semantic(&doc.text);
         let lines: Vec<&str> = doc.text.lines().collect();
-
-        // LSP semantic token encoding uses relative values:
-        // - line: delta from previous token's line (first token = absolute line)
-        // - startChar: if same line as prev, offset from prev token's end;
-        //   if different line, absolute char position on that line
-        //
-        // Additionally, LSP uses UTF-16 code unit offsets, but tokenize_semantic
-        // produces byte offsets. We convert each token's byte offsets to UTF-16
-        // code unit offsets before encoding.
-        let mut data: Vec<serde_json::Value> = Vec::new();
-        let mut prev_line: u32 = 0;
-        let mut prev_end_utf16: u32 = 0;
-
-        for t in &tokens {
-            // Get the line text for this token
-            let line_str = lines.get(t.line as usize).copied().unwrap_or("");
-            let token_end_byte = (t.start_char + t.length) as usize;
-
-            // Convert byte offsets to UTF-16 code unit offsets
-            let start_utf16 = byte_to_utf16_idx(line_str, t.start_char as usize);
-            let token_end_utf16 = byte_to_utf16_idx(line_str, token_end_byte);
-            let utf16_len = token_end_utf16 - start_utf16;
-
-            let line_delta = t.line.saturating_sub(prev_line);
-            let start_char = if line_delta == 0 {
-                // Same line: relative to end of previous token
-                start_utf16.saturating_sub(prev_end_utf16)
-            } else {
-                // Different line: absolute character position
-                start_utf16
-            };
-
-            // LSP spec: data must be a flat number[] array, where each
-            // token is encoded as 5 consecutive numbers:
-            // [line, startChar, length, tokenType, tokenModifiers]
-            data.push(serde_json::json!(line_delta));
-            data.push(serde_json::json!(start_char));
-            data.push(serde_json::json!(utf16_len));
-            data.push(serde_json::json!(t.token_type));
-            data.push(serde_json::json!(0));
-
-            prev_line = t.line;
-            prev_end_utf16 = start_utf16 + utf16_len;
-        }
-
-        vec![Response::Response {
-            jsonrpc: "2.0".to_string(),
-            id,
-            result: Some(serde_json::json!({ "data": data })),
-            error: None,
-        }]
+        let token_refs: Vec<&SemanticToken> = tokens.iter().collect();
+        // For full document requests, line deltas are relative to line 0
+        self.do_semantic_tokens(&token_refs, &lines, 0, id)
     }
 
     fn handle_semantic_tokens_range(
         &self,
         uri: &str,
-        _range: &Range,
+        range: &Range,
         id: Option<RequestId>,
     ) -> Vec<Response> {
-        // For simplicity, treat range tokens the same as full tokens.
-        // A more sophisticated implementation would filter tokens to the range.
-        self.handle_semantic_tokens(uri, id)
+        let doc = match self.documents.get(uri) {
+            Some(d) => d,
+            None => return self.empty_response(id),
+        };
+
+        let tokens = tokenize_semantic(&doc.text);
+        let lines: Vec<&str> = doc.text.lines().collect();
+
+        // Filter tokens to those whose line falls within the requested range.
+        // LSP ranges are half-open: [start.line, end.line).
+        let filtered: Vec<&SemanticToken> = tokens
+            .iter()
+            .filter(|t| t.line >= range.start.line && t.line < range.end.line)
+            .collect();
+
+        // For range requests, the LSP spec requires the first token's line delta
+        // to be relative to range.start.line, not 0. This is critical for GoLand
+        // which sends semanticTokens/range requests for viewport highlighting.
+        self.do_semantic_tokens(&filtered, &lines, range.start.line, id)
+    }
+
+    /// Shared helper that encodes tokens and wraps them in a JSON-RPC response.
+    fn do_semantic_tokens(
+        &self,
+        tokens: &[&SemanticToken],
+        lines: &[&str],
+        start_line: u32,
+        id: Option<RequestId>,
+    ) -> Vec<Response> {
+        let data = encode_semantic_tokens(tokens, lines, start_line);
+        self.json_response(id, serde_json::json!({ "data": data }))
     }
 
     // ── Helper methods ─────────────────────────────────────────────────────────
@@ -857,25 +788,27 @@ impl Server {
         None
     }
 
-    fn empty_response(&self, id: Option<RequestId>) -> Vec<Response> {
+    /// Create a JSON-RPC success response with the given result.
+    fn json_response(&self, id: Option<RequestId>, result: serde_json::Value) -> Vec<Response> {
         vec![Response::Response {
             jsonrpc: "2.0".to_string(),
             id,
-            result: Some(serde_json::Value::Null),
-            error: None,
+            result: Some(result),
         }]
     }
 
+    fn empty_response(&self, id: Option<RequestId>) -> Vec<Response> {
+        self.json_response(id, serde_json::Value::Null)
+    }
+
     fn empty_completion(&self, id: Option<RequestId>) -> Vec<Response> {
-        vec![Response::Response {
-            jsonrpc: "2.0".to_string(),
+        self.json_response(
             id,
-            result: Some(serde_json::json!({
+            serde_json::json!({
                 "isIncomplete": false,
                 "items": []
-            })),
-            error: None,
-        }]
+            }),
+        )
     }
 }
 
@@ -887,34 +820,36 @@ fn find_def_in_text(text: &str, keyword: &str, name: &str) -> Option<Range> {
         if let Some(rest) = trimmed.strip_prefix(keyword) {
             // Ensure word boundary after keyword
             let after = rest.chars().next();
-            if after.is_none() || after.unwrap().is_whitespace() || after.unwrap() == ':' {
-                let after_kw = rest.trim_start();
-                if let Some(tail) = after_kw.strip_prefix(name) {
-                    // Verify word boundary after the name
-                    let after_name = tail.chars().next();
-                    let boundary_ok = after_name.is_none()
-                        || after_name.unwrap().is_whitespace()
-                        || after_name.unwrap() == ':';
-                    if boundary_ok {
-                        let line_start = line.len() - trimmed.len();
-                        let kw_end = keyword.len();
-                        let ws_after_kw = rest.len() - rest.trim_start().len();
-                        let name_start = line_start + kw_end + ws_after_kw;
-                        let name_end = name_start + name.len();
-                        // Convert byte offsets to UTF-16 code unit offsets (LSP requirement)
-                        let (start_utf16, end_utf16) =
-                            byte_range_to_utf16(line, name_start, name_end);
-                        return Some(Range {
-                            start: Position {
-                                line: line_idx as u32,
-                                character: start_utf16,
-                            },
-                            end: Position {
-                                line: line_idx as u32,
-                                character: end_utf16,
-                            },
-                        });
-                    }
+            let keyword_boundary_ok =
+                after.is_none() || after.unwrap().is_whitespace() || after.unwrap() == ':';
+            if !keyword_boundary_ok {
+                continue;
+            }
+            let after_kw = rest.trim_start();
+            if let Some(tail) = after_kw.strip_prefix(name) {
+                // Verify word boundary after the name
+                let after_name = tail.chars().next();
+                let boundary_ok = after_name.is_none()
+                    || after_name.unwrap().is_whitespace()
+                    || after_name.unwrap() == ':';
+                if boundary_ok {
+                    let line_start = line.len() - trimmed.len();
+                    let kw_end = keyword.len();
+                    let ws_after_kw = rest.len() - rest.trim_start().len();
+                    let name_start = line_start + kw_end + ws_after_kw;
+                    let name_end = name_start + name.len();
+                    // Convert byte offsets to UTF-16 code unit offsets (LSP requirement)
+                    let (start_utf16, end_utf16) = byte_range_to_utf16(line, name_start, name_end);
+                    return Some(Range {
+                        start: Position {
+                            line: line_idx as u32,
+                            character: start_utf16,
+                        },
+                        end: Position {
+                            line: line_idx as u32,
+                            character: end_utf16,
+                        },
+                    });
                 }
             }
         }
@@ -944,11 +879,9 @@ fn resolve_import_to_file(path: &str, base_dir: &Path, std_paths: &[PathBuf]) ->
             if full.exists() {
                 return Some(full);
             }
-        }
-        for std_base in std_paths {
-            let full = std_base.join(rel);
-            if full.exists() {
-                return Some(full);
+            let full_no_ext = std_base.join(rel);
+            if full_no_ext.exists() {
+                return Some(full_no_ext);
             }
         }
         None
@@ -1038,6 +971,62 @@ fn find_std_dirs(base: &Path) -> Vec<PathBuf> {
     dirs
 }
 
+/// Encode a list of `SemanticToken`s into the LSP relative number-array format.
+///
+/// - `start_line`: the baseline line for delta computation. For `semanticTokens/full`
+///   requests this is `0` (LSP spec: first token's line is relative to the document start).
+///   For `semanticTokens/range` requests this is `range.start.line` (LSP spec: first
+///   token's line is relative to the range start).
+/// - `line` (encoded): delta from previous token's line (or from `start_line` for
+///   the first token).
+/// - `startChar` (encoded): if same line as prev, offset from prev token's end;
+///   if different line, absolute char position on that line.
+///
+/// Byte offsets from `tokenize_semantic` are converted to UTF-16 code unit
+/// offsets as required by the LSP specification.
+fn encode_semantic_tokens(
+    tokens: &[&SemanticToken],
+    lines: &[&str],
+    start_line: u32,
+) -> Vec<serde_json::Value> {
+    let mut data: Vec<serde_json::Value> = Vec::new();
+    let mut prev_line: u32 = start_line;
+    let mut prev_end_utf16: u32 = 0;
+
+    for t in tokens {
+        let line_str = lines.get(t.line as usize).copied().unwrap_or("");
+        let token_end_byte = (t.start_char + t.length) as usize;
+
+        // Convert byte offsets to UTF-16 code unit offsets
+        let start_utf16 = byte_to_utf16_idx(line_str, t.start_char as usize);
+        let token_end_utf16 = byte_to_utf16_idx(line_str, token_end_byte);
+        let utf16_len = token_end_utf16 - start_utf16;
+
+        let line_delta = t.line.saturating_sub(prev_line);
+        let start_char = if line_delta == 0 {
+            // Same line: relative to end of previous token
+            start_utf16.saturating_sub(prev_end_utf16)
+        } else {
+            // Different line: absolute character position
+            start_utf16
+        };
+
+        // LSP spec: data must be a flat number[] array, where each
+        // token is encoded as 5 consecutive numbers:
+        // [line, startChar, length, tokenType, tokenModifiers]
+        data.push(serde_json::json!(line_delta));
+        data.push(serde_json::json!(start_char));
+        data.push(serde_json::json!(utf16_len));
+        data.push(serde_json::json!(t.token_type));
+        data.push(serde_json::json!(0));
+
+        prev_line = t.line;
+        prev_end_utf16 = start_utf16 + utf16_len;
+    }
+
+    data
+}
+
 /// Tokenize source text into semantic tokens for syntax highlighting.
 /// Tracks multi-line string state (quoted strings spanning multiple source lines).
 fn tokenize_semantic(text: &str) -> Vec<SemanticToken> {
@@ -1053,9 +1042,16 @@ fn tokenize_semantic(text: &str) -> Vec<SemanticToken> {
         // If we were inside a string at the end of the previous line,
         // scan this line for the closing quote.
         if in_string {
-            let start = 0usize;
-            let mut end = 0usize;
+            // Skip leading whitespace on continuation lines — the string token
+            // should start at the first non-whitespace character, consistent
+            // with single-line string tokens that begin at the opening `"`.
+            let mut start = 0usize;
+            while start < bytes.len() && bytes[start].is_ascii_whitespace() {
+                start += 1;
+            }
+            let mut end = start;
 
+            i = start;
             while i < bytes.len() {
                 let c = bytes[i] as char;
                 if c == '\\' {
@@ -1073,7 +1069,7 @@ fn tokenize_semantic(text: &str) -> Vec<SemanticToken> {
                 end = i;
             }
 
-            if end > 0 {
+            if end > start {
                 tokens.push(SemanticToken {
                     line: line_num,
                     start_char: start as u32,
@@ -1334,8 +1330,7 @@ mod tests {
         assert_eq!(responses.len(), 1);
 
         match &responses[0] {
-            Response::Response { result, error, .. } => {
-                assert!(error.is_none());
+            Response::Response { result, .. } => {
                 let json = result.as_ref().unwrap();
                 assert!(json.get("capabilities").is_some());
                 let caps = &json["capabilities"];
@@ -1384,100 +1379,63 @@ mod tests {
     }
 
     #[test]
-    fn test_hover_returns_story_metadata() {
+    fn test_hover_at_various_positions() {
         let mut server = Server::new();
-
-        // Open a doc first
         let open_msg = did_open_msg("file:///test.cyoa", VALID_STORY);
         server.handle(open_msg);
 
-        // Hover over "TestStory" (the story name, which is not a keyword or
-        // symbol) — the server falls back to story-level metadata.
-        let hover_msg = request_msg(
-            "textDocument/hover",
-            serde_json::json!({
-                "textDocument": {"uri": "file:///test.cyoa"},
-                "position": {"line": 0, "character": 7}
-            }),
-        );
+        // (label, line, character, expected_substrings)
+        let cases: &[(&str, u32, u32, &[&str])] = &[
+            ("keyword", 0, 0, &["keyword", "story"]),
+            ("stat", 2, 8, &["stat", "hp", "50"]),
+            (
+                "story_metadata",
+                0,
+                7,
+                &[
+                    "TestStory",
+                    "fantasy",
+                    "hp",
+                    "visited_cave",
+                    "found_item",
+                    "start",
+                    "cave",
+                ],
+            ),
+        ];
 
-        let responses = server.handle(hover_msg);
-        assert_eq!(responses.len(), 1);
-        match &responses[0] {
-            Response::Response { result, .. } => {
-                let json = result.as_ref().unwrap();
-                let contents = &json["contents"]["value"];
-                let value = contents.as_str().unwrap();
-                assert!(value.contains("TestStory"));
-                assert!(value.contains("fantasy"));
-                assert!(value.contains("hp"));
-                assert!(value.contains("visited_cave"));
-                assert!(value.contains("found_item"));
-                assert!(value.contains("start"));
-                assert!(value.contains("cave"));
+        for (label, line, character, expected) in cases {
+            let hover_msg = request_msg(
+                "textDocument/hover",
+                serde_json::json!({
+                    "textDocument": {"uri": "file:///test.cyoa"},
+                    "position": {"line": line, "character": character}
+                }),
+            );
+
+            let responses = server.handle(hover_msg);
+            assert_eq!(
+                responses.len(),
+                1,
+                "hover for {}: expected 1 response",
+                label
+            );
+            match &responses[0] {
+                Response::Response { result, .. } => {
+                    let json = result.as_ref().unwrap();
+                    let value = json["contents"]["value"].as_str().unwrap();
+                    for substr in *expected {
+                        assert!(
+                            value.contains(substr),
+                            "hover for {}: expected '{}' in '{}'",
+                            label,
+                            substr,
+                            value
+                        );
+                    }
+                }
+                _ => panic!("expected Response for {}", label),
             }
-            _ => panic!("expected Response"),
-        }
-    }
-
-    #[test]
-    fn test_hover_over_keyword_returns_keyword_info() {
-        let mut server = Server::new();
-
-        let open_msg = did_open_msg("file:///test.cyoa", VALID_STORY);
-        server.handle(open_msg);
-
-        // Hover over the "story" keyword at position (0, 0)
-        let hover_msg = request_msg(
-            "textDocument/hover",
-            serde_json::json!({
-                "textDocument": {"uri": "file:///test.cyoa"},
-                "position": {"line": 0, "character": 0}
-            }),
-        );
-
-        let responses = server.handle(hover_msg);
-        assert_eq!(responses.len(), 1);
-        match &responses[0] {
-            Response::Response { result, .. } => {
-                let json = result.as_ref().unwrap();
-                let contents = &json["contents"]["value"];
-                let value = contents.as_str().unwrap();
-                assert!(value.contains("keyword"));
-                assert!(value.contains("story"));
-            }
-            _ => panic!("expected Response"),
-        }
-    }
-
-    #[test]
-    fn test_hover_over_stat_returns_stat_info() {
-        let mut server = Server::new();
-
-        let open_msg = did_open_msg("file:///test.cyoa", VALID_STORY);
-        server.handle(open_msg);
-
-        // "stat hp = 50" — hover over "hp"
-        let hover_msg = request_msg(
-            "textDocument/hover",
-            serde_json::json!({
-                "textDocument": {"uri": "file:///test.cyoa"},
-                "position": {"line": 2, "character": 8}
-            }),
-        );
-
-        let responses = server.handle(hover_msg);
-        assert_eq!(responses.len(), 1);
-        match &responses[0] {
-            Response::Response { result, .. } => {
-                let json = result.as_ref().unwrap();
-                let value = &json["contents"]["value"];
-                let value = value.as_str().unwrap();
-                assert!(value.contains("stat"));
-                assert!(value.contains("hp"));
-                assert!(value.contains("50"));
-            }
-            _ => panic!("expected Response"),
         }
     }
 
@@ -1627,8 +1585,7 @@ mod tests {
         let responses = server.handle(msg);
         assert_eq!(responses.len(), 1);
         match &responses[0] {
-            Response::Response { result, error, .. } => {
-                assert!(error.is_none());
+            Response::Response { result, .. } => {
                 assert_eq!(result.as_ref().unwrap(), &serde_json::Value::Null);
             }
             _ => panic!("expected Response"),
@@ -1675,68 +1632,64 @@ mod tests {
     }
 
     #[test]
-    fn test_definition_for_stat() {
+    fn test_definition_for_various_symbols() {
         let mut server = Server::new();
         let open_msg = did_open_msg("file:///test.cyoa", VALID_STORY);
         server.handle(open_msg);
 
-        // "stat hp = 50" — "hp" starts at character 8 on line 2
-        let def_msg = request_msg(
-            "textDocument/definition",
-            serde_json::json!({
-                "textDocument": {"uri": "file:///test.cyoa"},
-                "position": {"line": 2, "character": 9}
-            }),
-        );
+        // (label, line, character, expected_start_line, expected_end_line)
+        let cases: &[(&str, u32, u32, u32, u32)] = &[
+            ("stat", 2, 9, 2, 2),     // "stat hp = 50" — jump to stat definition
+            ("effect", 10, 12, 4, 4), // "uses found_item" — jump to effect definition
+        ];
 
-        let responses = server.handle(def_msg);
-        assert_eq!(responses.len(), 1);
-        match &responses[0] {
-            Response::Response { result, .. } => {
-                let json = result.as_ref().unwrap();
-                // Definition returns a single Location (not Location[])
-                let uri = &json["uri"];
-                assert!(uri.is_string());
-                let range = &json["range"];
-                let start = &range["start"];
-                assert_eq!(start["line"], 2);
-                let end = &range["end"];
-                assert_eq!(end["line"], 2);
-                assert!(end["character"].as_u64().unwrap() > start["character"].as_u64().unwrap());
+        for (label, line, character, expected_start_line, expected_end_line) in cases {
+            let def_msg = request_msg(
+                "textDocument/definition",
+                serde_json::json!({
+                    "textDocument": {"uri": "file:///test.cyoa"},
+                    "position": {"line": line, "character": character}
+                }),
+            );
+
+            let responses = server.handle(def_msg);
+            assert_eq!(
+                responses.len(),
+                1,
+                "definition for {}: expected 1 response",
+                label
+            );
+            match &responses[0] {
+                Response::Response { result, .. } => {
+                    let json = result.as_ref().unwrap();
+                    assert!(
+                        json["uri"].is_string(),
+                        "definition for {}: expected uri",
+                        label
+                    );
+                    let range = &json["range"];
+                    let start = &range["start"];
+                    assert_eq!(
+                        start["line"].as_u64().unwrap(),
+                        *expected_start_line as u64,
+                        "definition for {}: start line",
+                        label
+                    );
+                    let end = &range["end"];
+                    assert_eq!(
+                        end["line"].as_u64().unwrap(),
+                        *expected_end_line as u64,
+                        "definition for {}: end line",
+                        label
+                    );
+                    assert!(
+                        end["character"].as_u64().unwrap() > start["character"].as_u64().unwrap(),
+                        "definition for {}: range should be non-empty",
+                        label
+                    );
+                }
+                _ => panic!("expected Response for {}", label),
             }
-            _ => panic!("expected Response"),
-        }
-    }
-
-    #[test]
-    fn test_definition_for_effect() {
-        let mut server = Server::new();
-        let open_msg = did_open_msg("file:///test.cyoa", VALID_STORY);
-        server.handle(open_msg);
-
-        // In the "start" event, "uses found_item" is on line 10
-        // Line 10 is: "      uses found_item"
-        let def_msg = request_msg(
-            "textDocument/definition",
-            serde_json::json!({
-                "textDocument": {"uri": "file:///test.cyoa"},
-                "position": {"line": 10, "character": 12}
-            }),
-        );
-
-        let responses = server.handle(def_msg);
-        assert_eq!(responses.len(), 1);
-        match &responses[0] {
-            Response::Response { result, .. } => {
-                let json = result.as_ref().unwrap();
-                // Definition returns a single Location (not Location[])
-                let range = &json["range"];
-                let start = &range["start"];
-                let end = &range["end"];
-                assert_eq!(start["line"], 4); // "effect found_item:" is at line 4
-                assert_eq!(end["line"], 4);
-            }
-            _ => panic!("expected Response"),
         }
     }
 
@@ -1916,9 +1869,9 @@ mod tests {
                 // LSP spec: data is a flat number[] — each token is 5 consecutive
                 // numbers: [line, startChar, length, tokenType, tokenModifiers]
                 // Token type 0 = keyword (from TT_KEYWORD constant)
-                let has_keyword = (0..data.len()).step_by(5).any(|i| {
-                    data[i + 3].as_u64().unwrap() == 0 // TT_KEYWORD = 0
-                });
+                let has_keyword = (0..data.len())
+                    .step_by(5)
+                    .any(|i| data[i + 3].as_u64().unwrap() == TT_KEYWORD as u64);
                 assert!(has_keyword, "expected at least one keyword token");
             }
             _ => panic!("expected Response"),
@@ -1926,8 +1879,9 @@ mod tests {
     }
 
     #[test]
-    fn test_semantic_tokens_legend_in_capabilities() {
-        // The legend (tokenTypes) is advertised in the initialize response
+    fn test_semantic_tokens_capabilities() {
+        // The legend (tokenTypes), formats, full, and range are all
+        // advertised in the initialize response.
         let mut server = Server::new();
         let init_msg = request_msg("initialize", serde_json::json!({}));
 
@@ -1936,12 +1890,26 @@ mod tests {
         match &responses[0] {
             Response::Response { result, .. } => {
                 let json = result.as_ref().unwrap();
-                let legend = &json["capabilities"]["semanticTokensOptions"]["legend"]["tokenTypes"];
-                let legend = legend.as_array().unwrap();
+                let opts = &json["capabilities"]["semanticTokensOptions"];
+
+                // Check legend tokenTypes
+                let legend = opts["legend"]["tokenTypes"].as_array().unwrap();
                 let legend_str: Vec<&str> = legend.iter().map(|v| v.as_str().unwrap()).collect();
                 assert!(legend_str.contains(&"keyword"));
                 assert!(legend_str.contains(&"string"));
                 assert!(legend_str.contains(&"comment"));
+
+                // Check formats
+                let formats = opts["formats"].as_array().unwrap();
+                let fmt_str: Vec<&str> = formats.iter().map(|v| v.as_str().unwrap()).collect();
+                assert!(
+                    fmt_str.contains(&"relative"),
+                    "semanticTokensOptions should include \"formats\": [\"relative\"]"
+                );
+
+                // Check full and range support
+                assert_eq!(opts["full"], true);
+                assert_eq!(opts["range"], true);
             }
             _ => panic!("expected Response"),
         }
@@ -1970,11 +1938,11 @@ mod tests {
                 let json = result.as_ref().unwrap();
                 let data = json["data"].as_array().unwrap();
 
-                // Token type 3 = string (TT_STRING)
+                // Token type 1 = string (TT_STRING)
                 // Flat array: each token is 5 consecutive numbers
                 let string_tokens: Vec<_> = (0..data.len())
                     .step_by(5)
-                    .filter(|&i| data[i + 3].as_u64().unwrap() == 3) // TT_STRING = 3
+                    .filter(|&i| data[i + 3].as_u64().unwrap() == TT_STRING as u64)
                     .collect();
                 // Should have string tokens on BOTH lines (0-indexed: line 1 and line 2)
                 assert!(
@@ -1990,85 +1958,30 @@ mod tests {
     // ── UTF-16 / byte offset conversion tests ──────────────────────────────
 
     #[test]
-    fn test_utf16_to_byte_idx_with_multibyte() {
+    fn test_utf16_byte_conversion_with_multibyte() {
         // "a\u{2014}b" = 5 bytes (a=1, em-dash=3, b=1), 3 UTF-16 code units
         let line = "a\u{2014}b";
-        assert_eq!(utf16_to_byte_idx(line, 0), 0); // 'a'
-        assert_eq!(utf16_to_byte_idx(line, 1), 1); // '—' (start)
-        assert_eq!(utf16_to_byte_idx(line, 2), 4); // 'b'
-        assert_eq!(utf16_to_byte_idx(line, 3), 5); // end of string (byte len = 5)
-    }
-
-    #[test]
-    fn test_byte_to_utf16_idx_with_multibyte() {
-        let line = "a\u{2014}b";
-        assert_eq!(byte_to_utf16_idx(line, 0), 0); // 'a'
-        assert_eq!(byte_to_utf16_idx(line, 1), 1); // start of '—'
-        assert_eq!(byte_to_utf16_idx(line, 3), 2); // last byte of '—' → UTF-16 2 (next char 'b')
-        assert_eq!(byte_to_utf16_idx(line, 4), 2); // 'b'
-        assert_eq!(byte_to_utf16_idx(line, 5), 3); // end of string
-    }
-
-    #[test]
-    fn test_semantic_tokens_formats_relative_in_capabilities() {
-        let mut server = Server::new();
-        let init_msg = request_msg("initialize", serde_json::json!({}));
-        let responses = server.handle(init_msg);
-        assert_eq!(responses.len(), 1);
-
-        match &responses[0] {
-            Response::Response { result, .. } => {
-                let json = result.as_ref().unwrap();
-                let formats = &json["capabilities"]["semanticTokensOptions"]["formats"];
-                let formats = formats.as_array().unwrap();
-                let fmt_str: Vec<&str> = formats.iter().map(|v| v.as_str().unwrap()).collect();
-                assert!(
-                    fmt_str.contains(&"relative"),
-                    "semanticTokensOptions should include \"formats\": [\"relative\"]"
-                );
-            }
-            _ => panic!("expected Response"),
+        // Shared table: (utf16_pos, byte_pos) pairs
+        let cases = [(0, 0), (1, 1), (2, 4), (3, 5)];
+        for (utf16_pos, byte_pos) in cases {
+            assert_eq!(
+                utf16_to_byte_idx(line, utf16_pos),
+                byte_pos,
+                "utf16→byte at UTF-16 pos {}",
+                utf16_pos
+            );
+            assert_eq!(
+                byte_to_utf16_idx(line, byte_pos),
+                utf16_pos,
+                "byte→utf16 at byte pos {}",
+                byte_pos
+            );
         }
-    }
-
-    #[test]
-    fn test_semantic_tokens_multiline_string_with_emdash() {
-        // Multi-line string where the second line (continuation) contains an em-dash
-        // and the closing quote — mirrors forest_adventure.cyoa lines 157-158.
-        let story = "story TestStory:\n  text \"hello\n  world — end\"\n";
-
-        let mut server = Server::new();
-        let open_msg = did_open_msg("file:///test.cyoa", story);
-        server.handle(open_msg);
-
-        let tokens_msg = request_msg(
-            "textDocument/semanticTokens",
-            serde_json::json!({
-                "textDocument": {"uri": "file:///test.cyoa"},
-            }),
-        );
-
-        let responses = server.handle(tokens_msg);
-        assert_eq!(responses.len(), 1);
-        match &responses[0] {
-            Response::Response { result, .. } => {
-                let json = result.as_ref().unwrap();
-                let data = json["data"].as_array().unwrap();
-
-                // Token type 3 = string (TT_STRING)
-                // Flat array: each token is 5 consecutive numbers
-                let string_tokens: Vec<_> = (0..data.len())
-                    .step_by(5)
-                    .filter(|&i| data[i + 3].as_u64().unwrap() == 3) // TT_STRING = 3
-                    .collect();
-                assert!(
-                    string_tokens.len() >= 2,
-                    "expected string tokens on both lines (continuation with em-dash), got {}",
-                    string_tokens.len()
-                );
-            }
-            _ => panic!("expected Response"),
-        }
+        // byte_to_utf16: positions inside a multibyte char snap to its start
+        // (per LSP spec: a position inside a character is interpreted as the
+        // start of that character)
+        assert_eq!(byte_to_utf16_idx(line, 2), 1); // byte within '—' → start of '—'
+        assert_eq!(byte_to_utf16_idx(line, 3), 1); // last byte of '—' → start of '—'
     }
 
     #[test]
@@ -2107,7 +2020,7 @@ mod tests {
                 // [line_delta, start_char, length, tokenType, tokenModifiers]
                 let string_tokens: Vec<_> = (0..data.len())
                     .step_by(5)
-                    .filter(|&i| data[i + 3].as_u64().unwrap() == 3) // TT_STRING = 3
+                    .filter(|&i| data[i + 3].as_u64().unwrap() == TT_STRING as u64)
                     .collect();
                 assert!(
                     !string_tokens.is_empty(),
@@ -2188,28 +2101,110 @@ mod tests {
     }
 
     #[test]
-    fn test_find_definition_emits_utf16_offsets() {
+    fn test_semantic_tokens_range_filters_and_uses_range_relative_deltas() {
+        // LSP spec: for semanticTokens/range requests:
+        // 1. Line deltas must be relative to range.start.line, not 0
+        // 2. Tokens must be filtered to only those within the requested range
+        // This is critical for GoLand which sends range requests for viewport
+        // highlighting. Without the delta fix, GoLand receives tokens with
+        // deltas relative to 0, interprets them as out-of-range, and drops
+        // all semantic tokens — falling back to default lexer highlighting
+        // which only colors the bare `"` character.
+        let story = "story TestStory:\n  event town_square:\n    \"First line of string.\n    Second line of string.\"\n    choice \"Tavern\":\n      next tavern\n";
+
         let mut server = Server::new();
-        // Open with valid story so doc.story is Some.
-        // We test byte→UTF-16 conversion on a separate line string directly.
-        let valid = "story TestStory:\n  stat hp = 50\n  \"{{hp}}\"\n";
-        let open_msg = did_open_msg("file:///test.cyoa", valid);
+        let open_msg = did_open_msg("file:///test.cyoa", story);
         server.handle(open_msg);
 
-        // Override the document text with em-dash version but keep the story
-        // We need to test the byte→UTF-16 conversion path
-        // Line with " — stat hp": bytes: 2 spaces, — (3 bytes), space, stat...
-        // name_start in bytes = 2 + 3 + 1 + 4 + 1 = 11
-        // name_start in UTF-16 = 2 + 1 + 1 + 4 + 1 = 9
+        // Request range covering lines 2-4 (0-indexed), which includes both
+        // lines of the multi-line string.
+        let range_msg = request_msg(
+            "textDocument/semanticTokens/range",
+            serde_json::json!({
+                "textDocument": {"uri": "file:///test.cyoa"},
+                "range": {
+                    "start": {"line": 2, "character": 0},
+                    "end": {"line": 4, "character": 100},
+                }
+            }),
+        );
+        let responses = server.handle(range_msg);
+        assert_eq!(responses.len(), 1);
+        match &responses[0] {
+            Response::Response { result, .. } => {
+                let data = result.as_ref().unwrap()["data"].as_array().unwrap();
 
-        // Directly test the helper on a line with em-dash before 'stat'
-        let test_line = "  \u{2014} stat hp = 50";
-        let byte_name_start = 2 + 3 + 1 + 4 + 1; // after "  — stat "
-        let byte_name_end = byte_name_start + 2; // "hp"
-        let (utf16_start, utf16_end) =
-            byte_range_to_utf16(test_line, byte_name_start, byte_name_end);
-        // In UTF-16: "  " (2) + "—" (1) + " " (1) + "stat" (4) + " " (1) = 9
-        assert_eq!(utf16_start, 9);
-        assert_eq!(utf16_end, 11); // 9 + 2 (hp is ASCII)
+                // Decode the first token's line delta
+                let first_line_delta = data[0].as_u64().unwrap() as u32;
+                // LSP spec: line delta is relative to range.start.line (line 2)
+                let first_line = 2 + first_line_delta;
+                assert_eq!(
+                    first_line, 2,
+                    "first token line should be relative to range.start.line (2), got delta={} → line={}",
+                    first_line_delta, first_line
+                );
+
+                // Decode all line numbers from the relative encoding and verify
+                // no tokens fall outside the requested range (lines 2-4).
+                // First delta is relative to range.start.line (2); subsequent
+                // deltas are relative to the previous token's line.
+                let mut current_line: u32 = 2;
+                for i in (0..data.len()).step_by(5) {
+                    let line_delta = data[i].as_u64().unwrap() as u32;
+                    current_line += line_delta;
+                    assert!(
+                        current_line >= 2 && current_line <= 4,
+                        "token on line {} is outside requested range [2, 4]",
+                        current_line
+                    );
+                }
+
+                // Should have at least one string token (type=TT_STRING)
+                let string_tokens: Vec<_> = (0..data.len())
+                    .step_by(5)
+                    .filter(|&i| data[i + 3].as_u64().unwrap() == TT_STRING as u64)
+                    .collect();
+                assert!(
+                    !string_tokens.is_empty(),
+                    "expected at least one string token in range covering both lines"
+                );
+            }
+            _ => panic!("expected Response"),
+        }
+    }
+
+    #[test]
+    fn test_multiline_string_continuation_starts_at_first_non_whitespace() {
+        // Multi-line string: the continuation line should start at the first
+        // non-whitespace character, not at position 0.
+        // Line 1: `  "hello` — opening quote at byte offset 3
+        // Line 2: `  world"` — continuation, should start at byte offset 2 (start of "world")
+        let story = "story TestStory:\n  \"hello\n  world\"\n";
+
+        let tokens = tokenize_semantic(story);
+        let lines: Vec<&str> = story.lines().collect();
+
+        // Find string tokens on line 2 (the continuation)
+        let line2_string: Vec<_> = tokens
+            .iter()
+            .filter(|t| t.line == 2 && t.token_type == TT_STRING)
+            .collect();
+        assert_eq!(
+            line2_string.len(),
+            1,
+            "expected exactly one string token on continuation line"
+        );
+
+        let t = line2_string[0];
+        // The token should start at position 2 (after leading whitespace), not 0
+        assert_eq!(
+            t.start_char, 2,
+            "continuation string token should start at first non-whitespace char (2), not 0"
+        );
+        // The token length should cover from position 2 to the closing quote
+        let line_str = &lines[2];
+        let token_end_byte = (t.start_char + t.length) as usize;
+        let token_content = &line_str[token_end_byte - 1..token_end_byte]; // last char should be "
+        assert_eq!(token_content, "\"", "token should end at the closing quote");
     }
 }

@@ -154,8 +154,8 @@ story ForestAdventure:
 
   event town_square:
     tags: town
-    "The town square bustles with merchants and travelers."
-    "Your coin purse feels lighter — {{gold}} gold pieces remain."
+    "The town square bustles with merchants and travelers.
+    Your coin purse feels lighter — {{gold}} gold pieces remain."
 
     choice "Visit the tavern":
       next tavern

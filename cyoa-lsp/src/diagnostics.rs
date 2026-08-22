@@ -3,11 +3,7 @@
 use crate::protocol::{Diagnostic, DiagnosticSeverity, Position, Range};
 use cyoa_compiler::ParseError;
 
-/// Extract the line and column from a `ParseError`'s formatted message.
-///
-/// The `ParseError` type stores `message`, `line`, and `col` directly,
-/// but we re-derive them for diagnostics since the struct fields are used
-/// only within this conversion.
+/// Extract the line and column from a `ParseError`.
 fn extract_line_col(err: &ParseError) -> (usize, usize) {
     (err.line, err.col)
 }
