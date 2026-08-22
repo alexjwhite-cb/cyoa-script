@@ -47,15 +47,56 @@ fn read_message<R: BufRead>(reader: &mut R) -> Option<String> {
 
     // Now read the message body
     let len = content_length?;
+    if len == 0 {
+        return None;
+    }
     let mut buffer = vec![0u8; len];
     reader.read_exact(&mut buffer).ok()?;
 
-    let body = match str::from_utf8(&buffer) {
-        Ok(s) => s.trim().to_string(),
-        Err(_) => return None,
-    };
+    // Clean the body: strip BOM, null bytes, and trim whitespace.
+    // Some clients (e.g. GoLand) may include trailing \r\n in Content-Length,
+    // send a UTF-8 BOM, or include null bytes.
+    let body = clean_message_body(&buffer);
+
+    if body.is_empty() {
+        return None;
+    }
 
     Some(body)
+}
+
+/// Clean a raw message body: strip UTF-8 BOM, null bytes, and trim whitespace.
+fn clean_message_body(buffer: &[u8]) -> String {
+    // Strip UTF-8 BOM if present (0xEF 0xBB 0xBF)
+    let bytes = if buffer.starts_with(&[0xEF, 0xBB, 0xBF]) {
+        &buffer[3..]
+    } else {
+        buffer
+    };
+
+    // Decode as UTF-8
+    let s = match str::from_utf8(bytes) {
+        Ok(s) => s,
+        Err(_) => return String::new(),
+    };
+
+    // Remove null bytes (some clients may include them)
+    let cleaned: String = s.chars().filter(|c| *c != '\0').collect();
+
+    // Trim whitespace (handles trailing \r\n included in Content-Length)
+    cleaned.trim().to_string()
+}
+
+/// Attempt to parse just the first JSON value from a string that may have
+/// trailing characters. This handles cases where Content-Length included
+/// extra bytes (e.g. from the next message or trailing data).
+fn try_recover_json(s: &str) -> Option<String> {
+    let mut de = serde_json::Deserializer::from_str(s).into_iter::<serde_json::Value>();
+    if let Some(Ok(value)) = de.next() {
+        serde_json::to_string(&value).ok()
+    } else {
+        None
+    }
 }
 
 /// Write an LSP response with proper Content-Length framing.
@@ -76,10 +117,53 @@ fn main() {
 
     while let Some(message) = read_message(&mut reader) {
         let responses = match serde_json::from_str::<cyoa_lsp::RawMessage>(&message) {
-            Ok(msg) => server.handle(msg),
+            Ok(msg) => {
+                let method = msg.method.as_deref().unwrap_or("(response)");
+                eprintln!("cyoa-lsp: received request: {}", method);
+                server.handle(msg)
+            }
             Err(e) => {
                 eprintln!("cyoa-lsp: failed to parse message: {}", e);
-                continue;
+                // Debug: print body length and first 200 bytes as hex + printable
+                let body_bytes = message.as_bytes();
+                let preview_len = body_bytes.len().min(200);
+                let hex: String = body_bytes[..preview_len]
+                    .iter()
+                    .map(|b| format!("{:02x}", b))
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                let printable: String = body_bytes[..preview_len]
+                    .iter()
+                    .map(|&b| {
+                        if b.is_ascii() && b != 0 {
+                            (b as char).to_string()
+                        } else {
+                            ".".to_string()
+                        }
+                    })
+                    .collect();
+                eprintln!(
+                    "cyoa-lsp: message body ({} bytes): hex=[{}] text=[{}]",
+                    body_bytes.len(),
+                    hex,
+                    printable
+                );
+
+                // Attempt recovery for "trailing characters" errors by parsing
+                // just the first JSON value (handles Content-Length overcount)
+                if let Some(recovered) = try_recover_json(&message) {
+                    eprintln!("cyoa-lsp: recovery succeeded, handling recovered message");
+                    match serde_json::from_str::<cyoa_lsp::RawMessage>(&recovered) {
+                        Ok(msg) => server.handle(msg),
+                        Err(e2) => {
+                            eprintln!("cyoa-lsp: recovery parse also failed: {}", e2);
+                            continue;
+                        }
+                    }
+                } else {
+                    eprintln!("cyoa-lsp: recovery failed (no valid JSON found), skipping message");
+                    continue;
+                }
             }
         };
 
