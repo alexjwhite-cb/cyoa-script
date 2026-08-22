@@ -117,51 +117,16 @@ fn main() {
 
     while let Some(message) = read_message(&mut reader) {
         let responses = match serde_json::from_str::<cyoa_lsp::RawMessage>(&message) {
-            Ok(msg) => {
-                let method = msg.method.as_deref().unwrap_or("(response)");
-                eprintln!("cyoa-lsp: received request: {}", method);
-                server.handle(msg)
-            }
-            Err(e) => {
-                eprintln!("cyoa-lsp: failed to parse message: {}", e);
-                // Debug: print body length and first 200 bytes as hex + printable
-                let body_bytes = message.as_bytes();
-                let preview_len = body_bytes.len().min(200);
-                let hex: String = body_bytes[..preview_len]
-                    .iter()
-                    .map(|b| format!("{:02x}", b))
-                    .collect::<Vec<_>>()
-                    .join(" ");
-                let printable: String = body_bytes[..preview_len]
-                    .iter()
-                    .map(|&b| {
-                        if b.is_ascii() && b != 0 {
-                            (b as char).to_string()
-                        } else {
-                            ".".to_string()
-                        }
-                    })
-                    .collect();
-                eprintln!(
-                    "cyoa-lsp: message body ({} bytes): hex=[{}] text=[{}]",
-                    body_bytes.len(),
-                    hex,
-                    printable
-                );
-
+            Ok(msg) => server.handle(msg),
+            Err(_) => {
                 // Attempt recovery for "trailing characters" errors by parsing
                 // just the first JSON value (handles Content-Length overcount)
                 if let Some(recovered) = try_recover_json(&message) {
-                    eprintln!("cyoa-lsp: recovery succeeded, handling recovered message");
                     match serde_json::from_str::<cyoa_lsp::RawMessage>(&recovered) {
                         Ok(msg) => server.handle(msg),
-                        Err(e2) => {
-                            eprintln!("cyoa-lsp: recovery parse also failed: {}", e2);
-                            continue;
-                        }
+                        Err(_) => continue,
                     }
                 } else {
-                    eprintln!("cyoa-lsp: recovery failed (no valid JSON found), skipping message");
                     continue;
                 }
             }
@@ -169,9 +134,7 @@ fn main() {
 
         for resp in &responses {
             if let Ok(json) = serde_json::to_string(resp) {
-                if let Err(e) = write_message(&mut out, &json) {
-                    eprintln!("cyoa-lsp: failed to write response: {}", e);
-                }
+                let _ = write_message(&mut out, &json);
             }
         }
     }

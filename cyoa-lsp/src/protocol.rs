@@ -1,10 +1,8 @@
 //! Minimal LSP/JSON-RPC protocol types.
 //!
 //! We only need a subset of the LSP protocol — enough for diagnostics,
-//! hover, and completion. Using `lsp-types` would pull in the full spec;
-//! these lightweight types are sufficient for the current feature set.
-
-#![allow(dead_code)]
+//! hover, and basic completion. These lightweight types are sufficient
+//! for the current feature set.
 
 use serde::{Deserialize, Serialize};
 
@@ -64,12 +62,6 @@ pub enum RequestId {
     Str(String),
 }
 
-/// An LSP URI — we store the `file://` form as a string.
-#[derive(Debug, Clone, Deserialize)]
-struct TextDocumentUri {
-    uri: String,
-}
-
 /// Parameters for `textDocument/didOpen` / `textDocument/didChange`.
 #[derive(Debug, Clone, Deserialize)]
 struct DidOpenParams {
@@ -84,6 +76,7 @@ struct TextDocumentItem {
     text: String,
 }
 
+/// Parameters for `textDocument/didClose`.
 #[derive(Debug, Clone, Deserialize)]
 struct DidOpenTextDocumentParams {
     #[serde(rename = "textDocument")]
@@ -107,21 +100,7 @@ struct DidChangeTextDocumentParams {
 struct TextDocumentContentChangeEvent {
     text: Option<String>,
     #[serde(rename = "range")]
-    _range: Option<lsp_range::Range>,
-}
-
-mod lsp_range {
-    use serde::Deserialize;
-    #[derive(Debug, Clone, Deserialize)]
-    pub struct Range {
-        pub start: Position,
-        pub end: Position,
-    }
-    #[derive(Debug, Clone, Deserialize)]
-    pub struct Position {
-        pub line: u32,
-        pub character: u32,
-    }
+    _range: Option<Range>,
 }
 
 /// Parameters for `textDocument/hover`.
@@ -129,7 +108,7 @@ mod lsp_range {
 struct HoverParams {
     #[serde(rename = "textDocument")]
     text_document: TextDocumentIdentifier,
-    position: lsp_range::Position,
+    position: Position,
 }
 
 /// Parameters for `textDocument/completion`.
@@ -137,7 +116,7 @@ struct HoverParams {
 struct CompletionParams {
     #[serde(rename = "textDocument")]
     text_document: TextDocumentIdentifier,
-    position: lsp_range::Position,
+    position: Position,
 }
 
 /// Parsed request from a raw JSON-RPC message.
@@ -273,6 +252,8 @@ impl Request {
     }
 }
 
+// ===== Core LSP types =====
+
 /// LSP diagnostic severity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[repr(u32)]
@@ -316,42 +297,7 @@ pub struct Location {
     pub range: Range,
 }
 
-/// A text edit that replaces a range with new text.
-#[derive(Debug, Clone, Serialize)]
-pub struct TextEdit {
-    pub range: Range,
-    #[serde(rename = "newText")]
-    pub new_text: String,
-}
-
-/// LSP Hover response.
-#[derive(Debug, Clone, Serialize)]
-pub struct Hover {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub contents: Option<HoverContents>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(untagged)]
-pub enum HoverContents {
-    Markup(MarkupContent),
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct MarkupContent {
-    #[serde(rename = "kind")]
-    pub kind: String, // "markdown" or "plaintext"
-    pub value: String,
-}
-
-/// LSP Completion list.
-#[derive(Debug, Clone, Serialize)]
-pub struct CompletionList {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub is_incomplete: Option<bool>,
-    pub items: Vec<CompletionItem>,
-}
-
+/// A completion item in the completion list.
 #[derive(Debug, Clone, Serialize)]
 pub struct CompletionItem {
     pub label: String,
@@ -366,31 +312,11 @@ pub struct CompletionItem {
 #[derive(Debug, Clone, Copy, Serialize)]
 #[repr(u32)]
 pub enum CompletionItemKind {
-    Text = 1,
-    Method = 2,
     Function = 3,
-    Constructor = 4,
     Field = 5,
     Variable = 6,
     Class = 7,
-    Interface = 8,
-    Module = 9,
-    Property = 10,
-    Unit = 11,
-    Value = 12,
-    Enum = 13,
     Keyword = 14,
-    Snippet = 15,
-    Color = 16,
-    File = 17,
-    Reference = 18,
-    Folder = 19,
-    EnumMember = 20,
-    Constant = 21,
-    Struct = 22,
-    Event = 23,
-    Operator = 24,
-    TypeParameter = 25,
 }
 
 /// Response to an LSP request (or a notification to publish diagnostics).
@@ -403,8 +329,6 @@ pub enum Response {
         id: Option<RequestId>,
         #[serde(skip_serializing_if = "Option::is_none")]
         result: Option<serde_json::Value>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        error: Option<ResponseError>,
     },
     /// `textDocument/publishDiagnostics` notification (server → client).
     PublishDiagnostics {
@@ -415,43 +339,8 @@ pub enum Response {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct ResponseError {
-    pub code: i32,
-    pub message: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub data: Option<serde_json::Value>,
-}
-
-#[derive(Debug, Clone, Serialize)]
 pub struct PublishDiagnosticsParams {
     #[serde(rename = "uri")]
     pub uri: String,
     pub diagnostics: Vec<Diagnostic>,
-}
-
-/// LSP ServerCapabilities — sent in the `initialize` response.
-#[derive(Debug, Clone, Serialize)]
-pub struct ServerCapabilities {
-    #[serde(rename = "textDocumentSync", skip_serializing_if = "Option::is_none")]
-    pub text_document_sync: Option<TextDocumentSyncOptions>,
-    #[serde(rename = "completionProvider", skip_serializing_if = "Option::is_none")]
-    pub completion_provider: Option<CompletionOptions>,
-    #[serde(rename = "hoverProvider", skip_serializing_if = "Option::is_none")]
-    pub hover_provider: Option<bool>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct TextDocumentSyncOptions {
-    #[serde(rename = "openClose")]
-    pub open_close: bool,
-    #[serde(rename = "change")]
-    pub change: u32, // 1 = full
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct CompletionOptions {
-    #[serde(rename = "resolveProvider", skip_serializing_if = "Option::is_none")]
-    pub resolve_provider: Option<bool>,
-    #[serde(rename = "triggerCharacters", skip_serializing_if = "Option::is_none")]
-    pub trigger_characters: Option<Vec<String>>,
 }
