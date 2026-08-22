@@ -21,6 +21,42 @@ pub struct RawMessage {
     pub params: Option<serde_json::Value>,
 }
 
+// ===== Request parameter types =====
+
+/// Parameters for `textDocument/definition` (go-to-definition).
+#[derive(Debug, Clone, Deserialize)]
+struct DefinitionParams {
+    #[serde(rename = "textDocument")]
+    text_document: TextDocumentIdentifier,
+    position: Position,
+}
+
+/// Parameters for `textDocument/onTypeFormatting`.
+#[derive(Debug, Clone, Deserialize)]
+struct OnTypeFormattingParams {
+    #[serde(rename = "textDocument")]
+    text_document: TextDocumentIdentifier,
+    position: Position,
+    ch: String,
+    #[serde(default)]
+    options: serde_json::Value,
+}
+
+/// Parameters for `textDocument/semanticTokens` / `semanticTokens/full`.
+#[derive(Debug, Clone, Deserialize)]
+struct SemanticTokensParams {
+    #[serde(rename = "textDocument")]
+    text_document: TextDocumentIdentifier,
+}
+
+/// Parameters for `textDocument/semanticTokens/range`.
+#[derive(Debug, Clone, Deserialize)]
+struct SemanticTokensRangeParams {
+    #[serde(rename = "textDocument")]
+    text_document: TextDocumentIdentifier,
+    range: Range,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum RequestId {
@@ -130,6 +166,25 @@ pub enum Request {
         line: u32,
         character: u32,
     },
+    Definition {
+        uri: String,
+        line: u32,
+        character: u32,
+    },
+    OnTypeFormatting {
+        uri: String,
+        line: u32,
+        character: u32,
+        ch: String,
+        options: serde_json::Value,
+    },
+    SemanticTokens {
+        uri: String,
+    },
+    SemanticTokensRange {
+        uri: String,
+        range: Range,
+    },
 }
 
 impl Request {
@@ -182,6 +237,37 @@ impl Request {
                     character: p.position.character,
                 })
             }
+            "textDocument/definition" | "textDocument/declaration" => {
+                let p: DefinitionParams = serde_json::from_value(params).ok()?;
+                Some(Request::Definition {
+                    uri: p.text_document.uri,
+                    line: p.position.line,
+                    character: p.position.character,
+                })
+            }
+            "textDocument/onTypeFormatting" => {
+                let p: OnTypeFormattingParams = serde_json::from_value(params).ok()?;
+                Some(Request::OnTypeFormatting {
+                    uri: p.text_document.uri,
+                    line: p.position.line,
+                    character: p.position.character,
+                    ch: p.ch,
+                    options: p.options,
+                })
+            }
+            "textDocument/semanticTokens" | "textDocument/semanticTokens/full" => {
+                let p: SemanticTokensParams = serde_json::from_value(params).ok()?;
+                Some(Request::SemanticTokens {
+                    uri: p.text_document.uri,
+                })
+            }
+            "textDocument/semanticTokens/range" => {
+                let p: SemanticTokensRangeParams = serde_json::from_value(params).ok()?;
+                Some(Request::SemanticTokensRange {
+                    uri: p.text_document.uri,
+                    range: p.range,
+                })
+            }
             _ => None,
         }
     }
@@ -211,16 +297,31 @@ pub struct Diagnostic {
     pub message: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Range {
     pub start: Position,
     pub end: Position,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Position {
     pub line: u32,
     pub character: u32,
+}
+
+/// A location inside a document.
+#[derive(Debug, Clone, Serialize)]
+pub struct Location {
+    pub uri: String,
+    pub range: Range,
+}
+
+/// A text edit that replaces a range with new text.
+#[derive(Debug, Clone, Serialize)]
+pub struct TextEdit {
+    pub range: Range,
+    #[serde(rename = "newText")]
+    pub new_text: String,
 }
 
 /// LSP Hover response.

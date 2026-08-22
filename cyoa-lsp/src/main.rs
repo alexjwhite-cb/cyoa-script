@@ -35,7 +35,10 @@ fn read_message<R: BufRead>(reader: &mut R) -> Option<String> {
         }
 
         // Parse Content-Length header
-        if line_trimmed.to_ascii_lowercase().starts_with("content-length:") {
+        if line_trimmed
+            .to_ascii_lowercase()
+            .starts_with("content-length:")
+        {
             let value = line_trimmed.split(':').nth(1)?.trim();
             content_length = Some(value.parse::<usize>().ok()?);
         }
@@ -48,7 +51,7 @@ fn read_message<R: BufRead>(reader: &mut R) -> Option<String> {
     reader.read_exact(&mut buffer).ok()?;
 
     let body = match str::from_utf8(&buffer) {
-        Ok(s) => s.to_string(),
+        Ok(s) => s.trim().to_string(),
         Err(_) => return None,
     };
 
