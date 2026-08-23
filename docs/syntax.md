@@ -36,7 +36,7 @@ story StoryName:
 
 - **Indentation**: 2 spaces (tabs are rejected).
 - **Comments**: Start with `#` and extend to end of line.
-- **Quotes**: Text strings may use double quotes or be unquoted.
+- **Quotes**: Text strings may use double quotes or be unquoted. Escaped quotes (`\"`) inside quoted text render as literal `"`. Other supported escapes: `\\` → `\`, `\n` → newline, `\t` → tab, `\r` → carriage return.
 
 ---
 
@@ -302,7 +302,7 @@ choice "Attack the wolf":
 | Text | Yes | The choice label shown to the player |
 | Inline effects | No | `+/- stat`, `set flag`, `text`, `add tag` |
 | `uses` | No | Reference to one or more effect blocks |
-| `requires:` | No | Local prerequisite (filter this choice) |
+| `requires:` | No | Local prerequisite (inline or multi-line) |
 | `next` | No* | Event to advance to (`*required` for non-terminal choices) |
 
 ### Choice Text Can Be Templated
@@ -352,6 +352,16 @@ event guarded_path:
   requires:
     courage >= 5 AND gold > 0
   "A guarded path lies ahead."
+```
+
+The same multi-line form works inside `choice` blocks:
+
+```cyoa
+choice "Browse the stalls.":
+  requires:
+    NOT drank_witch_potion
+    OR was_mugged
+  next browse_wary_of_thieves
 ```
 
 ### Full Operator Table
@@ -517,3 +527,51 @@ story MyAdventure:
     choice "Play again":
       next start
 ```
+
+---
+
+## Validation
+
+The `cyoa validate` command checks a story for errors **without** producing
+bytecode. It runs import resolution first, then performs reference validation
+on the merged story.
+
+### What `validate` checks
+
+1. **Parse errors** — syntax issues, unclosed strings, invalid conditions.
+2. **Import errors** — missing files, circular imports, name collisions.
+3. **Reference validation** — all event and effect references must point to
+   defined symbols:
+
+| Reference site | Checked against | Example |
+|----------------|-----------------|---------|
+| `next <event>` | Defined events | `next castle_gate` → must have `event castle_gate:` |
+| `uses <effect>` | Defined effects | `uses healing_potion` → must be imported or locally defined |
+
+> **Note**: Stats and flags are **not** validated at compile time. The runtime
+> treats undeclared stats as `0` and undeclared flags as `false`. This allows
+> standard library effects (e.g., `std/combat` uses `courage`) to be imported
+> without requiring stories to pre-declare every stat the library effects
+> reference.
+
+### Import-aware validation
+
+When a story imports from `std/` or local files, `validate` resolves those
+imports first. Symbols defined in imported files are recognized as valid
+references. If an import file is missing or circular, `validate` reports
+an import error and exits.
+
+### LSP diagnostics
+
+The language server (LSP) runs the same reference validation as `cyoa validate`
+on every keystroke. Diagnostics are published in real time. When imports
+cannot be resolved (e.g., file not found), reference validation is skipped
+for the unresolved symbols to avoid false positives — the import error itself
+is reported instead.
+
+### Error positions
+
+Validation errors include line and column positions pointing to the **reference
+site** (where the symbol is used), not the definition. Comment lines (`#`) are
+skipped when locating reference positions, so errors never point at a symbol
+mentioned only in a comment.

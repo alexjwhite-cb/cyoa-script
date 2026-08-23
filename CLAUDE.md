@@ -200,6 +200,26 @@ All `.cyoa` imports are resolved at compile time into a single self-contained `.
 
 Supported in Phase 1: `std/...` and `./...` paths. Package registry imports deferred to Phase 2+.
 
+## Validation
+
+The `cyoa validate` command checks a story for errors without producing bytecode.
+It runs import resolution first, then performs reference validation on the merged
+story.
+
+**What `validate` checks:**
+
+1. **Parse errors** — syntax issues, unclosed strings, invalid conditions.
+2. **Import errors** — missing files, circular imports, name collisions.
+3. **Reference validation** — `next` must reference defined events, `uses` must
+   reference defined effects (either locally or via imports).
+
+Stats and flags are **not** validated at compile time. The runtime treats
+undeclared stats as `0` and undeclared flags as `false`, so stories are not
+required to pre-declare every stat/flag they use. This is important for std
+library effects (e.g., `std/combat` uses `courage`) that may reference stats the
+importing story doesn't declare. Effect definitions are treated as black boxes —
+stat/flag references inside them are not validated.
+
 ## Testing
 
 ```bash

@@ -36,6 +36,193 @@ impl std::fmt::Display for CodegenError {
 
 impl std::error::Error for CodegenError {}
 
+/// A reference validation error with source position information.
+#[derive(Debug, Clone)]
+pub struct ReferenceError {
+    pub message: String,
+    pub line: usize,
+    pub col: usize,
+}
+
+/// Validate that all references in the story point to defined symbols.
+///
+/// Checks:
+/// - `next` targets in choices reference defined events
+/// - `uses` references in choices reference defined effects
+///
+/// Note: stat and flag references are NOT validated at compile time. The
+/// runtime treats undeclared stats as 0 and undeclared flags as false,
+/// so stories are not required to pre-declare every stat/flag they use.
+/// This is especially important for std library effects (e.g. `std/combat`
+/// uses `courage`) that may reference stats the importing story doesn't
+/// declare.
+///
+/// Returns a list of errors with line/col positions extracted from the
+/// source text. This is used by the LSP to provide real-time diagnostics
+/// and by `cyoa validate` to report errors.
+pub fn validate_references(story: &Story, source: &str) -> Vec<ReferenceError> {
+    let (_, _, defined_events, defined_effects) = collect_defined_symbols(story);
+    let lines: Vec<&str> = source.lines().collect();
+
+    let mut errors: Vec<ReferenceError> = Vec::new();
+
+    for item in &story.items {
+        if let StoryItem::EventDef(ev) = item {
+            check_event_refs(ev, &defined_events, &defined_effects, &lines, &mut errors);
+        }
+    }
+
+    errors
+}
+
+/// Check references within a single event and its choices, reporting
+/// undefined `next` (event) and `uses` (effect) references.
+fn check_event_refs(
+    ev: &EventDef,
+    defined_events: &std::collections::HashSet<&str>,
+    defined_effects: &std::collections::HashSet<&str>,
+    lines: &[&str],
+    errors: &mut Vec<ReferenceError>,
+) {
+    for choice in &ev.choices {
+        check_choice_refs(choice, defined_events, defined_effects, lines, errors);
+    }
+}
+
+/// Collect the names of all defined symbols (stats, flags, events, effects).
+fn collect_defined_symbols(
+    story: &Story,
+) -> (
+    std::collections::HashSet<&str>,
+    std::collections::HashSet<&str>,
+    std::collections::HashSet<&str>,
+    std::collections::HashSet<&str>,
+) {
+    story.items.iter().fold(
+        (
+            std::collections::HashSet::new(),
+            std::collections::HashSet::new(),
+            std::collections::HashSet::new(),
+            std::collections::HashSet::new(),
+        ),
+        |(mut stats, mut flags, mut events, mut effects), item| {
+            match item {
+                StoryItem::StatDef(s) => {
+                    stats.insert(s.name.as_str());
+                }
+                StoryItem::FlagDef(f) => {
+                    flags.insert(f.name.as_str());
+                }
+                StoryItem::EventDef(e) => {
+                    events.insert(e.id.as_str());
+                }
+                StoryItem::EffectDef(e) => {
+                    effects.insert(e.name.as_str());
+                }
+                _ => {}
+            }
+            (stats, flags, events, effects)
+        },
+    )
+}
+
+/// Check references within a single choice, reporting undefined
+/// `next` (event) and `uses` (effect) references.
+fn check_choice_refs(
+    choice: &ChoiceDef,
+    defined_events: &std::collections::HashSet<&str>,
+    defined_effects: &std::collections::HashSet<&str>,
+    lines: &[&str],
+    errors: &mut Vec<ReferenceError>,
+) {
+    // Choice next → event reference
+    if let Some(target) = &choice.next {
+        if !defined_events.contains(target.as_str()) {
+            if let Some((line, col)) = find_text_position(lines, target) {
+                errors.push(ReferenceError {
+                    message: format!(
+                        "undefined event '{}': referenced in choice 'next' but not defined",
+                        target
+                    ),
+                    line,
+                    col,
+                });
+            }
+        }
+    }
+    // Choice uses → effect references
+    for eff in &choice.uses {
+        if !defined_effects.contains(eff.as_str()) {
+            if let Some((line, col)) = find_text_position(lines, eff) {
+                errors.push(ReferenceError {
+                    message: format!(
+                        "undefined effect '{}': referenced in 'uses' but not defined",
+                        eff
+                    ),
+                    line,
+                    col,
+                });
+            }
+        }
+    }
+}
+
+/// Find the first word-boundary occurrence of `needle` in the source lines
+/// and return its (line, col) position (1-based, matching ParseError conventions).
+///
+/// Uses word-boundary matching to avoid false positives (e.g. matching "hp"
+/// inside "chap" or "courage" inside "encourage"). Skips comment lines (where
+/// the first non-whitespace character is `#`) so that errors point at actual
+/// references, not at mentions in comments.
+fn find_text_position(lines: &[&str], needle: &str) -> Option<(usize, usize)> {
+    lines.iter().enumerate().find_map(|(line_idx, line)| {
+        if is_comment_line(line) {
+            return None;
+        }
+        find_word_in_line(line, needle).map(|col| (line_idx + 1, col + 1))
+    })
+}
+
+/// Check if a line is a comment (first non-whitespace character is `#`).
+fn is_comment_line(line: &str) -> bool {
+    line.bytes()
+        .find(|b| !b.is_ascii_whitespace())
+        .is_some_and(|b| b == b'#')
+}
+
+/// Find the first word-boundary match of `word` in a single line.
+/// Returns the byte offset of the match.
+fn find_word_in_line(line: &str, word: &str) -> Option<usize> {
+    if word.is_empty() {
+        return None;
+    }
+    let bytes = line.as_bytes();
+    let word_bytes = word.as_bytes();
+    let mut start = 0;
+    while start + word_bytes.len() <= bytes.len() {
+        if let Some(rel_pos) = line[start..].find(word) {
+            let abs_pos = start + rel_pos;
+            // Check word boundary before
+            let before_ok = abs_pos == 0 || !is_ident_char(bytes[abs_pos - 1]);
+            // Check word boundary after
+            let after_pos = abs_pos + word.len();
+            let after_ok = after_pos >= bytes.len() || !is_ident_char(bytes[after_pos]);
+            if before_ok && after_ok {
+                return Some(abs_pos);
+            }
+            start = abs_pos + word_bytes.len();
+        } else {
+            break;
+        }
+    }
+    None
+}
+
+/// Check if a byte is a valid identifier character.
+fn is_ident_char(c: u8) -> bool {
+    c.is_ascii_alphanumeric() || c == b'_' || c == b'$'
+}
+
 /// Generate bytecode from a merged `Story` AST.
 pub fn compile_story(story: &Story) -> Result<Bytecode, CodegenError> {
     let mut ctx = CodegenContext::new();

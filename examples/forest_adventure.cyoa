@@ -1,10 +1,10 @@
 # Forest Adventure — example story
 # Exercises all Phase 1 features:
 # - Stats, flags, tags
-# - Reusable effects (found_mushroom, wolf_scare)
+# - Reusable effects (drink_potion, stash_potion, wolf_leaves, wolf_comedy, return_to_path)
 # - AND/OR + stat threshold prerequisites
 # - Text templating ({{gold}}, {{hp}})
-# - File imports (std/healing)
+# - File imports (std/healing, std/combat)
 # - Choice history (implicitly tracked)
 
 import "std/healing"
@@ -12,174 +12,220 @@ import "std/combat"
 
 story ForestAdventure:
 
-  tags: fantasy, exploration
+    tags: fantasy, exploration
 
-  stat hp = 50
-  stat courage = 0
-  stat gold = 0
-  flag visited_old_ruins
-  flag wolf_friend
+    stat hp = 50
+    stat gold = 10
+    flag visited_witch
+    flag visited_garden
+    flag has_witch_potion
+    flag drank_witch_potion
+    flag was_mugged
 
-  effect found_mushroom:
-    + courage by 1
-    text "You find a glowing mushroom. It hums softly."
+    effect drink_potion:
+        set drank_witch_potion to true
+        - hp by 5
+        Removing the cork from the vial you sniff the contents. It's fragrant. The scent of rose,
+        iris, and freesia gently waft through the air. You place the vial to your lips and tilt your
+        head back, allowing the oily contents to coat your mouth. There's little taste of note, but
+        it's texture and viscosity make you gag.
 
-  effect wolf_scare:
-    - hp by 10
-    text "The wolf's claws scratch you. You take damage."
+        The world sharpens and colours intensify, but a mist as thick and cloying as the potion
+        you just imbibed descends on your mind. You stagger back to town.
 
-  event start:
-    tags: exploration, early_game
-    "You find yourself at the edge of a dark forest."
-    "Moss-covered stones mark an old path leading east."
+    effect stash_potion:
+        set has_witch_potion to true
+        You pocket the potion, and having gotten what you came for, leave for town.
 
-    choice "Enter the forest":
-      next forest_path
+    effect wolf_leaves:
+        The wolf sails abandons its ambush, and disappears into the tree line.
 
-    choice "Go back to town":
-      - gold by 0
-      next town_square
+    effect wolf_comedy:
+        You hear a dull thunk as the blinded wolf careens into a tree just out of sight.
 
-  event forest_path:
-    tags: exploration
-    "Twisted trees block out the sunlight."
-    "A narrow deer trail winds deeper into the woods."
+    effect return_to_path:
+        You return to the forest path.
 
-    choice "Follow the trail":
-      uses found_mushroom
-      next deep_woods
+    event start:
+        You stand beneath the bows of a dark and ancient forest. Before you
+        a partially tumbled down, thatch-roofed cottage and a track that may once have been
+        the beaten path, but is now partially concealed by stinging nettles,
+        gnarled roots, and leaf-litter.
 
-    choice "Return to the entrance":
-      next start
+        The faint glow of candlelight flickers can be seen through grimy iron wrought
+        windows, the only sign of habitation.
 
-  event deep_woods:
-    requires: courage >= 2
-    tags: exploration
-    "The woods grow thick and the air turns cold."
-    "You have {{courage}} courage and {{gold}} gold pieces."
+        choice "Knock on the cottage door.":
+            requires: NOT visited_witch
+            set visited_witch to true
+            next cottage_door
 
-    choice "Press deeper":
-      + courage by 3
-      next old_ruins
+        choice "Explore the garden.":
+            requires: NOT visited_garden
+            set visited_garden to true
+            next garden
 
-    choice "Head back":
-      next forest_path
+        choice "Leave via the forest path.":
+            next town_square
 
-  event old_ruins:
-    requires: courage >= 1
-    tags: exploration, early_game
-    set visited_old_ruins to true
-    "You stand before ancient stone ruins, half-swallowed by ivy."
-    "A cold wind whispers from within."
+    event cottage_door:
+        You approach the door warily, but summoning your courage you rap on the door with
+        the rusting depiction of a hound's head on an iron ring. A sonorous thump
+        resonates through the water-logged wooden door with each knock.
 
-    choice "Enter the ruins":
-      next river_crossing
+        The door creaks open just a crack, and one rheumy eye slides into frame. A shrill, but
+        cracking female voice asks from across the threshold, "What service of mine do
+        you seek?"
 
-    choice "Circle around" uses found_mushroom:
-      next dense_forest
+        choice "\"Nothing, I was just curious.\"":
+            next start
 
-  event dense_forest:
-    requires: visited_old_ruins
-    "Thick undergrowth chokes the forest floor."
-    "Something watches you from the shadows."
+        choice "\"A love potion.\"":
+            - gold by 5
+            next receive_potion
 
-    choice "Push through":
-      + courage by 2
-      next forest_encounter
+    event receive_potion:
+         A withered hand emerges expectantly from the crack in the door. You drop 5 gold pieces
+         into her awaiting palm. She snatches it back, then thrusts a spherical vile towards you.
+         The liquid within, pink in colour if you're generous, leaves an oily film on the glass
+         as it swills within.
 
-    choice "Retrace your steps":
-      next old_ruins
+         You tentatively accept, only for the door to slam in your face without further exchange
+         or instruction. The candlelight winks out. You are left in the dark with a love potion
+         in your hands.
 
-  event forest_encounter:
-    requires: visited_old_ruins AND courage >= 5
-    tags: combat
-    "A wolf blocks your path, teeth bared."
-    "You have {{hp}} HP remaining."
+         choice "Drink the potion.":
+            uses drink_potion
+            next town_square
 
-    choice "Attack the wolf":
-      + courage by 2
-      uses wolf_scare
-      next wolf_fight
+         choice "Take the potion and leave.":
+            uses stash_potion
+            next town_square
 
-    choice "Offer food" uses found_mushroom:
-      - gold by 3
-      set wolf_friend to true
-      next peace_with_wolf
+    event garden:
+        Rounding the building you find yourself in on an unmaintained lawn. Crumbling flagstones
+        protrude from the unshorn grass, and moss clings to a nearby well. A rustling in the nearby bushes
+        catches your attention.
 
-    choice "Sneak past":
-      uses foxtrot  # from std/combat
-      next river_crossing
+        choice "It's nothing. Investigate the well.":
+            next investigate_well
 
-  event peace_with_wolf:
-    requires: wolf_friend
-    "The wolf nuzzles your hand. It seems to understand you mean no harm."
-    "You gain a loyal companion."
+        choice "Investigate the sound.":
+            next wolf_positive
 
-    choice "Continue onward":
-      uses healing_potion
-      next river_crossing
+        choice "Run!":
+            next start
 
-  event wolf_fight:
-    "Fangs meet fur. You fight for your life."
-    "- hp by 15"
+    event investigate_well:
+        The well is covered in a combination of guano, moss, and lichen. An empty bucket sits at the lip
+        of the well, tethered to a fraying rope.
 
-    choice "Keep fighting":
-      + courage by 5
-      uses critical_hit
-      next victory
+        choice "Take the bucket.":
+            You feel compelled to take the bucket.
+            next wolf_attack
 
-    choice "Run away":
-      - gold by 5
-      next river_crossing
+        choice "Turn to leave.":
+            next wolf_attack
 
-  event victory:
-    tags: completion
-    "You emerge victorious! The forest is quiet once more."
-    "Final stats: hp={{hp}}, courage={{courage}}, gold={{gold}}"
+    event wolf_attack:
+        A snarl, followed by the sound of heavy paws thumping on damp earth draws your attention.
 
-    choice "Play again":
-      next start
+        Time slows down as a shaggy grey wolf leaps towards you. There's no time to think, so you
+        let instinct take over.
 
-  event river_crossing:
-    tags: exploration
-    "A rushing river blocks your path."
-    "A rickety bridge spans the water."
+        choice "Swing the bucket.":
+            You swing the bucket, only to feel your arm tug as the wolf sails past you, its head
+            firmly embedded in the bucket. You release the bucket's handle so as not to get dragged
+            over the lip of the well.
+            uses wolf_leaves, wolf_comedy, return_to_path
+            next start
+        choice "Lash out with your fist.":
+            uses basic_attack, wolf_leaves, return_to_path
+            next start
+        choice "Dodge!":
+            uses dodge, wolf_leaves, return_to_path
+            next start
 
-    choice "Cross the bridge":
-      - courage by 1
-      next town_square
+    event wolf_positive:
+        You approach the source of the noise, only to be startle a young wolf, not expecting you
+        to approach. It bolts from the garden and disappears into the trees.
 
-    choice "Look for another way":
-      next deep_woods
+        choice "Return forest path."
+            next start
 
-  event town_square:
-    tags: town
-    "The town square bustles with merchants and travelers.
-    Your coin purse feels lighter — {{gold}} gold pieces remain."
+    event town_square:
+        You emerge into a bustling night-market. Hawkers flog their wares to passing strangers,
+        promising the impossible with colourful potions, enticing buyers with spices and
+        incense, luxurious fabrics, and tall tales.
 
-    choice "Visit the tavern":
-      next tavern
+        choice "Browse the stalls.":
+            requires:
+                NOT drank_witch_potion
+                OR was_mugged
+            next browse_aware
 
-    choice "Leave town":
-      next start
+        choice "Browse the stalls.":
+            requires:
+                drank_witch_potion
+            set was_mugged to true
+            - gold by 5
+            next browse_unaware
 
-  event tavern:
-    tags: town
-    "The barkeep eyes your coin purse."
-    "You have {{gold}} gold pieces to spend."
+        choice "Visit tavern.":
+            next tavern
 
-    choice "Buy ale (5 gold)":
-      requires: gold >= 5
-      - gold by 5
-      "You buy an ale. The barkeep grins."
-      next tavern
+    event browse_aware:
+        You browse the market stalls warily, keeping your wits about you. The night market is known
+        for the light-fingered of scoundrels who prowl the stalls.
 
-    choice "Rest (10 gold)":
-      requires: gold >= 10
-      - gold by 10
-      uses healing_potion
-      "You rest in the back room. You feel refreshed."
-      next town_square
+        You enter a smart-looking tent that smells of polish. Looking about their are racks of
+        weapons and armour. A man half your height but with the baring of someone who knows they
+        are in fact your better approaches sword in hand. He gives you and appraising look
+        before offering you the grip of the sword. It feels immediately at home in your grip.
 
-    choice "Leave":
-      next town_square
+        choice "Purchase sword for 5 gold."
+            requires: gold >= 5
+            - gold by 5
+            Pleased with your new purchase you proceed to the tavern.
+            next tavern
+
+        choice "Proceed to tavern."
+            You pass up the offer of a sword and instead head to the tavern.
+            next tavern
+
+    event browse_unaware:
+        You struggle to focus as the colours feel like they burn your eyes, and you're aware your
+        coin purse feels lighter it was moments ago.
+
+        choice "Check coin purse."
+            Opening your purse you find you have {{gold}} left.
+            next browse_unaware
+
+        choice "You need to rest. Proceed to the tavern."
+            next tavern
+
+    event tavern:
+        You approach the bar keeper.
+
+        choice "Request a room for the night.":
+            requires:
+                gold > 0
+            - gold by 1
+            You pay the tavern keeper for a room for the night. You gaze at the moon through the slats.
+
+        choice "Request a room for the night.":
+            requires:
+                gold == 0
+                AND drank_witch_potion
+            You slur your words as you attempt to communicate with the bartender, but you feel yourself
+            compelled to kiss the man. He's the single most beautiful man you've ever met, and you would
+            throw yourself on your sword for him. You can only think of him as generous as he invites
+            you to sleep in the gutter tonight.
+
+        choice "Request a room for the night.":
+            requires:
+                gold == 0
+                AND NOT drank_witch_potion
+            Checking your coin purse you realise you have no coin left. You attempt to negotiate with
+            the bartender, and he looks at your with sympathy. You'll get no room tonight, but
+            in exchange for washing some dishes, you can sleep by the fire in the bar for free.

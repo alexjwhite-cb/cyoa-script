@@ -15,7 +15,9 @@ mod parser;
 mod resolver;
 
 pub use codegen::compile_story;
+pub use codegen::validate_references;
 pub use codegen::CodegenError;
+pub use codegen::ReferenceError;
 pub use parser::parse_story;
 pub use parser::ParseError;
 pub use resolver::resolve_imports;
