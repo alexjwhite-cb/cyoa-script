@@ -23,6 +23,9 @@ cyoa play examples/forest_adventure.cyoa.bc
 
 # Validate syntax without producing output
 cyoa validate examples/forest_adventure.cyoa
+
+# Print the CLI version
+cyoa version
 ```
 
 ### Play-mode keys

@@ -52,6 +52,7 @@ cyoa/
 ├── CLAUDE.md               # ← This file (Claude Code context)
 ├── SPEC.md                 # Language spec (grammar, bytecode, VM, API)
 ├── README.md               # User-facing docs (quick start, examples)
+├── scripts/                # Install scripts (install.sh, install.ps1)
 ├── cyoa-ast/               # AST types — foundation crate (no deps)
 ├── cyoa-bytecode/          # Binary bytecode format + serialization
 ├── cyoa-compiler/          # Pest grammar + parser + bytecode codegen
