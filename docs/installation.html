@@ -454,9 +454,46 @@ don&#39;t need to compile from source unless you&#39;re contributing.</p>
 <p>Download the appropriate files for your platform.</p>
 <hr>
 <h2>CLI Tool</h2>
-<p>The CLI binary provides three commands for story authors and testers.</p>
+<p>The CLI binary provides commands for story authors and testers:</p>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>cyoa compile &lt;file&gt;</code></td>
+<td>Compile a <code>.cyoa</code> story to <code>.cyoa.bc</code> bytecode</td>
+</tr>
+<tr>
+<td><code>cyoa play &lt;file&gt;</code></td>
+<td>Play a compiled story interactively in the terminal</td>
+</tr>
+<tr>
+<td><code>cyoa validate &lt;file&gt;</code></td>
+<td>Validate syntax without producing output</td>
+</tr>
+<tr>
+<td><code>cyoa version</code></td>
+<td>Print the CLI version</td>
+</tr>
+</tbody></table>
+<h3>Quick Install (One-line)</h3>
+<p><strong>Linux / macOS (bash):</strong></p>
+<pre><code class="language-bash">curl -fsSL https://alexjwhite-cb.github.io/cyoa-script/install.sh | bash
+</code></pre>
+<p><strong>Windows (PowerShell):</strong></p>
+<pre><code class="language-powershell">iwr https://alexjwhite-cb.github.io/cyoa-script/install.ps1 -UseBasicParsing | iex
+</code></pre>
+<p>Both scripts auto-detect your OS and architecture, download the appropriate
+binary from the latest GitHub release, verify its SHA256 checksum, and install
+it to a directory on your PATH. See
+<a href="../scripts/install.sh"><code>scripts/install.sh</code></a> and
+<a href="../scripts/install.ps1"><code>scripts/install.ps1</code></a> for all options (custom install
+dir, specific version, checksum skipping, dry-run, update checking).</p>
 <h3>Install</h3>
-<p>Download the <code>cyoa-cli-&lt;platform&gt;</code> binary from the latest
+<p>Download the <code>cyoa-&lt;platform&gt;</code> binary from the latest
 <a href="https://github.com/alexjwhite-cb/cyoa-script/releases/latest">release page</a>.</p>
 <h3>Usage</h3>
 <pre><code class="language-bash"># Compile a story from .cyoa source to bytecode
@@ -467,6 +504,9 @@ cyoa play examples/forest_adventure.cyoa.bc
 
 # Validate syntax without producing output
 cyoa validate examples/forest_adventure.cyoa
+
+# Print the CLI version
+cyoa version
 </code></pre>
 <hr>
 <h2>Web / Browser</h2>

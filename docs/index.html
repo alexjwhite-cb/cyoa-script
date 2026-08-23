@@ -423,6 +423,17 @@ AND/OR + stat threshold <code>requires:</code>, choice history, multi-story</li>
 <p>Pre-built artifacts are published to
 <a href="https://github.com/alexjwhite-cb/cyoa-script/releases">GitHub Releases</a>.
 No Rust toolchain required — download the package for your platform:</p>
+<p><strong>Quick install:</strong></p>
+<p>The following commands install the command line binary for the language <strong>only</strong>. </p>
+<pre><code class="language-bash"># Linux / macOS
+curl -fsSL https://alexjwhite-cb.github.io/cyoa-script/install.sh | bash
+
+# Windows (PowerShell)
+iwr https://alexjwhite-cb.github.io/cyoa-script/install.ps1 -UseBasicParsing | iex
+</code></pre>
+<p>For detailed installation for supported platforms and game engines, see:
+<a href="installation.html">docs/installation.md</a></p>
+<p><strong>Manual download:</strong></p>
 <table>
 <thead>
 <tr>
@@ -432,7 +443,7 @@ No Rust toolchain required — download the package for your platform:</p>
 </thead>
 <tbody><tr>
 <td>CLI tool</td>
-<td><code>cyoa-cli-&lt;platform&gt;</code> — standalone binary</td>
+<td><code>cyoa-&lt;platform&gt;</code> — standalone binary</td>
 </tr>
 <tr>
 <td>Web (WASM)</td>
@@ -461,8 +472,6 @@ No Rust toolchain required — download the package for your platform:</p>
 cd cyoa-script
 cargo build --release
 </code></pre>
-<p>Detailed installation for every platform and game engine:
-<a href="installation.html">docs/installation.md</a></p>
 <h3>Example Story</h3>
 <p>The CYOA DSL reads like a story outline. Writers declare stats, tags, effects,
 events, and choices — prerequisites are checked automatically.</p>
@@ -511,6 +520,15 @@ events, and choices — prerequisites are checked automatically.</p>
       - gold by 5
       &quot;You buy an ale.&quot;
       next tavern
+</code></pre>
+<h3>Compile and Play Stories</h3>
+<p>Stories must be compiled before they can be played, this is true for the command line
+and for use in engines. The following example covers command line play.</p>
+<pre><code class="language-bash"># Compile story to binary
+cyoa compile examples/forest_adventure.cyoa
+
+# Play story binary
+cyoa play examples/forest_adventure.cyoa.bc
 </code></pre>
 <h3>JavaScript (WASM)</h3>
 <p>Compile the engine to WASM and load stories in any browser or web-based game
