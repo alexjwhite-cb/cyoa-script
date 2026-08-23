@@ -146,6 +146,10 @@ fn cmd_play(input: &str) {
                 for line in &effects {
                     println!("{}", line);
                 }
+                if engine.is_story_complete() {
+                    println!("\n[End of story]");
+                    break;
+                }
             }
             _ => {
                 println!("Invalid choice. Enter a number.");
@@ -163,19 +167,67 @@ fn cmd_validate(input: &str) {
         }
     };
 
-    match cyoa_compiler::parse_story(&source) {
-        Ok(story) => match cyoa_compiler::compile_story(&story) {
-            Ok(_) => println!("✓ Valid: {} compiles successfully", input),
-            Err(e) => {
-                eprintln!("Compile error: {}", e);
-                std::process::exit(1);
-            }
-        },
+    let story = match cyoa_compiler::parse_story(&source) {
+        Ok(s) => s,
         Err(e) => {
             eprintln!("Parse error:\n{}", e);
             std::process::exit(1);
         }
+    };
+
+    // Resolve imports so that symbols from std/ and local imports are recognized
+    let input_path = std::path::Path::new(input);
+    let base_dir = input_path.parent().unwrap_or(std::path::Path::new("."));
+    let std_paths = find_std_dirs(base_dir);
+    let story = match cyoa_compiler::resolve_imports(&story, base_dir, &std_paths) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("Import error: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    // Validate that all references (next, uses, stats, flags) are defined
+    let ref_errors = cyoa_compiler::validate_references(&story, &source);
+    if !ref_errors.is_empty() {
+        eprintln!("Validation errors:");
+        for err in &ref_errors {
+            eprintln!("  line {} col {}: {}", err.line, err.col, err.message);
+        }
+        std::process::exit(1);
     }
+
+    match cyoa_compiler::compile_story(&story) {
+        Ok(_) => println!("✓ Valid: {} compiles successfully", input),
+        Err(e) => {
+            eprintln!("Compile error: {}", e);
+            std::process::exit(1);
+        }
+    }
+}
+
+/// Walk up the directory tree from `base` looking for `std/` directories
+/// to use as search roots for `std/` imports.
+fn find_std_dirs(base: &std::path::Path) -> Vec<std::path::PathBuf> {
+    let mut dirs = Vec::new();
+    let mut current: Option<&std::path::Path> = Some(base);
+    while let Some(dir) = current {
+        let std_dir = dir.join("std");
+        if std_dir.is_dir() {
+            dirs.push(std_dir);
+        }
+        current = dir.parent();
+    }
+    // Fallback: also check from the current working directory
+    if dirs.is_empty() {
+        if let Ok(cwd) = std::env::current_dir() {
+            let cwd_std = cwd.join("std");
+            if cwd_std.is_dir() {
+                dirs.push(cwd_std);
+            }
+        }
+    }
+    dirs
 }
 
 // ── ANSI styling (no extra dependency needed) ──────────────────────────

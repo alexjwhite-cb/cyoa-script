@@ -230,13 +230,32 @@ choice "Attack the wolf":
 - `uses effect_name` — append a reusable effect block
 - `text "string"` — text output from the choice
 - Plain quoted text — rendered text from the choice
-- `requires:` — local prerequisite (optional)
+- `requires:` — local prerequisite (optional, inline or multi-line)
 - `next event_id` — goto target (required for non-terminal choices)
+
+**`requires:` in choices** — supports both inline and multi-line forms, exactly
+as in events (see §3.8 Prerequisites):
+
+```
+choice "Browse the stalls.":
+  requires:
+    NOT drank_witch_potion
+    OR was_mugged
+  next browse_wary_of_thieves
+```
 
 **Choice text can be templated**:
 ```
 choice "Buy ale (cost: {{gold}} gold)":
 ```
+
+**Escaped quotes in text** — to include literal double quotes inside quoted text,
+escape them with `\"`:
+```
+"\"Nothing, I was just curious.\""
+```
+This renders as `"Nothing, I was just curious."` (with the quotes as part of the text).
+Supported escape sequences: `\"` → `"`, `\\` → `\`, `\n` → newline, `\t` → tab, `\r` → carriage return.
 
 ### 3.8 Prerequisites (Conditions)
 
@@ -580,7 +599,91 @@ Phase 1 packages are minimal — they grow as features are developed.
 
 ---
 
-## 9. Implementation Phases
+## 9. Reference Validation
+
+The `validate_references` function (in `cyoa-compiler`) checks that every symbol
+reference in a story points to a declared definition. It operates on a **merged**
+`Story` AST (after import resolution) and the original source text (for error
+positioning).
+
+### Effect definitions are black boxes
+
+Stat/flag references **inside top-level `EffectDef` bodies are NOT validated**.
+Effects are treated as self-contained units — their *names* are validated via
+`uses` references (the effect must exist), but the stat/flag names inside their
+bodies are not checked against the story's declarations. This allows effects
+imported from `std/` libraries (e.g. `std/combat` which references `courage`)
+to use stats that the importing story does not explicitly declare.
+
+Validation DOES check stat/flag references in:
+- Inline effect steps within events (e.g. `+ hp by 10` in an event body)
+- Inline effect steps within choices (e.g. `set flag to true` in a choice body)
+- Condition expressions (`requires: courage >= 5`)
+- Text templates (`{{gold}}`)
+
+### Checked references
+
+| Reference site | Symbol type | Example |
+|----------------|-------------|---------|
+| `choice "label": next <target>` | event | `next castle_gate` → must match an `event` id |
+| `choice "label": uses <effect>` | effect | `uses healing_potion` → must match an `effect` name |
+| `requires: <stat> <op> <value>` | stat | `requires: courage >= 5` → must match a `stat` name |
+| `requires: <flag>` | flag | `requires: visited_cave` → must match a `flag` name |
+| `+/- <stat> by N` (inline in event/choice) | stat | `+ hp by 10` → must match a `stat` name |
+| `set <flag> to <bool>` (inline in event/choice) | flag | `set wounded to true` → must match a `flag` name |
+| `{{<stat>}}` (text template) | stat | `"You have {{gold}}"` → must match a `stat` name |
+
+### Runtime behavior with undeclared stats
+
+At runtime, the VM treats any stat not declared via `stat <name> = N` as having
+a value of **0**. If an effect (imported or local) modifies an undeclared stat,
+the runtime silently creates it with a starting value of 0 and applies the
+delta. For example, `+ courage by 1` on an undeclared `courage` stat results in
+`courage = 1`. This means stories are not required to pre-declare every stat
+that their effects might touch — undeclared stats work but start at 0.
+
+Similarly, `{{undeclared_stat}}` in template text renders as `0`, and
+`requires: undeclared_stat >= 5` evaluates against 0.
+
+### Error reporting
+
+`validate_references` returns `Vec<ReferenceError>`:
+
+```rust
+pub struct ReferenceError {
+    pub message: String,  // human-readable description
+    pub line: usize,      // 1-based line number in source text
+    pub col: usize,       // 1-based column number in source text
+}
+```
+
+Error positions are located by searching the source text for the symbol name
+using **word-boundary matching** (so `hp` doesn't match inside `chap`) and
+**skipping comment lines** (lines starting with `#`).
+
+### CLI integration
+
+The `cyoa validate <story.cyoa>` command:
+1. Parses the source
+2. Resolves imports (using `std/` directories found by walking up from the
+   file's directory, plus a fallback to the current working directory)
+3. Runs `validate_references` on the merged story
+4. Compiles the story (catches any remaining codegen errors)
+
+If import resolution fails, the CLI reports the import error and exits.
+
+### LSP integration
+
+The LSP server resolves imports on every `didOpen`/`didChange` notification
+and then runs `validate_references` on the merged story. Each `ReferenceError`
+is converted to an LSP `Diagnostic` with range, severity, and source metadata.
+If imports fail to resolve, reference validation is skipped (to avoid false
+positives for symbols defined in the unresolvable imported files) — the import
+error itself is surfaced as a parse or diagnostic error instead.
+
+---
+
+## 10. Implementation Phases
 
 | Phase | Goal | Timeline |
 |-------|------|----------|
@@ -595,7 +698,7 @@ Phase 1 packages are minimal — they grow as features are developed.
 
 ---
 
-## 10. Version History
+## 11. Version History
 
 | Version | Date | Changes |
 |---------|------|---------|
@@ -604,3 +707,4 @@ Phase 1 packages are minimal — they grow as features are developed.
 | 0.3.0 | 2026-08-19 | Phase 3 — C-ABI native bindings: CyoaEngine, CyoaCatalog, JSON-based state/tags/flags, C# Unity wrapper |
 | 0.4.0 | 2026-08-20 | Phase 4 — Godot integration: C# wrapper (bindings/godot/csharp/), GDScript wrapper (bindings/godot/gdscript/), bindings/ directory reorg |
 | 0.5.0 | 2026-08-20 | Phase 4 complete — LSP server (cyoa-lsp crate), mobile cross-compilation guide (docs/mobile.md), Android (cargo-ndk) + iOS (cargo-lipo) instructions |
+| 0.6.0 | 2026-08-23 | Reference validation: `validate_references` checks stats, flags, events, effects; `cyoa validate` resolves imports before validating; LSP runs validation on every keystroke |

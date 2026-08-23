@@ -883,8 +883,36 @@ fn parse_choice(
             let rest = trimmed.strip_prefix("next").unwrap().trim();
             next = Some(rest.to_string());
         } else if trimmed.starts_with("requires:") {
-            let cond_str = trimmed.strip_prefix("requires:").unwrap().trim();
-            requires = Some(parse_condition(cond_str, bl.line_num, bl.col)?);
+            let rest = trimmed.strip_prefix("requires:").unwrap().trim();
+            if !rest.is_empty() {
+                // Inline form
+                requires = Some(parse_condition(rest, bl.line_num, bl.col)?);
+            } else {
+                // Multi-line form: collect indented condition lines
+                let mut cond_parts = Vec::new();
+                while cursor.has_more() {
+                    let next_bl = cursor.peek().clone();
+                    if next_bl.content.trim().is_empty() {
+                        cursor.next();
+                        continue;
+                    }
+                    if next_bl.indent > body_indent.unwrap() {
+                        cursor.next();
+                        cond_parts.push(next_bl.content.trim().to_string());
+                    } else {
+                        break;
+                    }
+                }
+                if cond_parts.is_empty() {
+                    return Err(ParseError::at(
+                        "expected condition expression after 'requires:'",
+                        bl.line_num,
+                        bl.col,
+                    ));
+                }
+                let cond_str = cond_parts.join(" ");
+                requires = Some(parse_condition(&cond_str, bl.line_num, bl.col)?);
+            }
         } else {
             let step = parse_effect_step(trimmed, bl.line_num, bl.col)?;
             steps.push(step)
@@ -1186,7 +1214,8 @@ fn parse_template_string(s: &str) -> Result<TextContent, ParseError> {
 
     if s.starts_with('"') && s.ends_with('"') && s.len() >= 2 {
         let inner = &s[1..s.len() - 1];
-        let segments = split_template(inner);
+        let unescaped = unescape_string(inner);
+        let segments = split_template(&unescaped);
         Ok(TextContent { segments })
     } else {
         // Unquoted — treat as literal text
@@ -1195,51 +1224,57 @@ fn parse_template_string(s: &str) -> Result<TextContent, ParseError> {
     }
 }
 
+/// Unescape common escape sequences in a string literal's inner content.
+/// Handles `\"`, `\\`, `\n`, `\t`, `\r`. Unknown escapes are left as-is.
+fn unescape_string(s: &str) -> String {
+    let mut result = String::with_capacity(s.len());
+    let mut chars = s.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\\' {
+            if let Some(&next) = chars.peek() {
+                match next {
+                    '"' => {
+                        result.push('"');
+                        chars.next();
+                    }
+                    '\\' => {
+                        result.push('\\');
+                        chars.next();
+                    }
+                    'n' => {
+                        result.push('\n');
+                        chars.next();
+                    }
+                    't' => {
+                        result.push('\t');
+                        chars.next();
+                    }
+                    'r' => {
+                        result.push('\r');
+                        chars.next();
+                    }
+                    _ => {
+                        result.push('\\');
+                        result.push(next);
+                        chars.next();
+                    }
+                }
+            } else {
+                result.push('\\');
+            }
+        } else {
+            result.push(c);
+        }
+    }
+    result
+}
+
 /// Parse a string literal (for import paths).
 fn parse_string_literal(s: &str, line: usize, col: usize) -> Result<String, ParseError> {
     let s = s.trim();
     if s.starts_with('"') && s.ends_with('"') && s.len() >= 2 {
         let inner = &s[1..s.len() - 1];
-        let mut result = String::with_capacity(inner.len());
-        let mut chars = inner.chars().peekable();
-        while let Some(c) = chars.next() {
-            if c == '\\' {
-                if let Some(&next) = chars.peek() {
-                    match next {
-                        '"' => {
-                            result.push('"');
-                            chars.next();
-                        }
-                        '\\' => {
-                            result.push('\\');
-                            chars.next();
-                        }
-                        'n' => {
-                            result.push('\n');
-                            chars.next();
-                        }
-                        't' => {
-                            result.push('\t');
-                            chars.next();
-                        }
-                        'r' => {
-                            result.push('\r');
-                            chars.next();
-                        }
-                        _ => {
-                            result.push('\\');
-                            result.push(next);
-                            chars.next();
-                        }
-                    }
-                } else {
-                    result.push('\\');
-                }
-            } else {
-                result.push(c);
-            }
-        }
-        Ok(result)
+        Ok(unescape_string(inner))
     } else {
         Err(ParseError::at(
             format!("expected quoted string: '{}'", s),

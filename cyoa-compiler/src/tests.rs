@@ -389,6 +389,216 @@ story Test:
 }
 
 #[test]
+fn test_parse_choice_requires_multiline() {
+    let source = r#"
+story Test:
+  stat hp = 50
+  event town_square:
+    "You emerge into a bustling night-market."
+    choice "Browse the stalls.":
+      requires:
+        NOT drank_witch_potion
+        OR was_mugged
+      next browse_wary_of_thieves
+  event browse_wary_of_thieves:
+    "You browse carefully."
+"#;
+    let story = parse_story(source).unwrap();
+    let ev = match &story.items[1] {
+        StoryItem::EventDef(e) => e,
+        _ => panic!("expected EventDef"),
+    };
+    assert!(ev.choices[0].requires.is_some());
+}
+
+#[test]
+fn test_parse_choice_with_escaped_quotes() {
+    let source = r#"
+story Test:
+  stat hp = 50
+  event start:
+    "Hello."
+    choice "\"Nothing, I was just curious.\"":
+      next start
+"#;
+    let story = parse_story(source).unwrap();
+    let ev = match &story.items[1] {
+        StoryItem::EventDef(e) => e,
+        _ => panic!("expected EventDef"),
+    };
+    let choice_text = &ev.choices[0].text;
+    assert_eq!(choice_text.segments.len(), 1);
+    match &choice_text.segments[0] {
+        TextSegment::Literal(lit) => {
+            assert_eq!(lit, "\"Nothing, I was just curious.\"");
+        }
+        _ => panic!("expected Literal segment"),
+    }
+}
+
+#[test]
+fn test_validate_references_undefined_next() {
+    let source = r#"
+story Test:
+  stat hp = 50
+  event start:
+    "You begin."
+    choice "Go north":
+      next non_existent_event
+"#;
+    let story = parse_story(source).unwrap();
+    let errors = validate_references(&story, source);
+    assert!(errors
+        .iter()
+        .any(|e| e.message.contains("undefined event 'non_existent_event'")));
+}
+
+#[test]
+fn test_validate_references_all_defined() {
+    let source = r#"
+story Test:
+  stat hp = 50
+  effect heal:
+    + hp by 10
+  event start:
+    "You begin."
+    choice "Go north":
+      uses heal
+      next forest
+  event forest:
+    "A dark forest."
+"#;
+    let story = parse_story(source).unwrap();
+    let errors = validate_references(&story, source);
+    assert!(errors.is_empty());
+}
+
+#[test]
+fn test_validate_references_undefined_effect() {
+    let source = r#"
+story Test:
+  stat hp = 50
+  event start:
+    "You begin."
+    choice "Drink potion":
+      uses undefined_effect
+      next start
+"#;
+    let story = parse_story(source).unwrap();
+    let errors = validate_references(&story, source);
+    assert!(errors
+        .iter()
+        .any(|e| e.message.contains("undefined effect 'undefined_effect'")));
+}
+
+#[test]
+fn test_validate_references_works_with_imports() {
+    let main_source = r#"
+import "std/healing"
+
+story Test:
+  effect local_heal:
+    + hp by 5
+  event start:
+    "You begin."
+    choice "Drink healing potion":
+      uses healing_potion
+      next start
+"#;
+    // With imports resolved, healing_potion from std/healing should be defined.
+    // Since we test validate_references directly (without resolving imports),
+    // healing_potion will be undefined here — this tests that the function
+    // correctly reports undefined effects.
+    let story = parse_story(main_source).unwrap();
+    let errors = validate_references(&story, main_source);
+    assert!(errors
+        .iter()
+        .any(|e| e.message.contains("undefined effect 'healing_potion'")));
+}
+
+#[test]
+fn test_validate_references_undeclared_stat_no_error() {
+    // Stats are NOT validated — undeclared stats default to 0 at runtime.
+    let source = r#"
+story Test:
+  stat hp = 50
+  event start:
+    requires: missing_stat >= 5
+    "You have {{missing_stat}} points."
+    choice "Go north":
+      + missing_stat by 5
+      next start
+"#;
+    let story = parse_story(source).unwrap();
+    let errors = validate_references(&story, source);
+    assert!(
+        !errors.iter().any(|e| e.message.contains("missing_stat")),
+        "should NOT report errors for undeclared stats: {:?}",
+        errors
+    );
+}
+
+#[test]
+fn test_validate_references_undeclared_flag_no_error() {
+    // Flags are NOT validated — undeclared flags default to false at runtime.
+    let source = r#"
+story Test:
+  event start:
+    requires: missing_flag
+    "You begin."
+    choice "Set flag":
+      set missing_flag to true
+      next start
+"#;
+    let story = parse_story(source).unwrap();
+    let errors = validate_references(&story, source);
+    assert!(
+        !errors.iter().any(|e| e.message.contains("missing_flag")),
+        "should NOT report errors for undeclared flags: {:?}",
+        errors
+    );
+}
+
+#[test]
+fn test_validate_references_imported_effect_not_flagged() {
+    // Effects from imported std/ packages that use undeclared stats should
+    // not cause validation errors. This is the std/combat use case: the
+    // effects modify `courage` which the story may not declare.
+    let tmp_dir = std::env::temp_dir();
+    let test_dir = tmp_dir.join("cyoa_test_effect_import");
+    let std_dir = test_dir.join("std");
+    std::fs::create_dir_all(&std_dir).unwrap();
+
+    std::fs::write(
+        std_dir.join("combat.cyoa"),
+        "effect basic_attack:\n  + courage by 1\n  text \"You strike.\"\n",
+    )
+    .unwrap();
+
+    let source = r#"
+import "std/combat"
+
+story Test:
+  stat hp = 50
+  event start:
+    "You begin."
+    choice "Attack":
+      uses basic_attack
+      next start
+"#;
+    let story = parse_story(source).unwrap();
+    let resolved = resolve_imports(&story, &test_dir, &[std_dir]).expect("imports should resolve");
+    let errors = validate_references(&resolved, source);
+    assert!(
+        !errors.iter().any(|e| e.message.contains("courage")),
+        "should NOT report errors for stats used in imported effects: {:?}",
+        errors
+    );
+
+    let _ = std::fs::remove_dir_all(&test_dir);
+}
+
+#[test]
 fn test_parse_template_in_text() {
     let source = r#"
 story Test:

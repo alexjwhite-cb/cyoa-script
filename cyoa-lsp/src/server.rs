@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use crate::diagnostics::{diagnostics_from_parse_error, format_error_message};
 use crate::protocol::*;
 use cyoa_ast::{EffectStep, Story, StoryItem, TextSegment};
-use cyoa_compiler::{parse_story, resolve_imports};
+use cyoa_compiler::{parse_story, resolve_imports, validate_references};
 
 /// Keyword set for semantic token classification.
 const KEYWORDS: &[&str] = &[
@@ -391,7 +391,7 @@ impl Server {
         };
 
         // Compute diagnostics before moving error into DocumentState.
-        let diagnostics = match &error {
+        let mut diagnostics = match &error {
             Some(err) => vec![diagnostics_from_parse_error(err)],
             None => vec![],
         };
@@ -399,7 +399,37 @@ impl Server {
         // If the story has imports, resolve them so that go-to-definition,
         // hover, and completion work for imported symbols (effects, stats,
         // flags, events from std/ or local files).
-        let (story, imported_files) = self.resolve_story_imports(&uri, story);
+        let (story, imported_files, imports_resolved) = self.resolve_story_imports(&uri, story);
+
+        // Validate that all references (next targets, uses, stats, flags) point
+        // to defined symbols. This runs after import resolution so that symbols
+        // defined in imported files are recognized. If imports could not be
+        // resolved, skip validation to avoid false positives for symbols defined
+        // only in the unresolvable imported files.
+        // Skip reference validation if imports failed to resolve — the merged
+        // story would be missing imported definitions, causing false positives.
+        if imports_resolved {
+            if let Some(story) = &story {
+                for err in validate_references(story, &text) {
+                    diagnostics.push(Diagnostic {
+                        range: Some(Range {
+                            start: Position {
+                                line: (err.line.saturating_sub(1)) as u32,
+                                character: (err.col.saturating_sub(1)) as u32,
+                            },
+                            end: Position {
+                                line: (err.line.saturating_sub(1)) as u32,
+                                character: (err.col.saturating_sub(1) + 20) as u32, // highlight ~20 chars
+                            },
+                        }),
+                        severity: Some(DiagnosticSeverity::Error),
+                        code: None,
+                        source: Some("cyoa-lsp".to_string()),
+                        message: err.message.clone(),
+                    });
+                }
+            }
+        }
 
         self.documents.insert(
             uri,
@@ -414,54 +444,67 @@ impl Server {
         diagnostics
     }
 
-    /// Resolve imports for a story if it has any, falling back to the
-    /// unmerged story on error (so main-file definitions still work).
-    /// Returns the (possibly merged) story and a list of imported file
-    /// paths + their text contents (for go-to-definition support).
+    /// Resolve imports for a story if it has any.
+    ///
+    /// Returns `(story, imported_files, imports_resolved)`:
+    /// - If imports are present and resolve successfully: the merged story,
+    ///   imported file paths + contents (for go-to-definition), and `true`.
+    /// - If imports are present but fail to resolve: the original (unmerged)
+    ///   story, empty imported files, and `false`. Callers should skip
+    ///   `validate_references` in this case to avoid false positives for
+    ///   symbols defined only in the unresolvable imported files.
+    /// - If no imports: the original story, empty imported files, and `true`.
     fn resolve_story_imports(
         &self,
         uri: &str,
         story: Option<Story>,
-    ) -> (Option<Story>, Vec<(PathBuf, String)>) {
+    ) -> (Option<Story>, Vec<(PathBuf, String)>, bool) {
         let story = match story.as_ref() {
             Some(s) => s,
-            None => return (story, Vec::new()),
+            None => return (story, Vec::new(), true),
         };
-        // Collect all import paths from both the imports list and StoryItem::Import items
-        // (imports can appear either at top-level story.imports or as StoryItem::Import
-        // inside the story body after parsing).
-        let mut original_imports: Vec<String> =
-            story.imports.iter().map(|i| i.path.clone()).collect();
-        for item in &story.items {
-            if let StoryItem::Import(import) = item {
-                original_imports.push(import.path.clone());
-            }
-        }
-        if original_imports.is_empty() {
-            return (Some(story.clone()), Vec::new());
+        if story.imports.is_empty()
+            && !story
+                .items
+                .iter()
+                .any(|i| matches!(i, StoryItem::Import(_)))
+        {
+            return (Some(story.clone()), Vec::new(), true);
         }
 
         let path = match uri_to_path(uri) {
             Some(p) => p,
-            None => return (Some(story.clone()), Vec::new()),
+            None => return (Some(story.clone()), Vec::new(), false),
         };
         let base_dir = path.parent().unwrap_or(&path);
         let std_paths = find_std_dirs(base_dir);
+
+        // Collect all import paths from both the top-level imports list and
+        // StoryItem::Import items inside the story body.
+        let all_import_paths: Vec<String> = story
+            .imports
+            .iter()
+            .map(|i| i.path.clone())
+            .chain(story.items.iter().filter_map(|item| match item {
+                StoryItem::Import(imp) => Some(imp.path.clone()),
+                _ => None,
+            }))
+            .collect();
 
         match resolve_imports(story, base_dir, &std_paths) {
             Ok(merged) => {
                 // Re-read imported files to collect their text for go-to-definition
                 let mut imported_files = Vec::new();
-                for import_path in &original_imports {
+                for import_path in &all_import_paths {
                     if let Some(fp) = resolve_import_to_file(import_path, base_dir, &std_paths) {
                         if let Ok(text) = std::fs::read_to_string(&fp) {
                             imported_files.push((fp, text));
                         }
                     }
                 }
-                (Some(merged), imported_files)
+                (Some(merged), imported_files, true)
             }
-            Err(_) => (Some(story.clone()), Vec::new()),
+            Err(_) => (Some(story.clone()), Vec::new(), false),
         }
     }
 
@@ -1373,6 +1416,117 @@ mod tests {
                     Some(DiagnosticSeverity::Error)
                 );
                 assert!(params.diagnostics[0].message.contains("line"));
+            }
+            _ => panic!("expected PublishDiagnostics"),
+        }
+    }
+
+    #[test]
+    fn test_did_open_undefined_next_reference_has_diagnostics() {
+        let mut server = Server::new();
+        let story = r#"story TestStory:
+  stat hp = 50
+  event start:
+    "You begin your journey."
+    choice "Go north":
+      next non_existent_event
+"#;
+        let msg = did_open_msg("file:///test.cyoa", story);
+
+        let responses = server.handle(msg);
+        assert_eq!(responses.len(), 1);
+        match &responses[0] {
+            Response::PublishDiagnostics { params, .. } => {
+                assert_eq!(params.diagnostics.len(), 1);
+                assert_eq!(
+                    params.diagnostics[0].severity,
+                    Some(DiagnosticSeverity::Error)
+                );
+                assert!(params.diagnostics[0]
+                    .message
+                    .contains("undefined event 'non_existent_event'"));
+            }
+            _ => panic!("expected PublishDiagnostics"),
+        }
+    }
+
+    #[test]
+    fn test_did_open_undefined_stat_in_condition_no_diagnostics() {
+        let mut server = Server::new();
+        let story = r#"story TestStory:
+  stat hp = 50
+  event start:
+    requires: missing_stat >= 5
+    "You begin your journey."
+    choice "Go north":
+      next start
+"#;
+        let msg = did_open_msg("file:///test.cyoa", story);
+
+        let responses = server.handle(msg);
+        assert_eq!(responses.len(), 1);
+        match &responses[0] {
+            Response::PublishDiagnostics { params, .. } => {
+                // Undeclared stats are NOT validated — runtime defaults to 0
+                assert!(
+                    params.diagnostics.is_empty(),
+                    "expected no diagnostics for undeclared stat, got: {:?}",
+                    params.diagnostics
+                );
+            }
+            _ => panic!("expected PublishDiagnostics"),
+        }
+    }
+
+    #[test]
+    fn test_did_open_undefined_flag_in_condition_no_diagnostics() {
+        let mut server = Server::new();
+        let story = r#"story TestStory:
+  event start:
+    requires: missing_flag
+    "You begin your journey."
+    choice "Go north":
+      next start
+"#;
+        let msg = did_open_msg("file:///test.cyoa", story);
+
+        let responses = server.handle(msg);
+        assert_eq!(responses.len(), 1);
+        match &responses[0] {
+            Response::PublishDiagnostics { params, .. } => {
+                // Undeclared flags are NOT validated — runtime defaults to false
+                assert!(
+                    params.diagnostics.is_empty(),
+                    "expected no diagnostics for undeclared flag, got: {:?}",
+                    params.diagnostics
+                );
+            }
+            _ => panic!("expected PublishDiagnostics"),
+        }
+    }
+
+    #[test]
+    fn test_did_open_undefined_stat_in_template_no_diagnostics() {
+        let mut server = Server::new();
+        let story = r#"story TestStory:
+  stat gold = 0
+  event tavern:
+    "You have {{missing_gold}} gold pieces."
+    choice "Leave":
+      next tavern
+"#;
+        let msg = did_open_msg("file:///test.cyoa", story);
+
+        let responses = server.handle(msg);
+        assert_eq!(responses.len(), 1);
+        match &responses[0] {
+            Response::PublishDiagnostics { params, .. } => {
+                // Undeclared stats in templates are NOT validated — runtime defaults to 0
+                assert!(
+                    params.diagnostics.is_empty(),
+                    "expected no diagnostics for undeclared stat in template, got: {:?}",
+                    params.diagnostics
+                );
             }
             _ => panic!("expected PublishDiagnostics"),
         }
