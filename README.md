@@ -32,14 +32,31 @@ Pre-built artifacts are published to
 [GitHub Releases](https://github.com/alexjwhite-cb/cyoa-script/releases).
 No Rust toolchain required — download the package for your platform:
 
-| Target | Artifact |
-|--------|----------|
-| CLI tool | `cyoa-cli-<platform>` — standalone binary |
-| Web (WASM) | `cyoa-wasm/*` — `cyoa_wasm.js` + `cyoa_wasm_bg.wasm` |
-| Unity / Godot / C++ | `cyoa-native-<platform>` — shared library + `cyoa.h` |
-| Android | `cyoa-native-android/` — ABIs for `arm64-v8a`, `armeabi-v7a` |
-| iOS | `cyoa-native-ios/` — universal static library |
-| Example stories | `*.cyoa.bc` — compiled bytecode files |
+**Quick install:**
+
+The following commands install the command line binary for the language **only**. 
+
+```bash
+# Linux / macOS
+curl -fsSL https://alexjwhite-cb.github.io/cyoa-script/install.sh | bash
+
+# Windows (PowerShell)
+iwr https://alexjwhite-cb.github.io/cyoa-script/install.ps1 -UseBasicParsing | iex
+```
+
+For detailed installation for supported platforms and game engines, see:
+[docs/installation.md](docs/installation.md)
+
+**Manual download:**
+
+| Target              | Artifact                                                     |
+|---------------------|--------------------------------------------------------------|
+| CLI tool            | `cyoa-<platform>` — standalone binary                        |
+| Web (WASM)          | `cyoa-wasm/*` — `cyoa_wasm.js` + `cyoa_wasm_bg.wasm`         |
+| Unity / Godot / C++ | `cyoa-native-<platform>` — shared library + `cyoa.h`         |
+| Android             | `cyoa-native-android/` — ABIs for `arm64-v8a`, `armeabi-v7a` |
+| iOS                 | `cyoa-native-ios/` — universal static library                |
+| Example stories     | `*.cyoa.bc` — compiled bytecode files                        |
 
 To compile stories from `.cyoa` source or build from source, install
 [Rust 1.80+](https://rustup.rs):
@@ -49,9 +66,6 @@ git clone https://github.com/alexjwhite-cb/cyoa-script.git
 cd cyoa-script
 cargo build --release
 ```
-
-Detailed installation for every platform and game engine:
-[docs/installation.md](docs/installation.md)
 
 ### Example Story
 
@@ -104,6 +118,19 @@ story ForestAdventure:
       - gold by 5
       "You buy an ale."
       next tavern
+```
+
+### Compile and Play Stories
+
+Stories must be compiled before they can be played, this is true for the command line
+and for use in engines. The following example covers command line play.
+
+```bash
+# Compile story to binary
+cyoa compile examples/forest_adventure.cyoa
+
+# Play story binary
+cyoa play examples/forest_adventure.cyoa.bc
 ```
 
 ### JavaScript (WASM)
@@ -186,24 +213,24 @@ Full guide: [bindings/godot/README.md](bindings/godot/README.md)
 
 ## Features
 
-| Feature | Status | Description |
-|---------|--------|-------------|
-| Text output | ✅ | Zero-copy delivery via string table |
-| Stats | ✅ | Numeric state (`i64`) tracked over time |
-| Flags | ✅ | Boolean story progress markers |
-| Tags | ✅ | Story + event-level labels for filtering |
-| Reusable effects | ✅ | Define once, use from multiple choices |
-| AND/OR prerequisites | ✅ | `requires: courage >= 5 AND hp > 0` |
-| Text templating | ✅ | `{{stat}}` interpolation in prose |
-| Choice history | ✅ | Serializable history of all choices |
-| Multi-story | ✅ | Independent engine per story |
-| File imports | ✅ | `import "std/..."` and `import "./..."` |
-| WASM/Web | ✅ | Phase 2 — zero-copy text, StoryCatalog, web demo |
-| Unity (C#) | ✅ | Phase 3 |
-| Godot (GDScript + C#/.NET) | ✅ | Phase 4 |
-| Mobile (Android + iOS) | ✅ | Phase 4.3 |
-| LSP server | ✅ | Phase 4.2 |
-| Articy:Draft import | ⏳ | Phase 5 |
+| Feature                    | Status | Description                                      |
+|----------------------------|--------|--------------------------------------------------|
+| Text output                | ✅     | Zero-copy delivery via string table              |
+| Stats                      | ✅     | Numeric state (`i64`) tracked over time          |
+| Flags                      | ✅     | Boolean story progress markers                   |
+| Tags                       | ✅     | Story + event-level labels for filtering         |
+| Reusable effects           | ✅     | Define once, use from multiple choices           |
+| AND/OR prerequisites       | ✅     | `requires: courage >= 5 AND hp > 0`              |
+| Text templating            | ✅     | `{{stat}}` interpolation in prose                |
+| Choice history             | ✅     | Serializable history of all choices              |
+| Multi-story                | ✅     | Independent engine per story                     |
+| File imports               | ✅     | `import "std/..."` and `import "./..."`          |
+| WASM/Web                   | ✅     | Phase 2 — zero-copy text, StoryCatalog, web demo |
+| Unity (C#)                 | ✅     | Phase 3                                          |
+| Godot (GDScript + C#/.NET) | ✅     | Phase 4                                          |
+| Mobile (Android + iOS)     | ✅     | Phase 4.3                                        |
+| LSP server                 | ✅     | Phase 4.2                                        |
+| Articy:Draft import        | ⏳     | Phase 5                                          |
 
 ## Architecture
 
@@ -226,16 +253,16 @@ Full guide: [bindings/godot/README.md](bindings/godot/README.md)
 Each crate has its own [`README`](cyoa-ast/README.md) with build and usage
 details:
 
-| Crate | Purpose |
-|-------|---------|
-| [`cyoa-ast/`](cyoa-ast/README.md) | AST types — foundation crate (no deps) |
-| [`cyoa-bytecode/`](cyoa-bytecode/README.md) | Binary format + postcard serialization |
-| [`cyoa-compiler/`](cyoa-compiler/README.md) | Pest grammar + parser + bytecode codegen |
-| [`cyoa-runtime/`](cyoa-runtime/README.md) | VM + PlayerState + StoryCursor |
-| [`cyoa-wasm/`](cyoa-wasm/README.md) | WASM bindings (ES module) |
-| [`cyoa-native/`](cyoa-native/README.md) | C-ABI bindings (shared/static library) |
-| [`cyoa-cli/`](cyoa-cli/README.md) | CLI: compile, play, validate |
-| [`cyoa-lsp/`](cyoa-lsp/README.md) | LSP server (diagnostics, hover, completion) |
+| Crate                                       | Purpose                                     |
+|---------------------------------------------|---------------------------------------------|
+| [`cyoa-ast/`](cyoa-ast/README.md)           | AST types — foundation crate (no deps)      |
+| [`cyoa-bytecode/`](cyoa-bytecode/README.md) | Binary format + postcard serialization      |
+| [`cyoa-compiler/`](cyoa-compiler/README.md) | Pest grammar + parser + bytecode codegen    |
+| [`cyoa-runtime/`](cyoa-runtime/README.md)   | VM + PlayerState + StoryCursor              |
+| [`cyoa-wasm/`](cyoa-wasm/README.md)         | WASM bindings (ES module)                   |
+| [`cyoa-native/`](cyoa-native/README.md)     | C-ABI bindings (shared/static library)      |
+| [`cyoa-cli/`](cyoa-cli/README.md)           | CLI: compile, play, validate                |
+| [`cyoa-lsp/`](cyoa-lsp/README.md)           | LSP server (diagnostics, hover, completion) |
 
 **Key insight**: `cyoa-compiler` and `cyoa-runtime` are independent — they
 share `cyoa-ast` + `cyoa-bytecode` but don't depend on each other. Compilation
@@ -271,19 +298,19 @@ cargo clippy -- -D warnings   # lint (native)
 
 ## Documentation
 
-| Document | Purpose |
-|----------|---------|
-| [SPEC.md](SPEC.md) | Language specification (canonical) |
-| [CLAUDE.md](CLAUDE.md) | Build/test commands (Claude Code context) |
-| [docs/installation.md](docs/installation.md) | Installation instructions (consuming releases) |
-| [docs/syntax.md](docs/syntax.md) | Extended syntax reference |
-| [docs/api-reference.md](docs/api-reference.md) | API reference index + architecture overview |
-| [docs/wasm-api.md](docs/wasm-api.md) | WASM / JavaScript API |
-| [docs/c-abi-api.md](docs/c-abi-api.md) | C-ABI + C# (Unity) API |
-| [docs/rust-api.md](docs/rust-api.md) | Rust runtime API + bytecode format + CLI |
-| [docs/gdscript-api.md](docs/gdscript-api.md) | GDScript API (Godot) |
-| [docs/mobile.md](docs/mobile.md) | Mobile cross-compilation (Android/iOS) |
-| [Per-crate READMEs](cyoa-ast/README.md) | Build & usage for each crate |
+| Document                                       | Purpose                                        |
+|------------------------------------------------|------------------------------------------------|
+| [SPEC.md](SPEC.md)                             | Language specification (canonical)             |
+| [CLAUDE.md](CLAUDE.md)                         | Build/test commands (Claude Code context)      |
+| [docs/installation.md](docs/installation.md)   | Installation instructions (consuming releases) |
+| [docs/syntax.md](docs/syntax.md)               | Extended syntax reference                      |
+| [docs/api-reference.md](docs/api-reference.md) | API reference index + architecture overview    |
+| [docs/wasm-api.md](docs/wasm-api.md)           | WASM / JavaScript API                          |
+| [docs/c-abi-api.md](docs/c-abi-api.md)         | C-ABI + C# (Unity) API                         |
+| [docs/rust-api.md](docs/rust-api.md)           | Rust runtime API + bytecode format + CLI       |
+| [docs/gdscript-api.md](docs/gdscript-api.md)   | GDScript API (Godot)                           |
+| [docs/mobile.md](docs/mobile.md)               | Mobile cross-compilation (Android/iOS)         |
+| [Per-crate READMEs](cyoa-ast/README.md)        | Build & usage for each crate                   |
 
 ## License
 

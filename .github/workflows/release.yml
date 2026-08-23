@@ -36,6 +36,14 @@ jobs:
         with:
           target: ${{ matrix.target }}
 
+      - name: Set version from tag
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          NEW_VERSION="${GITHUB_REF_NAME#v}"
+          sed -i.bak "s/^version = \"[^\"]*\"/version = \"${NEW_VERSION}\"/" Cargo.toml
+          rm -f Cargo.toml.bak
+
       - name: Build CLI
         run: cargo build -p cyoa-cli --release --target ${{ matrix.target }}
 
@@ -196,11 +204,21 @@ jobs:
         with:
           path: artifacts
 
+      - name: Generate CLI checksums
+        shell: bash
+        run: |
+          cd artifacts
+          find . -path "*/cyoa-cli-*" -type f -name "cyoa*" | while read f; do
+            hash=$(shasum -a 256 "$f" | awk '{print $1}')
+            echo "$hash  $(basename "$f")"
+          done > cyoa-cli-sha256sums.txt
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             artifacts/cyoa-cli-*/**/*
+            artifacts/cyoa-cli-sha256sums.txt
             artifacts/cyoa-wasm/**/*
             artifacts/cyoa-native-*/**/*
         env:
@@ -249,6 +267,9 @@ jobs:
           node docs-site/build-site.js
           # Root redirect to web demo (primary entry point on release)
           printf '%s\n' '<!doctype html>' '<html>' '<head>' '<meta charset="utf-8">' '<meta http-equiv="refresh" content="0; url=./web-demo/">' '<title>CYOA Engine — Redirecting</title>' '</head>' '<body>' '<p>Redirecting to the <a href="./web-demo/">web demo</a>…</p>' '</body>' '</html>' > _site/index.html
+          # Copy install scripts to site root for short URLs
+          cp scripts/install.sh _site/
+          cp scripts/install.ps1 _site/
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3

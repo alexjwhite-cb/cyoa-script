@@ -41,11 +41,39 @@ Download the appropriate files for your platform.
 
 ## CLI Tool
 
-The CLI binary provides three commands for story authors and testers.
+The CLI binary provides commands for story authors and testers:
+
+| Command | Description |
+|---------|-------------|
+| `cyoa compile <file>` | Compile a `.cyoa` story to `.cyoa.bc` bytecode |
+| `cyoa play <file>` | Play a compiled story interactively in the terminal |
+| `cyoa validate <file>` | Validate syntax without producing output |
+| `cyoa version` | Print the CLI version |
+
+### Quick Install (One-line)
+
+**Linux / macOS (bash):**
+
+```bash
+curl -fsSL https://alexjwhite-cb.github.io/cyoa-script/install.sh | bash
+```
+
+**Windows (PowerShell):**
+
+```powershell
+iwr https://alexjwhite-cb.github.io/cyoa-script/install.ps1 -UseBasicParsing | iex
+```
+
+Both scripts auto-detect your OS and architecture, download the appropriate
+binary from the latest GitHub release, verify its SHA256 checksum, and install
+it to a directory on your PATH. See
+[`scripts/install.sh`](../scripts/install.sh) and
+[`scripts/install.ps1`](../scripts/install.ps1) for all options (custom install
+dir, specific version, checksum skipping, dry-run, update checking).
 
 ### Install
 
-Download the `cyoa-cli-<platform>` binary from the latest
+Download the `cyoa-<platform>` binary from the latest
 [release page](https://github.com/alexjwhite-cb/cyoa-script/releases/latest).
 
 ### Usage
@@ -59,6 +87,9 @@ cyoa play examples/forest_adventure.cyoa.bc
 
 # Validate syntax without producing output
 cyoa validate examples/forest_adventure.cyoa
+
+# Print the CLI version
+cyoa version
 ```
 
 ---

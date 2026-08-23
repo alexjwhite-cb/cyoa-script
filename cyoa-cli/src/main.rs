@@ -4,6 +4,7 @@
 //!   cyoa compile <story.cyoa>      Compile .cyoa → .cyoa.bc
 //!   cyoa play <story.cyoa.bc>      Play in interactive mode
 //!   cyoa validate <story.cyoa>     Validate without outputting bytecode
+//!   cyoa version                   Print the CLI version
 
 use std::io::{self, Write};
 
@@ -33,6 +34,8 @@ enum Commands {
         /// Input .cyoa file path
         input: String,
     },
+    /// Print the version of the cyoa CLI
+    Version,
 }
 
 fn main() {
@@ -41,6 +44,7 @@ fn main() {
         Commands::Compile { input } => cmd_compile(&input),
         Commands::Play { input } => cmd_play(&input),
         Commands::Validate { input } => cmd_validate(&input),
+        Commands::Version => println!("{}", env!("CARGO_PKG_VERSION")),
     }
 }
 

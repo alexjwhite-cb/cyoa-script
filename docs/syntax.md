@@ -36,7 +36,7 @@ story StoryName:
 
 - **Indentation**: 2 spaces (tabs are rejected).
 - **Comments**: Start with `#` and extend to end of line.
-- **Quotes**: Text strings may use double or single quotes.
+- **Quotes**: Text strings may use double quotes or be unquoted.
 
 ---
 
@@ -196,15 +196,15 @@ effect found_mushroom:
 
 Inside an effect block (indented 4 spaces), you can use:
 
-| Syntax | Description |
-|--------|-------------|
-| `+ stat by N` | Increase stat by N |
-| `- stat by N` | Decrease stat by N |
-| `set flag to true` | Set flag to true |
-| `set flag to false` | Set flag to false |
-| `add tag` | Add a runtime tag |
-| `text "string"` | Text output to display |
-| `text "string with {{templating}}"` | Templated text output |
+| Syntax                              | Description            |
+|-------------------------------------|------------------------|
+| `+ stat by N`                       | Increase stat by N     |
+| `- stat by N`                       | Decrease stat by N     |
+| `set flag to true`                  | Set flag to true       |
+| `set flag to false`                 | Set flag to false      |
+| `add tag`                           | Add a runtime tag      |
+| `text "string"`                     | Text output to display |
+| `text "string with {{templating}}"` | Templated text output  |
 
 You can also use unquoted text as shorthand for `text`:
 
@@ -258,13 +258,13 @@ event old_ruins:
 
 ### Event Fields
 
-| Field | Required? | Description |
-|-------|-----------|-------------|
-| `requires:` | No | AND/OR condition expression (inline or multi-line) |
-| `tags:` | No | Comma-separated tag list (inline or multi-line) |
-| Inline effects | No | `set`, `+/- stat`, `add tag` that run when event is entered |
-| Text lines | No | Quoted or unquoted prose shown to the player |
-| `choice:` | Yes | At least one choice (or the event is terminal) |
+| Field          | Required? | Description                                                 |
+|----------------|-----------|-------------------------------------------------------------|
+| `requires:`    | No        | AND/OR condition expression (inline or multi-line)          |
+| `tags:`        | No        | Comma-separated tag list (inline or multi-line)             |
+| Inline effects | No        | `set`, `+/- stat`, `add tag` that run when event is entered |
+| Text lines     | No        | Double-quoted or unquoted prose shown to the player         |
+| `choice:`      | Yes       | At least one choice (or the event is terminal)              |
 
 ### Event Entry Effects
 
