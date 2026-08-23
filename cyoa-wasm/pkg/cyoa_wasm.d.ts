@@ -66,11 +66,6 @@ export class WasmEngine {
      */
     getStateJson(): string;
     /**
-     * Returns true if the story has ended (a terminal choice was made).
-     * A terminal choice is one that has no `next` event specified.
-     */
-    isStoryComplete(): boolean;
-    /**
      * List all runtime flags currently set.
      */
     listFlags(): string[];
@@ -187,7 +182,6 @@ export interface InitOutput {
     readonly wasmengine_getHistory: (a: number) => [number, number, number];
     readonly wasmengine_getStat: (a: number, b: number, c: number) => bigint;
     readonly wasmengine_getStateJson: (a: number) => [number, number];
-    readonly wasmengine_isStoryComplete: (a: number) => number;
     readonly wasmengine_listFlags: (a: number) => [number, number];
     readonly wasmengine_listStats: (a: number) => [number, number, number];
     readonly wasmengine_listStoryTags: (a: number) => [number, number];
