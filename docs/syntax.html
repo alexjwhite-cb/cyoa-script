@@ -431,7 +431,7 @@ advanced patterns.</p>
 <ul>
 <li><strong>Indentation</strong>: 2 spaces (tabs are rejected).</li>
 <li><strong>Comments</strong>: Start with <code>#</code> and extend to end of line.</li>
-<li><strong>Quotes</strong>: Text strings may use double quotes or be unquoted.</li>
+<li><strong>Quotes</strong>: Text strings may use double quotes or be unquoted. Escaped quotes (<code>\&quot;</code>) inside quoted text render as literal <code>&quot;</code>. Other supported escapes: <code>\\</code> → <code>\</code>, <code>\n</code> → newline, <code>\t</code> → tab, <code>\r</code> → carriage return.</li>
 </ul>
 <hr>
 <h2>Story Declaration</h2>
@@ -708,7 +708,7 @@ effects, reference reusable effects, and specify the next event.</p>
 <tr>
 <td><code>requires:</code></td>
 <td>No</td>
-<td>Local prerequisite (filter this choice)</td>
+<td>Local prerequisite (inline or multi-line)</td>
 </tr>
 <tr>
 <td><code>next</code></td>
@@ -747,6 +747,13 @@ condition on the following indented lines:</p>
   requires:
     courage &gt;= 5 AND gold &gt; 0
   &quot;A guarded path lies ahead.&quot;
+</code></pre>
+<p>The same multi-line form works inside <code>choice</code> blocks:</p>
+<pre><code class="language-cyoa">choice &quot;Browse the stalls.&quot;:
+  requires:
+    NOT drank_witch_potion
+    OR was_mugged
+  next browse_wary_of_thieves
 </code></pre>
 <h3>Full Operator Table</h3>
 <table>
@@ -925,6 +932,60 @@ story MyAdventure:
     choice &quot;Play again&quot;:
       next start
 </code></pre>
+<hr>
+<h2>Validation</h2>
+<p>The <code>cyoa validate</code> command checks a story for errors <strong>without</strong> producing
+bytecode. It runs import resolution first, then performs reference validation
+on the merged story.</p>
+<h3>What <code>validate</code> checks</h3>
+<ol>
+<li><strong>Parse errors</strong> — syntax issues, unclosed strings, invalid conditions.</li>
+<li><strong>Import errors</strong> — missing files, circular imports, name collisions.</li>
+<li><strong>Reference validation</strong> — all event and effect references must point to
+defined symbols:</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>Reference site</th>
+<th>Checked against</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>next &lt;event&gt;</code></td>
+<td>Defined events</td>
+<td><code>next castle_gate</code> → must have <code>event castle_gate:</code></td>
+</tr>
+<tr>
+<td><code>uses &lt;effect&gt;</code></td>
+<td>Defined effects</td>
+<td><code>uses healing_potion</code> → must be imported or locally defined</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p><strong>Note</strong>: Stats and flags are <strong>not</strong> validated at compile time. The runtime
+treats undeclared stats as <code>0</code> and undeclared flags as <code>false</code>. This allows
+standard library effects (e.g., <code>std/combat</code> uses <code>courage</code>) to be imported
+without requiring stories to pre-declare every stat the library effects
+reference.</p>
+</blockquote>
+<h3>Import-aware validation</h3>
+<p>When a story imports from <code>std/</code> or local files, <code>validate</code> resolves those
+imports first. Symbols defined in imported files are recognized as valid
+references. If an import file is missing or circular, <code>validate</code> reports
+an import error and exits.</p>
+<h3>LSP diagnostics</h3>
+<p>The language server (LSP) runs the same reference validation as <code>cyoa validate</code>
+on every keystroke. Diagnostics are published in real time. When imports
+cannot be resolved (e.g., file not found), reference validation is skipped
+for the unresolved symbols to avoid false positives — the import error itself
+is reported instead.</p>
+<h3>Error positions</h3>
+<p>Validation errors include line and column positions pointing to the <strong>reference
+site</strong> (where the symbol is used), not the definition. Comment lines (<code>#</code>) are
+skipped when locating reference positions, so errors never point at a symbol
+mentioned only in a comment.</p>
 
       </article>
     </main>
