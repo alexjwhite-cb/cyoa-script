@@ -606,32 +606,19 @@ reference in a story points to a declared definition. It operates on a **merged*
 `Story` AST (after import resolution) and the original source text (for error
 positioning).
 
-### Effect definitions are black boxes
-
-Stat/flag references **inside top-level `EffectDef` bodies are NOT validated**.
-Effects are treated as self-contained units — their *names* are validated via
-`uses` references (the effect must exist), but the stat/flag names inside their
-bodies are not checked against the story's declarations. This allows effects
-imported from `std/` libraries (e.g. `std/combat` which references `courage`)
-to use stats that the importing story does not explicitly declare.
-
-Validation DOES check stat/flag references in:
-- Inline effect steps within events (e.g. `+ hp by 10` in an event body)
-- Inline effect steps within choices (e.g. `set flag to true` in a choice body)
-- Condition expressions (`requires: courage >= 5`)
-- Text templates (`{{gold}}`)
+Stat and flag names are **not** validated at compile time — not in effect
+bodies, not in inline effect steps, not in conditions, and not in templates. The
+runtime treats undeclared stats as `0` and undeclared flags as `false`. This
+allows effects imported from `std/` libraries (e.g. `std/combat` which
+references `courage`) to use stats that the importing story does not explicitly
+declare. Only `next` (event) and `uses` (effect) references are validated.
 
 ### Checked references
 
 | Reference site | Symbol type | Example |
-|----------------|-------------|---------|
+|----------------|-----------------|---------|
 | `choice "label": next <target>` | event | `next castle_gate` → must match an `event` id |
 | `choice "label": uses <effect>` | effect | `uses healing_potion` → must match an `effect` name |
-| `requires: <stat> <op> <value>` | stat | `requires: courage >= 5` → must match a `stat` name |
-| `requires: <flag>` | flag | `requires: visited_cave` → must match a `flag` name |
-| `+/- <stat> by N` (inline in event/choice) | stat | `+ hp by 10` → must match a `stat` name |
-| `set <flag> to <bool>` (inline in event/choice) | flag | `set wounded to true` → must match a `flag` name |
-| `{{<stat>}}` (text template) | stat | `"You have {{gold}}"` → must match a `stat` name |
 
 ### Runtime behavior with undeclared stats
 
