@@ -145,6 +145,15 @@ export class WasmEngine {
         }
     }
     /**
+     * Returns true if the story has ended (a terminal choice was made).
+     * A terminal choice is one that has no `next` event specified.
+     * @returns {boolean}
+     */
+    isStoryComplete() {
+        const ret = wasm.wasmengine_isStoryComplete(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
      * List all runtime flags currently set.
      * @returns {string[]}
      */
