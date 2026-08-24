@@ -504,26 +504,45 @@ fn parse_effect_block(
     };
 
     let mut body = Vec::new();
+    let mut text_paragraph: Vec<TextContent> = Vec::new();
 
     while cursor.has_more() {
         let line = cursor.peek().clone();
         if line.content.trim().is_empty() {
+            // Blank line — paragraph boundary: flush accumulated text
+            flush_text_steps(&mut body, &mut text_paragraph);
             cursor.next();
             continue;
         }
         if line.indent < body_indent {
+            // End of block — flush before breaking
+            flush_text_steps(&mut body, &mut text_paragraph);
             break;
         }
         if line.indent > body_indent {
-            // Deeper-indented lines we didn't consume — skip
+            // Deeper-indented lines we didn't consume — flush, then skip
+            flush_text_steps(&mut body, &mut text_paragraph);
             cursor.next();
             continue;
         }
 
         let step = parse_effect_step(&line.content, line.line_num, line.col)?;
-        body.push(step);
+        match step {
+            EffectStep::Text(text) => {
+                // Accumulate consecutive text lines into a paragraph
+                text_paragraph.push(text);
+            }
+            other => {
+                // Non-text step — flush any accumulated text first
+                flush_text_steps(&mut body, &mut text_paragraph);
+                body.push(other);
+            }
+        }
         cursor.next();
     }
+
+    // Flush any remaining text paragraph
+    flush_text_steps(&mut body, &mut text_paragraph);
 
     Ok((EffectDef { name, body }, body_indent))
 }
@@ -664,16 +683,26 @@ fn parse_event_block(
     let mut text = Vec::new();
     let mut choices = Vec::new();
 
+    // Markdown-style paragraph accumulation: consecutive prose text lines
+    // (no blank line between them) are joined into a single paragraph.
+    let mut text_paragraph: Vec<TextContent> = Vec::new();
+
     while cursor.has_more() {
         let line = cursor.peek().clone();
         if line.content.trim().is_empty() {
+            // Blank line — paragraph boundary: flush accumulated text
+            flush_text_paragraph(&mut text, &mut text_paragraph);
             cursor.next();
             continue;
         }
         if line.indent < body_indent {
+            // End of block — flush before breaking
+            flush_text_paragraph(&mut text, &mut text_paragraph);
             break;
         }
         if line.indent > body_indent {
+            // Deeper-indented line — flush, then skip
+            flush_text_paragraph(&mut text, &mut text_paragraph);
             cursor.next();
             continue;
         }
@@ -681,6 +710,7 @@ fn parse_event_block(
         let trimmed = line.content.trim_start();
 
         if trimmed.starts_with("requires:") {
+            flush_text_paragraph(&mut text, &mut text_paragraph);
             let rest = trimmed.strip_prefix("requires:").unwrap().trim();
             if !rest.is_empty() {
                 // Inline form (existing behavior)
@@ -709,6 +739,7 @@ fn parse_event_block(
                 requires = Some(cond);
             }
         } else if trimmed.starts_with("tags:") {
+            flush_text_paragraph(&mut text, &mut text_paragraph);
             let rest = trimmed.strip_prefix("tags:").unwrap().trim();
             if !rest.is_empty() {
                 // Inline comma-separated form (existing behavior)
@@ -742,23 +773,28 @@ fn parse_event_block(
                 }
             }
         } else if trimmed.starts_with("choice ") || trimmed.starts_with("choice:") {
+            flush_text_paragraph(&mut text, &mut text_paragraph);
             cursor.next();
             let choice = parse_choice(cursor, line.line_num, line.col, &line.content)?;
             choices.push(choice);
         } else if is_effect_step(trimmed) {
             // Inline effect step (set flag, stat change, add tag, text)
+            flush_text_paragraph(&mut text, &mut text_paragraph);
             let step = parse_effect_step(trimmed, line.line_num, line.col)?;
             body.push(step);
             cursor.next();
         } else if !trimmed.is_empty() && !trimmed.starts_with('#') {
-            // Event prose text
+            // Event prose text — accumulate for paragraph joining
             let text_content = parse_template_string(trimmed)?;
-            text.push(text_content);
+            text_paragraph.push(text_content);
             cursor.next();
         } else {
             cursor.next();
         }
     }
+
+    // Flush any remaining accumulated text
+    flush_text_paragraph(&mut text, &mut text_paragraph);
 
     Ok((
         EventDef {
@@ -846,9 +882,15 @@ fn parse_choice(
     let mut steps = Vec::new();
     let mut body_indent = None;
 
+    // Markdown-style paragraph accumulation for choice body text lines:
+    // consecutive prose lines (no blank line between) are joined into one.
+    let mut text_paragraph: Vec<TextContent> = Vec::new();
+
     while cursor.has_more() {
         let bl = cursor.peek().clone();
         if bl.content.trim().is_empty() {
+            // Blank line — paragraph boundary
+            flush_text_steps(&mut steps, &mut text_paragraph);
             cursor.next();
             continue;
         }
@@ -864,6 +906,8 @@ fn parse_choice(
         let expected = body_indent.unwrap();
 
         if bl.indent < expected {
+            // End of choice body — flush before breaking
+            flush_text_steps(&mut steps, &mut text_paragraph);
             break;
         }
         // If bl.indent > expected, we should consume it
@@ -874,15 +918,18 @@ fn parse_choice(
 
         // Handle uses in body
         if trimmed.starts_with("uses ") {
+            flush_text_steps(&mut steps, &mut text_paragraph);
             let names_str = trimmed.strip_prefix("uses").unwrap().trim();
             uses.extend(names_str.split(',').map(|s| s.trim().to_string()));
             continue;
         }
 
         if trimmed.starts_with("next ") {
+            flush_text_steps(&mut steps, &mut text_paragraph);
             let rest = trimmed.strip_prefix("next").unwrap().trim();
             next = Some(rest.to_string());
         } else if trimmed.starts_with("requires:") {
+            flush_text_steps(&mut steps, &mut text_paragraph);
             let rest = trimmed.strip_prefix("requires:").unwrap().trim();
             if !rest.is_empty() {
                 // Inline form
@@ -915,9 +962,22 @@ fn parse_choice(
             }
         } else {
             let step = parse_effect_step(trimmed, bl.line_num, bl.col)?;
-            steps.push(step)
+            match step {
+                EffectStep::Text(text) => {
+                    // Accumulate consecutive text lines into a paragraph
+                    text_paragraph.push(text);
+                }
+                other => {
+                    // Non-text step — flush any accumulated text first
+                    flush_text_steps(&mut steps, &mut text_paragraph);
+                    steps.push(other);
+                }
+            }
         }
     }
+
+    // Flush any remaining accumulated text
+    flush_text_steps(&mut steps, &mut text_paragraph);
 
     Ok(ChoiceDef {
         text,
@@ -1337,4 +1397,38 @@ fn split_template(text: &str) -> Vec<TextSegment> {
     }
 
     segments
+}
+
+/// Join multiple `TextContent` values into a single one, with spaces between
+/// consecutive entries. This implements markdown-style paragraph joining:
+/// consecutive prose lines (no blank line between them) are merged into a
+/// single paragraph, and a blank line creates a paragraph boundary.
+fn join_text_contents(contents: &[TextContent]) -> TextContent {
+    let mut segments = Vec::new();
+    for (i, tc) in contents.iter().enumerate() {
+        if i > 0 {
+            segments.push(TextSegment::Literal(" ".to_string()));
+        }
+        segments.extend(tc.segments.iter().cloned());
+    }
+    TextContent { segments }
+}
+
+/// Flush accumulated text lines into a single joined paragraph on the target
+/// vector. Called when a blank line or non-text line is encountered.
+fn flush_text_paragraph(text: &mut Vec<TextContent>, paragraph: &mut Vec<TextContent>) {
+    if !paragraph.is_empty() {
+        text.push(join_text_contents(paragraph));
+        paragraph.clear();
+    }
+}
+
+/// Flush accumulated text steps (EffectStep::Text) into a single joined
+/// paragraph on the target vector. Called when a blank line or non-text step
+/// is encountered in an effect/choice body.
+fn flush_text_steps(body: &mut Vec<EffectStep>, paragraph: &mut Vec<TextContent>) {
+    if !paragraph.is_empty() {
+        body.push(EffectStep::Text(join_text_contents(paragraph)));
+        paragraph.clear();
+    }
 }

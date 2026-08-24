@@ -15,6 +15,7 @@
 - [Choices](#choices)
 - [Prerequisites (Conditions)](#prerequisites-conditions)
 - [Text Templating](#text-templating)
+- [Paragraph Joining](#paragraph-joining)
 - [Standard Library](#standard-library)
 - [Complete Example](#complete-example)
 
@@ -424,6 +425,69 @@ choice "Buy ale (cost: {{gold}} gold)":
   templates atomically using the `RenderTemplate` instruction.
 - **Game engines always receive pre-rendered strings** — no template
   syntax in the API output.
+
+---
+
+## Paragraph Joining
+
+For IDE readability, writers can word-wrap prose across multiple source lines.
+The parser implements **markdown-style paragraph joining**:
+
+- **Consecutive text lines** (no blank line between them) are joined into a
+  single paragraph. A space is inserted between each line's text.
+- **Blank lines** act as paragraph separators — text before and after a blank
+  line becomes distinct paragraphs.
+
+This behavior applies to event text prose, effect body text, and choice body
+text.
+
+**Example** (using `forest_adventure.cyoa` style):
+
+```cyoa
+event start:
+  "You stand beneath the bows of a dark and ancient forest. Before you"
+  "a partially tumbled down, thatch-roofed cottage and a track that may once have been"
+  "the beaten path, but is now partially concealed by stinging nettles,"
+  "gnarled roots, and leaf-litter."
+
+  "The faint glow of candlelight flickers can be seen through grimy iron wrought"
+  "windows, the only sign of habitation."
+
+  choice "Knock on the cottage door.":
+    ...
+```
+
+In the above, the four lines of the first paragraph (no blank line between them)
+produce **one** paragraph. The blank line creates a paragraph break, so the two
+lines of the second paragraph produce a **second** paragraph.
+
+### Explicit Paragraph Separation
+
+To deliberately create two separate paragraphs without a blank line, use an
+explicit `text` statement:
+
+```cyoa
+event start:
+  text "First paragraph."
+  text "Second paragraph."  # two distinct paragraphs
+```
+
+### Multi-line Strings (Different from Paragraph Joining)
+
+A **single quoted string** that spans multiple source lines is treated as one
+text block — the newlines within the string are preserved as literal
+content, and paragraph joining does **not** apply inside it:
+
+```cyoa
+event start:
+  "This is line one.
+  This is line two.
+  They are in the same string."
+```
+
+This is distinct from paragraph joining: the above always renders as a single
+paragraph with embedded newlines, regardless of blank lines in the source
+(which are ignored inside a quoted string).
 
 ---
 

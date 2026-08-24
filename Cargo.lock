@@ -142,14 +142,14 @@ checksum = "790eea4361631c5e7d22598ecd5723ff611904e3344ce8720784c93e3d83d40b"
 
 [[package]]
 name = "cyoa-ast"
-version = "0.7.1"
+version = "0.8.0"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "cyoa-bytecode"
-version = "0.7.1"
+version = "0.8.0"
 dependencies = [
  "postcard",
  "serde",
@@ -157,7 +157,7 @@ dependencies = [
 
 [[package]]
 name = "cyoa-cli"
-version = "0.7.1"
+version = "0.8.0"
 dependencies = [
  "clap",
  "cyoa-bytecode",
@@ -167,7 +167,7 @@ dependencies = [
 
 [[package]]
 name = "cyoa-compiler"
-version = "0.7.1"
+version = "0.8.0"
 dependencies = [
  "cyoa-ast",
  "cyoa-bytecode",
@@ -177,7 +177,7 @@ dependencies = [
 
 [[package]]
 name = "cyoa-lsp"
-version = "0.7.1"
+version = "0.8.0"
 dependencies = [
  "cyoa-ast",
  "cyoa-compiler",
@@ -187,7 +187,7 @@ dependencies = [
 
 [[package]]
 name = "cyoa-native"
-version = "0.7.1"
+version = "0.8.0"
 dependencies = [
  "cyoa-bytecode",
  "cyoa-compiler",
@@ -197,7 +197,7 @@ dependencies = [
 
 [[package]]
 name = "cyoa-runtime"
-version = "0.7.1"
+version = "0.8.0"
 dependencies = [
  "cyoa-ast",
  "cyoa-bytecode",
@@ -208,7 +208,7 @@ dependencies = [
 
 [[package]]
 name = "cyoa-wasm"
-version = "0.7.1"
+version = "0.8.0"
 dependencies = [
  "cyoa-bytecode",
  "cyoa-runtime",

@@ -1153,3 +1153,271 @@ story TestStory:
     assert!(!bytecode.events.is_empty());
     assert!(!bytecode.instructions.is_empty());
 }
+
+// ===== Markdown-style paragraph joining tests =====
+
+#[test]
+fn test_parse_event_paragraph_joining_consecutive_lines() {
+    // Consecutive quoted lines (no blank line) should be joined into a single paragraph.
+    // This is the markdown-style behavior: word-wrapped lines in an IDE for readability
+    // become one paragraph.
+    let source = r#"
+story Test:
+  event start:
+    "First line of prose."
+    "Second line of prose."
+    "Third line of prose."
+
+    choice "Continue":
+      next end
+  event end:
+    "The end."
+"#;
+    let story = parse_story(source).unwrap();
+    let ev = match &story.items[0] {
+        StoryItem::EventDef(e) => e,
+        _ => panic!("expected EventDef"),
+    };
+    // Three consecutive lines (no blank line) → single paragraph
+    assert_eq!(ev.text.len(), 1);
+}
+
+#[test]
+fn test_parse_event_blank_line_creates_paragraph_break() {
+    // A blank line between text lines should create separate paragraphs.
+    let source = r#"
+story Test:
+  event start:
+    "First paragraph."
+
+    "Second paragraph."
+
+    choice "Continue":
+      next end
+  event end:
+    "The end."
+"#;
+    let story = parse_story(source).unwrap();
+    let ev = match &story.items[0] {
+        StoryItem::EventDef(e) => e,
+        _ => panic!("expected EventDef"),
+    };
+    // Two paragraphs separated by blank lines → two TextContent items
+    assert_eq!(ev.text.len(), 2);
+    assert!(ev.text[0]
+        .segments
+        .iter()
+        .any(|s| matches!(s, TextSegment::Literal(s) if s.contains("First paragraph"))));
+    assert!(ev.text[1]
+        .segments
+        .iter()
+        .any(|s| matches!(s, TextSegment::Literal(s) if s.contains("Second paragraph"))));
+}
+
+#[test]
+fn test_parse_event_paragraph_joining_mixed() {
+    // Mix of consecutive lines and blank-line separators.
+    let source = r#"
+story Test:
+  event start:
+    "Line one."
+    "Line two."
+
+    "Paragraph two line one."
+    "Paragraph two line two."
+
+    choice "Go":
+      next end
+  event end:
+    "End."
+"#;
+    let story = parse_story(source).unwrap();
+    let ev = match &story.items[0] {
+        StoryItem::EventDef(e) => e,
+        _ => panic!("expected EventDef"),
+    };
+    // Two paragraphs, each joined from consecutive lines
+    assert_eq!(ev.text.len(), 2);
+}
+
+#[test]
+fn test_parse_effect_paragraph_joining() {
+    // Markdown-style joining should also work inside effect body text.
+    let source = r#"
+story Test:
+  effect drink:
+    + hp by 5
+    "You take a sip."
+    "The liquid is warm."
+
+    "You feel better."
+
+  event start:
+    "Begin."
+    choice "Drink":
+      uses drink
+      next start
+"#;
+    let story = parse_story(source).unwrap();
+    let eff = match &story.items[0] {
+        StoryItem::EffectDef(e) => e,
+        _ => panic!("expected EffectDef"),
+    };
+    // Effect body should have: ChangeStat, Text(1 paragraph), Text(1 paragraph)
+    assert_eq!(eff.body.len(), 3);
+
+    // First text step: two consecutive lines joined into one paragraph
+    match &eff.body[1] {
+        EffectStep::Text(tc) => {
+            assert_eq!(tc.segments.len(), 3); // Literal("You take a sip.") + Literal(" The liquid is warm.") + Literal("...")
+        }
+        other => panic!("expected Text, got {:?}", other),
+    }
+
+    // Second text step: separate paragraph
+    match &eff.body[2] {
+        EffectStep::Text(tc) => {
+            assert!(tc
+                .segments
+                .iter()
+                .any(|s| matches!(s, TextSegment::Literal(s) if s.contains("You feel better"))));
+        }
+        other => panic!("expected Text, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_parse_choice_paragraph_joining() {
+    // Markdown-style joining should also work inside choice body text.
+    let source = r#"
+story Test:
+  event start:
+    "Begin."
+
+    choice "Explore":
+      "You look around."
+      "It is dark."
+
+      "You see a glint."
+      next cave
+  event cave:
+    "A cave."
+"#;
+    let story = parse_story(source).unwrap();
+    let ev = match &story.items[0] {
+        StoryItem::EventDef(e) => e,
+        _ => panic!("expected EventDef"),
+    };
+    assert_eq!(ev.choices.len(), 1);
+    // Choice body: two paragraphs from consecutive lines separated by blank line
+    assert_eq!(ev.choices[0].steps.len(), 2);
+}
+
+#[test]
+fn test_parse_joined_paragraph_has_space() {
+    // Verify that joined paragraphs insert a space between lines.
+    let source = r#"
+story Test:
+  event start:
+    "Hello."
+    "World."
+    choice "Go":
+      next end
+  event end:
+    "End."
+"#;
+    let story = parse_story(source).unwrap();
+    let ev = match &story.items[0] {
+        StoryItem::EventDef(e) => e,
+        _ => panic!("expected EventDef"),
+    };
+    assert_eq!(ev.text.len(), 1);
+    // The joined text should contain a space between "Hello." and "World."
+    let segments = &ev.text[0].segments;
+    assert_eq!(segments.len(), 3); // "Hello." + " " + "World."
+    match &segments[0] {
+        TextSegment::Literal(s) => assert_eq!(s, "Hello."),
+        _ => panic!("expected Literal"),
+    }
+    match &segments[1] {
+        TextSegment::Literal(s) => assert_eq!(s, " "),
+        _ => panic!("expected Literal space separator"),
+    }
+    match &segments[2] {
+        TextSegment::Literal(s) => assert_eq!(s, "World."),
+        _ => panic!("expected Literal"),
+    }
+}
+
+#[test]
+fn test_parse_paragraph_joining_with_template() {
+    // Markdown-style joining should work even when stat templates are involved.
+    let source = r#"
+story Test:
+  stat gold = 5
+  event start:
+    "You have {{gold}} gold."
+    "Spend it wisely."
+
+    "The market awaits."
+    choice "Shop":
+      next end
+  event end:
+    "End."
+"#;
+    let story = parse_story(source).unwrap();
+    let ev = match &story.items[1] {
+        StoryItem::EventDef(e) => e,
+        _ => panic!("expected EventDef"),
+    };
+    // Two paragraphs: first with template + consecutive line, second separate
+    assert_eq!(ev.text.len(), 2);
+
+    // First paragraph: should contain stat ref and both lines joined
+    let first = &ev.text[0].segments;
+    assert!(first
+        .iter()
+        .any(|s| matches!(s, TextSegment::StatRef(n) if n == "gold")));
+}
+
+#[test]
+fn test_parse_paragraph_flush_on_non_text_step() {
+    // In effect body, non-text steps should flush accumulated text.
+    let source = r#"
+story Test:
+  stat hp = 0
+  effect blast:
+    "You cast a spell."
+    "Fire erupts."
+    + hp by 10
+    "Your power returns."
+
+  event start:
+    "Begin."
+    choice "Cast":
+      uses blast
+      next start
+"#;
+    let story = parse_story(source).unwrap();
+    let eff = match &story.items[1] {
+        StoryItem::EffectDef(e) => e,
+        _ => panic!("expected EffectDef"),
+    };
+    // Body: Text(joined), ChangeStat, Text
+    // "You cast a spell." + "Fire erupts." → joined into one Text step
+    // + hp by 10 → ChangeStat
+    // "Your power returns." → Text step
+    assert_eq!(eff.body.len(), 3);
+    match &eff.body[0] {
+        EffectStep::Text(_) => {}
+        other => panic!("expected Text at index 0, got {:?}", other),
+    }
+    match &eff.body[1] {
+        EffectStep::ChangeStat { .. } => {}
+        other => panic!("expected ChangeStat at index 1, got {:?}", other),
+    }
+    match &eff.body[2] {
+        EffectStep::Text(_) => {}
+        other => panic!("expected Text at index 2, got {:?}", other),
+    }
+}

@@ -197,7 +197,8 @@ event old_ruins:
 **Event fields** (in any order within the event block):
 - `requires:` — AND/OR condition expression (optional, inline or multi-line)
 - `tags:` — comma-separated list (optional, inline or multi-line)
-- Text lines — quoted or unquoted prose (rendered to player)
+- Text lines — quoted or unquoted prose (rendered to player); consecutive lines
+  are joined into paragraphs (see §3.10)
 - `choice:` — one or more choices
 
 **Multi-line `tags:` and `requires:`** — when the keyword is on its own line,
@@ -291,7 +292,51 @@ Writers interpolate current state values into prose using `{{var}}`:
   literal text + stat lookup. At **runtime**, the VM renders templates
   atomically using `RenderTemplate` instruction.
 
-### 3.10 Story Block
+### 3.10 Paragraph Joining (Markdown-Style)
+
+For IDE readability, writers can word-wrap prose across multiple source lines.
+The parser implements **markdown-style paragraph joining**:
+
+- **Consecutive text lines** (no blank line between them) are joined into a
+  single paragraph. A space is inserted between each line's text.
+- **Blank lines** act as paragraph separators — text before and after a blank
+  line becomes distinct paragraphs.
+
+This behavior applies to event text prose, effect body text, and choice body
+text.
+
+**Example:**
+```
+event start:
+  "You stand beneath the bows of a dark and ancient forest. Before you"
+  "a partially tumbled down, thatch-roofed cottage and a track that may once have been"
+  "the beaten path, but is now partially concealed by stinging nettles,"
+  "gnarled roots, and leaf-litter."
+
+  "The faint glow of candlelight flickers can be seen through grimy iron wrought"
+  "windows, the one sign of habitation."
+
+  choice "Knock on the cottage door.":
+    ...
+```
+
+In the above, the four lines of the first paragraph (no blank line between them)
+produce **one** paragraph. The blank line creates a paragraph break, so the two
+lines of the second paragraph produce a **second** paragraph.
+
+To deliberately create two separate paragraphs without a blank line, use an
+explicit `text` statement:
+```
+event start:
+  text "First paragraph."
+  text "Second paragraph."  # two distinct paragraphs
+```
+
+**Single-quoted strings that span multiple source lines** (see §3.6 Events)
+are treated as a single text block and are **not** subject to paragraph joining —
+the newlines within the string are preserved.
+
+### 3.11 Story Block
 
 The `story` block wraps all definitions:
 

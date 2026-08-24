@@ -63,6 +63,7 @@ story TestAdventure:
 
   event start:
     "You stand at the entrance of a cave."
+
     "The darkness yawns before you."
 
     choice "Enter the cave":

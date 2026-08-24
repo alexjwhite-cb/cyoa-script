@@ -215,6 +215,7 @@ fn test_engine_current_event_text() {
 story Test:
   event start:
     "First paragraph."
+
     "Second paragraph."
     choice "Continue":
       next second

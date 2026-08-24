@@ -38,7 +38,7 @@ story ForestAdventure:
         You pocket the potion, and having gotten what you came for, leave for town.
 
     effect wolf_leaves:
-        The wolf sails abandons its ambush, and disappears into the tree line.
+        The wolf past you, abandoning its ambush, and disappears into the tree line.
 
     effect wolf_comedy:
         You hear a dull thunk as the blinded wolf careens into a tree just out of sight.
