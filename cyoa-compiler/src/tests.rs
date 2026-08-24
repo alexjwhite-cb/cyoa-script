@@ -76,7 +76,7 @@ fn test_parse_effect_block() {
 story Test:
   effect heal:
     + hp by 20
-    text "You feel healthier."
+    "You feel healthier."
 "#;
     let story = parse_story(source).unwrap();
     let eff = match &story.items[0] {
@@ -93,7 +93,7 @@ story Test:
   stat hp = 0
   effect damage:
     - hp by 10
-    text "You take damage."
+    "You take damage."
   effect heal:
     + hp by 20
     set wounded to false
@@ -753,7 +753,7 @@ story TestStory:
 
   effect damage:
     - hp by 10
-    text "Ouch!"
+    "Ouch!"
 
   event start:
     "You begin your journey."

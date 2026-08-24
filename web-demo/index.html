@@ -247,7 +247,7 @@
       margin-bottom: 1.5rem;
     }
 
-    .story-view .prose p { margin-bottom: 0.8rem; }
+    .story-view .prose p { margin-bottom: 0.8rem; white-space: pre-wrap; }
 
     .choices { display: flex; flex-direction: column; gap: 0.5rem; }
 
@@ -669,6 +669,7 @@
       state.catalog = new WasmStoryCatalog();
       state.catalog.register(await fetchBytes('../examples/forest_adventure.cyoa.bc'));
       state.catalog.register(await fetchBytes('../examples/tavern_tales.cyoa.bc'));
+      state.catalog.register(await fetchBytes('../examples/string_format_test.cyoa.bc'));
 
       window.catalog = state.catalog; // for debugging
 

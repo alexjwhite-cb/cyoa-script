@@ -69,40 +69,88 @@ pub struct Line {
 /// to span quoted text across multiple source lines for readability.
 fn tokenize_lines(input: &str) -> Vec<Line> {
     // First, scan for multi-line quoted strings and accumulate them into
-    // single logical lines. We track whether we're inside a string literal
-    // across line boundaries.
-    let mut logical_lines: Vec<(usize, String)> = Vec::new();
+    // single logical lines. We strip comments from each line *before*
+    // checking quote balance so that unbalanced quotes inside comments
+    // don't trigger false multi-line accumulation (which would swallow
+    // following lines of real text).
+    //
+    // String state is tracked across lines: when a `#` comment line is
+    // encountered while inside a string literal, the `#` is treated as
+    // literal content, not a comment marker. This preserves `#` inside
+    // multi-line quoted strings.
+    //
+    // For lines that become empty after comment stripping (e.g. comment-only
+    // or whitespace-only lines), indentation is taken from the original raw
+    // line so that the parser sees the correct nesting level.
     let raw_lines: Vec<&str> = input.lines().collect();
 
+    let mut lines: Vec<Line> = Vec::new();
     let mut i = 0;
     while i < raw_lines.len() {
         let start_idx = i;
-        let mut combined = raw_lines[i].to_string();
-        // If the line has an unbalanced quote count, keep accumulating
+        // Preserve the indentation from the original raw line so that
+        // comment-only lines (which become empty after stripping) still
+        // report the correct indent level to the parser.
+        let first_indent = raw_lines[i].chars().take_while(|c| *c == ' ').count();
+
+        let (stripped, mut in_string) = strip_comment_with_state(raw_lines[i], false);
+        let mut combined = stripped.trim_end().to_string();
         while !is_quote_balanced(&combined) && i + 1 < raw_lines.len() {
             i += 1;
             combined.push('\n');
-            combined.push_str(raw_lines[i]);
+            let (stripped_line, new_in_string) = strip_comment_with_state(raw_lines[i], in_string);
+            combined.push_str(stripped_line.trim_end());
+            in_string = new_in_string;
         }
-        logical_lines.push((start_idx, combined));
+
+        let (indent, raw_content) = if combined.is_empty() {
+            // Line became empty after comment stripping — use original indent
+            (first_indent, combined.as_str())
+        } else {
+            strip_indent(&combined)
+        };
+        let content = strip_comment(raw_content).trim_end().to_string();
+
+        lines.push(Line {
+            indent,
+            content,
+            line_num: start_idx + 1,
+            col: indent + 1,
+        });
         i += 1;
     }
 
-    logical_lines
-        .into_iter()
-        .map(|(idx, raw)| {
-            let (indent, raw_content) = strip_indent(&raw);
-            let stripped = strip_comment(raw_content);
-            // Trim trailing whitespace but preserve content
-            let content = stripped.trim_end().to_string();
-            Line {
-                indent,
-                content,
-                line_num: idx + 1,
-                col: indent + 1,
+    lines
+}
+
+/// Strip a `#` comment from a line, respecting quoted strings, and tracking
+/// whether the line ends while still inside a string literal. This allows
+/// callers to maintain string state across multiple line boundaries.
+///
+/// Returns the stripped line (as a slice of the input) and the final
+/// `in_string` state.
+fn strip_comment_with_state(line: &str, mut in_string: bool) -> (&str, bool) {
+    let mut escape = false;
+    for (i, c) in line.char_indices() {
+        if escape {
+            escape = false;
+            continue;
+        }
+        if in_string {
+            if c == '\\' {
+                escape = true;
+            } else if c == '"' {
+                in_string = false;
             }
-        })
-        .collect()
+            continue;
+        }
+        if c == '"' {
+            in_string = true;
+        } else if c == '#' {
+            return (&line[..i], in_string);
+        }
+    }
+    (line, in_string)
 }
 
 /// Count quotes outside of escape sequences. Returns true if all quotes
@@ -549,13 +597,12 @@ fn parse_effect_block(
 
 /// Check if a trimmed line is an effect step (vs prose text).
 /// Effect steps: `+ stat by N`, `- stat by N`, `set flag to bool`,
-/// `add tag`, `text "..."`. Quoted text is NOT an effect step.
+/// `add tag`. Quoted text and bare prose are NOT effect steps.
 fn is_effect_step(trimmed: &str) -> bool {
     trimmed.starts_with('+')
         || trimmed.starts_with('-')
         || trimmed.starts_with("set ")
         || trimmed.starts_with("add ")
-        || trimmed.starts_with("text ")
 }
 
 fn parse_effect_step(content: &str, line: usize, col: usize) -> Result<EffectStep, ParseError> {
@@ -630,12 +677,6 @@ fn parse_effect_step(content: &str, line: usize, col: usize) -> Result<EffectSte
         return Ok(EffectStep::AddTag {
             tag: tag_name.to_string(),
         });
-    }
-
-    // Text output: text "..."  or bare quoted/unquoted text
-    if trimmed.starts_with("text ") {
-        let rest = trimmed.strip_prefix("text").unwrap().trim();
-        return Ok(EffectStep::Text(parse_template_string(rest)?));
     }
 
     // Bare quoted or unquoted text
@@ -1268,24 +1309,24 @@ fn op_to_compare_op(op: &str) -> CompareOp {
 // ===== Template / text parsing =====
 
 /// Parse a string that may contain `{{stat}}` templates.
-/// Can be quoted (with `"`) or unquoted.
+/// Can be quoted (with `"`) or unquoted. Escape sequences are processed
+/// for both quoted and unquoted text.
 fn parse_template_string(s: &str) -> Result<TextContent, ParseError> {
     let s = s.trim();
 
-    if s.starts_with('"') && s.ends_with('"') && s.len() >= 2 {
-        let inner = &s[1..s.len() - 1];
-        let unescaped = unescape_string(inner);
-        let segments = split_template(&unescaped);
-        Ok(TextContent { segments })
+    let inner = if s.starts_with('"') && s.ends_with('"') && s.len() >= 2 {
+        &s[1..s.len() - 1] // strip quotes
     } else {
-        // Unquoted — treat as literal text
-        let segments = split_template(s);
-        Ok(TextContent { segments })
-    }
+        s
+    };
+    let unescaped = unescape_string(inner);
+    let segments = split_template(&unescaped);
+    Ok(TextContent { segments })
 }
 
-/// Unescape common escape sequences in a string literal's inner content.
-/// Handles `\"`, `\\`, `\n`, `\t`, `\r`. Unknown escapes are left as-is.
+/// Unescape escape sequences in text content.
+/// Handles `\"` → `"`, `\\` → `\`, `\n` → newline, `\t` → tab,
+/// `\r` → carriage return, `\s` → space. Unknown escapes are left as-is.
 fn unescape_string(s: &str) -> String {
     let mut result = String::with_capacity(s.len());
     let mut chars = s.chars().peekable();
@@ -1311,6 +1352,10 @@ fn unescape_string(s: &str) -> String {
                     }
                     'r' => {
                         result.push('\r');
+                        chars.next();
+                    }
+                    's' => {
+                        result.push(' ');
                         chars.next();
                     }
                     _ => {

@@ -59,7 +59,7 @@ story TestAdventure:
 
   effect found_mushroom:
     + courage by 1
-    text "You find a glowing mushroom."
+    "You find a glowing mushroom."
 
   event start:
     "You stand at the entrance of a cave."

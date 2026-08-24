@@ -354,7 +354,7 @@ story Test:
   stat hp = 0
   effect heal:
     + hp by 30
-    text "You feel restored."
+    "You feel restored."
 
   event start:
     "You are wounded."

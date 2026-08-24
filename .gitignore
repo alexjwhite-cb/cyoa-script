@@ -28,3 +28,5 @@ package-lock.json
 
 # Generated docs site output
 _site/
+*.cyoa.bc
+examples/debug_parse.rs

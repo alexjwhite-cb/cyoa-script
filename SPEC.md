@@ -163,7 +163,7 @@ Reusable consequence blocks. Defined once, referenced by `uses` in choices:
 ```
 effect wolf_scare:
   - hp by 10
-  text "The wolf's claws scratch you. You take 10 damage."
+  "The wolf's claws scratch you. You take 10 damage."
 ```
 
 **Effect body syntax** (inside an effect block):
@@ -171,7 +171,8 @@ effect wolf_scare:
 - `- stat by N` — decrease stat
 - `set flag to true` / `set flag to false` — set boolean
 - `add tag` — add a tag to the current event context
-- `text "string"` or `text "string" with {{templating}}` — text output
+- Quoted text `"string"` or `"string" with {{templating}}` — text output
+- Bare prose text — text output (quotes are stripped if present)
 
 ### 3.6 Events
 
@@ -229,7 +230,8 @@ choice "Attack the wolf":
 **Choice fields** (in any order):
 - Effect inline: `+ stat by N`, `- stat by N`, `set flag to bool`
 - `uses effect_name` — append a reusable effect block
-- `text "string"` — text output from the choice
+- Quoted text `"string"` — rendered text from the choice
+- Bare prose text — rendered text from the choice
 - Plain quoted text — rendered text from the choice
 - `requires:` — local prerequisite (optional, inline or multi-line)
 - `next event_id` — goto target (required for non-terminal choices)
@@ -256,7 +258,7 @@ escape them with `\"`:
 "\"Nothing, I was just curious.\""
 ```
 This renders as `"Nothing, I was just curious."` (with the quotes as part of the text).
-Supported escape sequences: `\"` → `"`, `\\` → `\`, `\n` → newline, `\t` → tab, `\r` → carriage return.
+Supported escape sequences: `\"` → `"`, `\\` → `\`, `\n` → newline, `\t` → tab, `\r` → carriage return, `\s` → space. These are processed in both quoted and unquoted text.
 
 ### 3.8 Prerequisites (Conditions)
 
@@ -324,15 +326,15 @@ In the above, the four lines of the first paragraph (no blank line between them)
 produce **one** paragraph. The blank line creates a paragraph break, so the two
 lines of the second paragraph produce a **second** paragraph.
 
-To deliberately create two separate paragraphs without a blank line, use an
-explicit `text` statement:
+To deliberately create two separate paragraphs, use a blank line between them:
 ```
 event start:
-  text "First paragraph."
-  text "Second paragraph."  # two distinct paragraphs
+  "First paragraph."
+
+  "Second paragraph."  # two distinct paragraphs
 ```
 
-**Single-quoted strings that span multiple source lines** (see §3.6 Events)
+**Quoted strings that span multiple source lines** (see §3.6 Events)
 are treated as a single text block and are **not** subject to paragraph joining —
 the newlines within the string are preserved.
 

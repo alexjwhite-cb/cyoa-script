@@ -37,7 +37,7 @@ story StoryName:
 
 - **Indentation**: 2 spaces (tabs are rejected).
 - **Comments**: Start with `#` and extend to end of line.
-- **Quotes**: Text strings may use double quotes or be unquoted. Escaped quotes (`\"`) inside quoted text render as literal `"`. Other supported escapes: `\\` → `\`, `\n` → newline, `\t` → tab, `\r` → carriage return.
+- **Quotes**: Text strings may use double quotes or be unquoted. Escaped quotes (`\"`) inside quoted text render as literal `"`. Other supported escapes (processed in both quoted and unquoted text): `\\` → `\`, `\n` → newline, `\t` → tab, `\r` → carriage return, `\s` → space.
 
 ---
 
@@ -190,7 +190,7 @@ multiple choices using `uses`.
 ```cyoa
 effect found_mushroom:
   + courage by 1
-  text "You find a glowing mushroom. It hums softly."
+  "You find a glowing mushroom. It hums softly."
 ```
 
 ### Effect Body Syntax
@@ -204,16 +204,11 @@ Inside an effect block (indented 4 spaces), you can use:
 | `set flag to true`                  | Set flag to true       |
 | `set flag to false`                 | Set flag to false      |
 | `add tag`                           | Add a runtime tag      |
-| `text "string"`                     | Text output to display |
-| `text "string with {{templating}}"` | Templated text output  |
+| `"string"` or `string`              | Text output to display |
+| `"string with {{templating}}"`      | Templated text output  |
 
-You can also use unquoted text as shorthand for `text`:
-
-```cyoa
-effect found_mushroom:
-  + courage by 1
-  "You find a glowing mushroom. It hums softly."  # equivalent to: text "..."
-```
+Text can be quoted (`"..."`) or bare (unquoted). In both cases, escape sequences
+are processed and surrounding quotes are stripped from quoted text.
 
 ### Referencing Effects
 
@@ -463,13 +458,13 @@ lines of the second paragraph produce a **second** paragraph.
 
 ### Explicit Paragraph Separation
 
-To deliberately create two separate paragraphs without a blank line, use an
-explicit `text` statement:
+To deliberately create two separate paragraphs, use a blank line between them:
 
 ```cyoa
 event start:
-  text "First paragraph."
-  text "Second paragraph."  # two distinct paragraphs
+  "First paragraph."
+
+  "Second paragraph."  # two distinct paragraphs
 ```
 
 ### Multi-line Strings (Different from Paragraph Joining)
@@ -536,7 +531,7 @@ story MyAdventure:
 
   effect found_treasure:
     + gold by 20
-    text "You discover a cache of gold coins!"
+    "You discover a cache of gold coins!"
     add treasure_hunter
 
   event start:
