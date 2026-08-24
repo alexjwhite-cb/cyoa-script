@@ -679,8 +679,9 @@ fn parse_effect_step(content: &str, line: usize, col: usize) -> Result<EffectSte
         });
     }
 
-    // Bare quoted or unquoted text
-    Ok(EffectStep::Text(parse_template_string(trimmed)?))
+    // Bare quoted or unquoted text — quotes are preserved as literal characters
+    // in effect body text (only choice labels strip surrounding quotes)
+    Ok(EffectStep::Text(parse_template_string(trimmed, false)?))
 }
 
 /// Parse an event block: `event event_id:` followed by indented body.
@@ -826,7 +827,7 @@ fn parse_event_block(
             cursor.next();
         } else if !trimmed.is_empty() && !trimmed.starts_with('#') {
             // Event prose text — accumulate for paragraph joining
-            let text_content = parse_template_string(trimmed)?;
+            let text_content = parse_template_string(trimmed, false)?;
             text_paragraph.push(text_content);
             cursor.next();
         } else {
@@ -861,7 +862,7 @@ fn parse_choice(
     let rest = rest.trim_start();
 
     let (text_raw, remainder) = split_choice_header(rest)?;
-    let text = parse_template_string(text_raw)?;
+    let text = parse_template_string(text_raw, true)?;
 
     let header_indent = col - 1;
 
@@ -1311,10 +1312,10 @@ fn op_to_compare_op(op: &str) -> CompareOp {
 /// Parse a string that may contain `{{stat}}` templates.
 /// Can be quoted (with `"`) or unquoted. Escape sequences are processed
 /// for both quoted and unquoted text.
-fn parse_template_string(s: &str) -> Result<TextContent, ParseError> {
+fn parse_template_string(s: &str, strip_quotes: bool) -> Result<TextContent, ParseError> {
     let s = s.trim();
 
-    let inner = if s.starts_with('"') && s.ends_with('"') && s.len() >= 2 {
+    let inner = if strip_quotes && s.starts_with('"') && s.ends_with('"') && s.len() >= 2 {
         &s[1..s.len() - 1] // strip quotes
     } else {
         s

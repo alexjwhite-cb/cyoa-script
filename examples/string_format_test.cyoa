@@ -5,19 +5,20 @@ story test:
     # Multi-line quoted string: newlines should be preserved in all bindings.
     # CLI: each line on its own line (println preserves \n)
     # JS: each line on its own line (pre-wrap CSS preserves \n)
+    # Expected: "This a poem demonstrating how new lines work in three formats."
     "This a poem
     demonstrating how new lines work in three formats."
 
     # Test 2
     # Unquoted prose: consecutive lines joined into one paragraph with spaces.
-    # Both CLI and JS: "This is the second of the three formats, of course this is unquoted."
+    # Both CLI and JS: This is the second of the 3 formats, of course this is unquoted.
     This is the second
     of the {{three}} formats, of course
     this is unquoted.
 
     # Test 3
     # Quoted strings: consecutive quoted lines joined into one paragraph.
-    # Both CLI and JS: "And at last we have a haiku where all lines have in fact been quoted."
+    # Both CLI and JS: "And at last we have" "a haiku where all lines have" "in fact been quoted."
     "And at last we have"
     "a haiku where all lines have"
     "in fact been quoted."
@@ -26,9 +27,7 @@ story test:
     # Escaped quotes in unquoted text: \" produces a literal " character.
     # The lines do NOT start/end with matching quotes, so no quote stripping.
     # \n produces a real newline in the output.
-    # Expected: "But what if", you ask,
-    #     "I wanted my string to start
-    #     wrapped in double-quotes?"
+    # Expected: "But what if", you ask, "I wanted my string to start wrapped in double-quotes?"
     \"But what if", you ask,
     \"I wanted my string to start
     wrapped in double-quotes?"
@@ -38,10 +37,9 @@ story test:
     # "Or I were to add" → Or I were to add
     # "text" → text (quotes stripped, inner word has no quotes)
     # a markdown stanza? → a markdown stanza? (bare unquoted)
-    # Expected: Or I were to add text before the first line of a markdown stanza?
+    # Expected: "Or I were to add" "text" before the first line of a markdown stanza?
     "Or I were to add"
-    "text"
-    before the first line of
+    "text" before the first line of
     a markdown stanza?
 
     # Test 6
@@ -52,6 +50,8 @@ story test:
     # stanza where each line was new
     #
     # line separated?
+    # CLI should have preserved both new lines to delineate paragraphs, but
+    # currently only outputs one new line. JS works as expected.
     Or if I did a
 
     stanza where each line was new
@@ -62,9 +62,9 @@ story test:
     # Escape sequences in quoted strings: \n is a real newline.
     # The string is single-line in source but contains newlines at runtime.
     # Expected:
-    # Or what if it was
+    # "Or what if it was
     # all on one quoted line but
-    # using escape chars?
+    # using escape chars?"
     "Or what if it was\nall on one quoted line but\nusing escape chars?"
 
     # Test 8

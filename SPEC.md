@@ -171,8 +171,8 @@ effect wolf_scare:
 - `- stat by N` — decrease stat
 - `set flag to true` / `set flag to false` — set boolean
 - `add tag` — add a tag to the current event context
-- Quoted text `"string"` or `"string" with {{templating}}` — text output
-- Bare prose text — text output (quotes are stripped if present)
+- Quoted text `"string"` or `"string" with {{templating}}` — text output (surrounding quotes are preserved as literal characters)
+- Bare prose text — text output (no quotes to strip)
 
 ### 3.6 Events
 
@@ -227,12 +227,15 @@ choice "Attack the wolf":
   next wolf_fight
 ```
 
+> **Note on quote handling**: The *choice label* (text after `choice`) has
+> surrounding quotes **stripped** — `choice "Attack the wolf":` produces the
+> label `Attack the wolf`. Text in the *choice body* (and event/effect bodies)
+> **preserves** surrounding quotes as literal characters.
+
 **Choice fields** (in any order):
 - Effect inline: `+ stat by N`, `- stat by N`, `set flag to bool`
 - `uses effect_name` — append a reusable effect block
-- Quoted text `"string"` — rendered text from the choice
-- Bare prose text — rendered text from the choice
-- Plain quoted text — rendered text from the choice
+- Text output — quoted `"string"` (quotes preserved in event/choice body text) or bare prose
 - `requires:` — local prerequisite (optional, inline or multi-line)
 - `next event_id` — goto target (required for non-terminal choices)
 
@@ -258,6 +261,9 @@ escape them with `\"`:
 "\"Nothing, I was just curious.\""
 ```
 This renders as `"Nothing, I was just curious."` (with the quotes as part of the text).
+Note that in body text, the surrounding quotes of a quoted string are also
+preserved as literal characters — only `choice` labels have surrounding quotes
+stripped (see §3.7).
 Supported escape sequences: `\"` → `"`, `\\` → `\`, `\n` → newline, `\t` → tab, `\r` → carriage return, `\s` → space. These are processed in both quoted and unquoted text.
 
 ### 3.8 Prerequisites (Conditions)

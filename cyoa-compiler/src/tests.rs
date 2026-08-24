@@ -1333,10 +1333,11 @@ story Test:
     };
     assert_eq!(ev.text.len(), 1);
     // The joined text should contain a space between "Hello." and "World."
+    // Quotes are preserved in body text (only choice labels strip surrounding quotes)
     let segments = &ev.text[0].segments;
-    assert_eq!(segments.len(), 3); // "Hello." + " " + "World."
+    assert_eq!(segments.len(), 3); // "\"Hello.\"" + " " + "\"World.\""
     match &segments[0] {
-        TextSegment::Literal(s) => assert_eq!(s, "Hello."),
+        TextSegment::Literal(s) => assert_eq!(s, "\"Hello.\""),
         _ => panic!("expected Literal"),
     }
     match &segments[1] {
@@ -1344,7 +1345,7 @@ story Test:
         _ => panic!("expected Literal space separator"),
     }
     match &segments[2] {
-        TextSegment::Literal(s) => assert_eq!(s, "World."),
+        TextSegment::Literal(s) => assert_eq!(s, "\"World.\""),
         _ => panic!("expected Literal"),
     }
 }

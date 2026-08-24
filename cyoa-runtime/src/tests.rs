@@ -42,12 +42,12 @@ story T:
     // gold = 0
     let text = engine.current_event_text();
     assert_eq!(text.len(), 1);
-    assert_eq!(text[0], "You have 0 gold.");
+    assert_eq!(text[0], "\"You have 0 gold.\"");
 
     // Change gold and check again
     engine.state.stats.insert("gold".into(), 42);
     let text = engine.current_event_text();
-    assert_eq!(text[0], "You have 42 gold.");
+    assert_eq!(text[0], "\"You have 42 gold.\"");
 }
 
 #[test]
@@ -65,7 +65,7 @@ story T:
     engine.state.stats.insert("hp".into(), 10);
     engine.state.stats.insert("gold".into(), 99);
     let text = engine.current_event_text();
-    assert_eq!(text[0], "HP: 10, Gold: 99");
+    assert_eq!(text[0], "\"HP: 10, Gold: 99\"");
 }
 
 #[test]
@@ -80,7 +80,7 @@ story T:
     let engine = Engine::new(bc);
     // {{nonexistent}} should render as 0
     let text = engine.current_event_text();
-    assert_eq!(text[0], "Value: 0");
+    assert_eq!(text[0], "\"Value: 0\"");
 }
 
 // ===== Condition evaluation tests =====
@@ -226,8 +226,8 @@ story Test:
     let engine = Engine::new(bc);
     let text = engine.current_event_text();
     assert_eq!(text.len(), 2);
-    assert_eq!(text[0], "First paragraph.");
-    assert_eq!(text[1], "Second paragraph.");
+    assert_eq!(text[0], "\"First paragraph.\"");
+    assert_eq!(text[1], "\"Second paragraph.\"");
 }
 
 #[test]
@@ -391,11 +391,11 @@ story Test:
     );
     let mut engine = Engine::new(bc);
 
-    assert_eq!(engine.current_event_text(), vec!["First".to_string()]);
+    assert_eq!(engine.current_event_text(), vec!["\"First\"".to_string()]);
     engine.make_choice(0);
-    assert_eq!(engine.current_event_text(), vec!["Second".to_string()]);
+    assert_eq!(engine.current_event_text(), vec!["\"Second\"".to_string()]);
     engine.make_choice(0);
-    assert_eq!(engine.current_event_text(), vec!["Third".to_string()]);
+    assert_eq!(engine.current_event_text(), vec!["\"Third\"".to_string()]);
 }
 
 #[test]

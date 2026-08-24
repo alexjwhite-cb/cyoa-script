@@ -37,7 +37,7 @@ story StoryName:
 
 - **Indentation**: 2 spaces (tabs are rejected).
 - **Comments**: Start with `#` and extend to end of line.
-- **Quotes**: Text strings may use double quotes or be unquoted. Escaped quotes (`\"`) inside quoted text render as literal `"`. Other supported escapes (processed in both quoted and unquoted text): `\\` → `\`, `\n` → newline, `\t` → tab, `\r` → carriage return, `\s` → space.
+- **Quotes**: Text strings may use double quotes or be unquoted. Surrounding quotes are **preserved** in body text (event, effect, and choice bodies) and only stripped from choice labels (text after `choice`). Escaped quotes (`\"`) render as literal `"`. Other supported escapes (processed in both quoted and unquoted text): `\\` → `\`, `\n` → newline, `\t` → tab, `\r` → carriage return, `\s` → space.
 
 ---
 
@@ -204,11 +204,13 @@ Inside an effect block (indented 4 spaces), you can use:
 | `set flag to true`                  | Set flag to true       |
 | `set flag to false`                 | Set flag to false      |
 | `add tag`                           | Add a runtime tag      |
-| `"string"` or `string`              | Text output to display |
+| `"string"` or `string`              | Text output (quotes preserved in body text) |
 | `"string with {{templating}}"`      | Templated text output  |
 
 Text can be quoted (`"..."`) or bare (unquoted). In both cases, escape sequences
-are processed and surrounding quotes are stripped from quoted text.
+are processed. Surrounding quotes are **preserved** in body text (event, effect,
+and choice bodies) — they are only stripped from choice labels (the text after
+the `choice` keyword).
 
 ### Referencing Effects
 
@@ -296,7 +298,7 @@ choice "Attack the wolf":
 | Field | Required? | Description |
 |-------|-----------|-------------|
 | Text | Yes | The choice label shown to the player |
-| Inline effects | No | `+/- stat`, `set flag`, `text`, `add tag` |
+| Inline effects | No | `+/- stat`, `set flag`, `add tag` |
 | `uses` | No | Reference to one or more effect blocks |
 | `requires:` | No | Local prerequisite (inline or multi-line) |
 | `next` | No* | Event to advance to (`*required` for non-terminal choices) |
