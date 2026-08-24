@@ -740,3 +740,6 @@ error itself is surfaced as a parse or diagnostic error instead.
 | 0.4.0 | 2026-08-20 | Phase 4 — Godot integration: C# wrapper (bindings/godot/csharp/), GDScript wrapper (bindings/godot/gdscript/), bindings/ directory reorg |
 | 0.5.0 | 2026-08-20 | Phase 4 complete — LSP server (cyoa-lsp crate), mobile cross-compilation guide (docs/mobile.md), Android (cargo-ndk) + iOS (cargo-lipo) instructions |
 | 0.6.0 | 2026-08-23 | Reference validation: `validate_references` checks stats, flags, events, effects; `cyoa validate` resolves imports before validating; LSP runs validation on every keystroke |
+| 0.7.0 | 2026-08-23 | Install scripts (`install.sh`, `install.ps1`) and `cyoa version` CLI command; docs site rendered as HTML with sidebar navigation; GitHub Pages deployment CI |
+| 0.8.0 | 2026-08-23 | Enhanced CLI validation, end-of-story tracking (`is_story_complete`), flexible syntax for multi-line tags/requires, `complete` flag in state JSON save/load |
+| 0.9.0 | 2026-08-24 | Markdown-style paragraph joining — consecutive prose lines joined into paragraphs, blank lines as separators (parser, all bindings, web demo); effect text rendered before next event; end-of-story overlay with restart/catalog buttons in web demo |
