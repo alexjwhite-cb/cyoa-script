@@ -414,6 +414,7 @@ advanced patterns.</p>
 <li><a href="#choices">Choices</a></li>
 <li><a href="#prerequisites-conditions">Prerequisites (Conditions)</a></li>
 <li><a href="#text-templating">Text Templating</a></li>
+<li><a href="#paragraph-joining">Paragraph Joining</a></li>
 <li><a href="#standard-library">Standard Library</a></li>
 <li><a href="#complete-example">Complete Example</a></li>
 </ul>
@@ -841,6 +842,53 @@ templates atomically using the <code>RenderTemplate</code> instruction.</li>
 <li><strong>Game engines always receive pre-rendered strings</strong> — no template
 syntax in the API output.</li>
 </ul>
+<hr>
+<h2>Paragraph Joining</h2>
+<p>For IDE readability, writers can word-wrap prose across multiple source lines.
+The parser implements <strong>markdown-style paragraph joining</strong>:</p>
+<ul>
+<li><strong>Consecutive text lines</strong> (no blank line between them) are joined into a
+single paragraph. A space is inserted between each line&#39;s text.</li>
+<li><strong>Blank lines</strong> act as paragraph separators — text before and after a blank
+line becomes distinct paragraphs.</li>
+</ul>
+<p>This behavior applies to event text prose, effect body text, and choice body
+text.</p>
+<p><strong>Example</strong> (using <code>forest_adventure.cyoa</code> style):</p>
+<pre><code class="language-cyoa">event start:
+  &quot;You stand beneath the bows of a dark and ancient forest. Before you&quot;
+  &quot;a partially tumbled down, thatch-roofed cottage and a track that may once have been&quot;
+  &quot;the beaten path, but is now partially concealed by stinging nettles,&quot;
+  &quot;gnarled roots, and leaf-litter.&quot;
+
+  &quot;The faint glow of candlelight flickers can be seen through grimy iron wrought&quot;
+  &quot;windows, the only sign of habitation.&quot;
+
+  choice &quot;Knock on the cottage door.&quot;:
+    ...
+</code></pre>
+<p>In the above, the four lines of the first paragraph (no blank line between them)
+produce <strong>one</strong> paragraph. The blank line creates a paragraph break, so the two
+lines of the second paragraph produce a <strong>second</strong> paragraph.</p>
+<h3>Explicit Paragraph Separation</h3>
+<p>To deliberately create two separate paragraphs without a blank line, use an
+explicit <code>text</code> statement:</p>
+<pre><code class="language-cyoa">event start:
+  text &quot;First paragraph.&quot;
+  text &quot;Second paragraph.&quot;  # two distinct paragraphs
+</code></pre>
+<h3>Multi-line Strings (Different from Paragraph Joining)</h3>
+<p>A <strong>single quoted string</strong> that spans multiple source lines is treated as one
+text block — the newlines within the string are preserved as literal
+content, and paragraph joining does <strong>not</strong> apply inside it:</p>
+<pre><code class="language-cyoa">event start:
+  &quot;This is line one.
+  This is line two.
+  They are in the same string.&quot;
+</code></pre>
+<p>This is distinct from paragraph joining: the above always renders as a single
+paragraph with embedded newlines, regardless of blank lines in the source
+(which are ignored inside a quoted string).</p>
 <hr>
 <h2>Standard Library</h2>
 <h3><code>std/healing</code></h3>
