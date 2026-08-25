@@ -83,7 +83,7 @@ story ForestAdventure:
 
   effect found_mushroom:
     + courage by 1
-    text "You find a glowing mushroom. It hums softly."
+    "You find a glowing mushroom. It hums softly."
 
   event old_ruins:
     tags: exploration, early_game

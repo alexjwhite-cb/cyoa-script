@@ -15,7 +15,7 @@ story TavernTales:
 
   effect earn_respect:
     + respect by 1
-    text "The crowd nods in appreciation."
+    "The crowd nods in appreciation."
 
   event start:
     tags: town

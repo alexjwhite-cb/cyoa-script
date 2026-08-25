@@ -14,7 +14,7 @@ use cyoa_compiler::{parse_story, resolve_imports, validate_references};
 /// Keyword set for semantic token classification.
 const KEYWORDS: &[&str] = &[
     "story", "import", "stat", "flag", "effect", "event", "choice", "requires", "tags", "uses",
-    "next", "text", "set", "add", "by", "to", "AND", "OR", "NOT", "true", "false", "as",
+    "next", "set", "add", "by", "to", "AND", "OR", "NOT", "true", "false", "as",
 ];
 
 /// Token type indices — must match the semanticTokensOptions legend.
@@ -1311,7 +1311,7 @@ mod tests {
   flag visited_cave
   effect found_item:
     + hp by 10
-    text "You found a potion!"
+    "You found a potion!"
   event start:
     "You begin your journey."
     choice "Go to cave":
@@ -1855,12 +1855,11 @@ mod tests {
         std::fs::create_dir_all(&std_dir).unwrap_or(());
 
         // Write a healing.cyoa in the temp std/ directory
-        let healing =
-            "effect healing_potion:\n  + hp by 20\n  text \"You drink a healing potion.\"\n";
+        let healing = "effect healing_potion:\n  + hp by 20\n  \"You drink a healing potion.\"\n";
         std::fs::write(std_dir.join("healing.cyoa"), healing).unwrap();
 
         // Story with import and usage of healing_potion
-        let story = "story ImportTestStory:\n  import \"std/healing\"\n  effect local_effect:\n    text \"A local effect.\"\n  event start:\n    \"You begin your journey.\"\n    choice \"Drink potion\":\n      uses healing_potion\n      next start\n";
+        let story = "story ImportTestStory:\n  import \"std/healing\"\n  effect local_effect:\n    \"A local effect.\"\n  event start:\n    \"You begin your journey.\"\n    choice \"Drink potion\":\n      uses healing_potion\n      next start\n";
 
         let story_path = tmp.join("test.cyoa");
         std::fs::write(&story_path, story).unwrap();
@@ -1934,19 +1933,19 @@ mod tests {
     #[test]
     fn test_on_type_formatting_replaces_tab_with_spaces() {
         // Story with a literal tab character inside a string literal (parses fine)
-        let story_with_tab = "story TestStory:\n  text \"has\ttab\"\n";
+        let story_with_tab = "story TestStory:\n  \"has\ttab\"\n";
 
         let mut server = Server::new();
         let open_msg = did_open_msg("file:///test.cyoa", story_with_tab);
         server.handle(open_msg);
 
-        // Line 1 is: `  text "has	ab"` — the tab is at character 11
-        // Cursor at character 12 means tab_pos = 11
+        // Line 1 is: `  "has	ab"` — the tab is at character 6
+        // Cursor at character 7 means tab_pos = 6
         let fmt_msg = request_msg(
             "textDocument/onTypeFormatting",
             serde_json::json!({
                 "textDocument": {"uri": "file:///test.cyoa"},
-                "position": {"line": 1, "character": 12},
+                "position": {"line": 1, "character": 7},
                 "ch": "\t",
                 "options": {
                     "tabSize": 2,
@@ -1964,7 +1963,7 @@ mod tests {
                 assert!(edits.len() >= 1);
                 let range = &edits[0]["range"];
                 assert_eq!(range["start"]["line"], 1);
-                assert_eq!(range["start"]["character"], 11);
+                assert_eq!(range["start"]["character"], 6);
                 let new_text = &edits[0]["newText"];
                 assert_eq!(new_text, "  "); // 2 spaces
             }
@@ -2072,7 +2071,7 @@ mod tests {
     #[test]
     fn test_semantic_tokens_multiline_string() {
         // Story with a multiline string spanning two lines
-        let story = "story TestStory:\n  text \"line one\n  line two\"\n";
+        let story = "story TestStory:\n  \"line one\n  line two\"\n";
 
         let mut server = Server::new();
         let open_msg = did_open_msg("file:///test.cyoa", story);
@@ -2141,9 +2140,9 @@ mod tests {
     #[test]
     fn test_semantic_tokens_utf16_offsets_with_emdash() {
         // String with em-dash — byte offsets differ from UTF-16 offsets
-        // Line 1: `  text "hello \u{2014} world"`
+        // Line 1: `  "hello \u{2014} world"`
         // Bytes after em-dash are shifted by 2 (em-dash = 3 bytes, 1 UTF-16 unit)
-        let story = "story TestStory:\n  text \"hello \u{2014} world\"\n";
+        let story = "story TestStory:\n  \"hello \u{2014} world\"\n";
 
         let mut server = Server::new();
         let open_msg = did_open_msg("file:///test.cyoa", story);
@@ -2164,7 +2163,7 @@ mod tests {
                 let data = json["data"].as_array().unwrap();
 
                 // Find the string token on line 1.
-                // The string "hello — world" starts at char 7 (after `  text `).
+                // The string "hello — world" starts at char 2 (after `  `).
                 // UTF-16 length = 15 (1+5+1+1+1+5+1 = 15 chars in UTF-16)
                 // Byte length  = 17 (em-dash is 3 bytes, others are 1)
                 //
@@ -2181,7 +2180,7 @@ mod tests {
                     "expected at least one string token"
                 );
 
-                // The string token on line 1 should have startChar = 7 (UTF-16, absolute)
+                // The string token on line 1 should have startChar = 2 (UTF-16, absolute)
                 // and length = 15 (UTF-16 code units, not 17 bytes)
                 let line1_string: Vec<_> = string_tokens
                     .iter()

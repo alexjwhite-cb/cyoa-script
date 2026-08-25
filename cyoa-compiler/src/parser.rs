@@ -64,63 +64,41 @@ pub struct Line {
 
 /// Split input into lines, counting indentation and stripping comments.
 ///
-/// Lines that contain an unterminated quoted string are accumulated with
-/// subsequent lines until the closing quote is found. This allows writers
-/// to span quoted text across multiple source lines for readability.
+/// Each source line becomes one logical line — there is no multi-line
+/// string accumulation. All body text (event/effect/choice body) is
+/// treated as markdown: consecutive text lines are joined into a single
+/// paragraph by the parser, and blank lines create paragraph breaks.
+///
+/// For lines that become empty after comment stripping (e.g. comment-only
+/// or whitespace-only lines), indentation is taken from the original raw
+/// line so that the parser sees the correct nesting level.
 fn tokenize_lines(input: &str) -> Vec<Line> {
-    // First, scan for multi-line quoted strings and accumulate them into
-    // single logical lines. We track whether we're inside a string literal
-    // across line boundaries.
-    let mut logical_lines: Vec<(usize, String)> = Vec::new();
     let raw_lines: Vec<&str> = input.lines().collect();
 
-    let mut i = 0;
-    while i < raw_lines.len() {
-        let start_idx = i;
-        let mut combined = raw_lines[i].to_string();
-        // If the line has an unbalanced quote count, keep accumulating
-        while !is_quote_balanced(&combined) && i + 1 < raw_lines.len() {
-            i += 1;
-            combined.push('\n');
-            combined.push_str(raw_lines[i]);
-        }
-        logical_lines.push((start_idx, combined));
-        i += 1;
-    }
+    raw_lines
+        .iter()
+        .enumerate()
+        .map(|(i, raw)| {
+            let first_indent = raw.chars().take_while(|c| *c == ' ').count();
+            let stripped = strip_comment(raw).trim_end().to_string();
 
-    logical_lines
-        .into_iter()
-        .map(|(idx, raw)| {
-            let (indent, raw_content) = strip_indent(&raw);
-            let stripped = strip_comment(raw_content);
-            // Trim trailing whitespace but preserve content
-            let content = stripped.trim_end().to_string();
+            // If the line became empty after comment stripping, preserve
+            // the original indentation so the parser sees the correct level.
+            let (indent, raw_content) = if stripped.is_empty() {
+                (first_indent, stripped.as_str())
+            } else {
+                strip_indent(&stripped)
+            };
+            let content = strip_comment(raw_content).trim_end().to_string();
+
             Line {
                 indent,
                 content,
-                line_num: idx + 1,
+                line_num: i + 1,
                 col: indent + 1,
             }
         })
         .collect()
-}
-
-/// Count quotes outside of escape sequences. Returns true if all quotes
-/// are balanced (even number of unescaped quotes).
-fn is_quote_balanced(s: &str) -> bool {
-    let mut quote_count = 0;
-    let mut chars = s.chars().peekable();
-    while let Some(c) = chars.next() {
-        if c == '\\' {
-            // Skip the next character (escape sequence)
-            chars.next();
-            continue;
-        }
-        if c == '"' {
-            quote_count += 1;
-        }
-    }
-    quote_count % 2 == 0
 }
 
 /// Count leading spaces for indentation.
@@ -549,13 +527,12 @@ fn parse_effect_block(
 
 /// Check if a trimmed line is an effect step (vs prose text).
 /// Effect steps: `+ stat by N`, `- stat by N`, `set flag to bool`,
-/// `add tag`, `text "..."`. Quoted text is NOT an effect step.
+/// `add tag`. Quoted text and bare prose are NOT effect steps.
 fn is_effect_step(trimmed: &str) -> bool {
     trimmed.starts_with('+')
         || trimmed.starts_with('-')
         || trimmed.starts_with("set ")
         || trimmed.starts_with("add ")
-        || trimmed.starts_with("text ")
 }
 
 fn parse_effect_step(content: &str, line: usize, col: usize) -> Result<EffectStep, ParseError> {
@@ -632,14 +609,9 @@ fn parse_effect_step(content: &str, line: usize, col: usize) -> Result<EffectSte
         });
     }
 
-    // Text output: text "..."  or bare quoted/unquoted text
-    if trimmed.starts_with("text ") {
-        let rest = trimmed.strip_prefix("text").unwrap().trim();
-        return Ok(EffectStep::Text(parse_template_string(rest)?));
-    }
-
-    // Bare quoted or unquoted text
-    Ok(EffectStep::Text(parse_template_string(trimmed)?))
+    // Bare quoted or unquoted text — quotes are preserved as literal characters
+    // in effect body text (only choice labels strip surrounding quotes)
+    Ok(EffectStep::Text(parse_template_string(trimmed, false)?))
 }
 
 /// Parse an event block: `event event_id:` followed by indented body.
@@ -785,7 +757,7 @@ fn parse_event_block(
             cursor.next();
         } else if !trimmed.is_empty() && !trimmed.starts_with('#') {
             // Event prose text — accumulate for paragraph joining
-            let text_content = parse_template_string(trimmed)?;
+            let text_content = parse_template_string(trimmed, false)?;
             text_paragraph.push(text_content);
             cursor.next();
         } else {
@@ -820,7 +792,7 @@ fn parse_choice(
     let rest = rest.trim_start();
 
     let (text_raw, remainder) = split_choice_header(rest)?;
-    let text = parse_template_string(text_raw)?;
+    let text = parse_template_string(text_raw, true)?;
 
     let header_indent = col - 1;
 
@@ -1268,24 +1240,24 @@ fn op_to_compare_op(op: &str) -> CompareOp {
 // ===== Template / text parsing =====
 
 /// Parse a string that may contain `{{stat}}` templates.
-/// Can be quoted (with `"`) or unquoted.
-fn parse_template_string(s: &str) -> Result<TextContent, ParseError> {
+/// Can be quoted (with `"`) or unquoted. Escape sequences are processed
+/// for both quoted and unquoted text.
+fn parse_template_string(s: &str, strip_quotes: bool) -> Result<TextContent, ParseError> {
     let s = s.trim();
 
-    if s.starts_with('"') && s.ends_with('"') && s.len() >= 2 {
-        let inner = &s[1..s.len() - 1];
-        let unescaped = unescape_string(inner);
-        let segments = split_template(&unescaped);
-        Ok(TextContent { segments })
+    let inner = if strip_quotes && s.starts_with('"') && s.ends_with('"') && s.len() >= 2 {
+        &s[1..s.len() - 1] // strip quotes
     } else {
-        // Unquoted — treat as literal text
-        let segments = split_template(s);
-        Ok(TextContent { segments })
-    }
+        s
+    };
+    let unescaped = unescape_string(inner);
+    let segments = split_template(&unescaped);
+    Ok(TextContent { segments })
 }
 
-/// Unescape common escape sequences in a string literal's inner content.
-/// Handles `\"`, `\\`, `\n`, `\t`, `\r`. Unknown escapes are left as-is.
+/// Unescape escape sequences in text content.
+/// Handles `\"` → `"`, `\\` → `\`, `\n` → newline, `\t` → tab,
+/// `\r` → carriage return, `\s` → space. Unknown escapes are left as-is.
 fn unescape_string(s: &str) -> String {
     let mut result = String::with_capacity(s.len());
     let mut chars = s.chars().peekable();
@@ -1311,6 +1283,10 @@ fn unescape_string(s: &str) -> String {
                     }
                     'r' => {
                         result.push('\r');
+                        chars.next();
+                    }
+                    's' => {
+                        result.push(' ');
                         chars.next();
                     }
                     _ => {

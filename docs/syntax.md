@@ -37,7 +37,7 @@ story StoryName:
 
 - **Indentation**: 2 spaces (tabs are rejected).
 - **Comments**: Start with `#` and extend to end of line.
-- **Quotes**: Text strings may use double quotes or be unquoted. Escaped quotes (`\"`) inside quoted text render as literal `"`. Other supported escapes: `\\` → `\`, `\n` → newline, `\t` → tab, `\r` → carriage return.
+- **Quotes**: Text strings may use double quotes or be unquoted. Surrounding quotes are **preserved** in body text (event, effect, and choice bodies) and only stripped from choice labels (text after `choice`). Escaped quotes (`\"`) render as literal `"`. Other supported escapes (processed in both quoted and unquoted text): `\\` → `\`, `\n` → newline, `\t` → tab, `\r` → carriage return, `\s` → space.
 
 ---
 
@@ -190,7 +190,7 @@ multiple choices using `uses`.
 ```cyoa
 effect found_mushroom:
   + courage by 1
-  text "You find a glowing mushroom. It hums softly."
+  You find a glowing mushroom. It hums softly.
 ```
 
 ### Effect Body Syntax
@@ -204,16 +204,13 @@ Inside an effect block (indented 4 spaces), you can use:
 | `set flag to true`                  | Set flag to true       |
 | `set flag to false`                 | Set flag to false      |
 | `add tag`                           | Add a runtime tag      |
-| `text "string"`                     | Text output to display |
-| `text "string with {{templating}}"` | Templated text output  |
+| `"string"` or `string`              | Text output (quotes preserved in body text) |
+| `"string with {{templating}}"`      | Templated text output  |
 
-You can also use unquoted text as shorthand for `text`:
-
-```cyoa
-effect found_mushroom:
-  + courage by 1
-  "You find a glowing mushroom. It hums softly."  # equivalent to: text "..."
-```
+Text can be quoted (`"..."`) or bare (unquoted). In both cases, escape sequences
+are processed. Surrounding quotes are **preserved** in body text (event, effect,
+and choice bodies) — they are only stripped from choice labels (the text after
+the `choice` keyword).
 
 ### Referencing Effects
 
@@ -246,8 +243,8 @@ event old_ruins:
   tags: exploration, early_game     # optional event tags
 
   set visited_old_ruins to true    # optional inline effect (runs on entry)
-  "You stand before ancient stone ruins."
-  "A cold wind whispers from within."
+  You stand before ancient stone ruins.
+  A cold wind whispers from within.
 
   choice "Enter the ruins":
     next river_crossing
@@ -275,7 +272,7 @@ choice) run automatically when the engine enters the event:
 ```cyoa
 event old_ruins:
   set visited_old_ruins to true    # runs once on entry
-  "You stand before ancient stone ruins."
+  You stand before ancient stone ruins.
 ```
 
 This is useful for setting progress flags when the player reaches a location,
@@ -301,7 +298,7 @@ choice "Attack the wolf":
 | Field | Required? | Description |
 |-------|-----------|-------------|
 | Text | Yes | The choice label shown to the player |
-| Inline effects | No | `+/- stat`, `set flag`, `text`, `add tag` |
+| Inline effects | No | `+/- stat`, `set flag`, `add tag` |
 | `uses` | No | Reference to one or more effect blocks |
 | `requires:` | No | Local prerequisite (inline or multi-line) |
 | `next` | No* | Event to advance to (`*required` for non-terminal choices) |
@@ -322,7 +319,7 @@ A choice without `next` ends the story:
 
 ```cyoa
 choice "Rest forever":
-  "You sit beneath the tree until the sun sets."
+  You sit beneath the tree until the sun sets.
   # no `next` — story ends
 ```
 
@@ -352,7 +349,7 @@ condition on the following indented lines:
 event guarded_path:
   requires:
     courage >= 5 AND gold > 0
-  "A guarded path lies ahead."
+  A guarded path lies ahead.
 ```
 
 The same multi-line form works inside `choice` blocks:
@@ -395,7 +392,7 @@ syntax (double curly braces).
 
 ```cyoa
 event tavern:
-  "You have {{gold}} gold pieces to spend."
+  You have {{gold}} gold pieces to spend.
 ```
 
 At runtime, `{{gold}}` is replaced with the current value of the `gold` stat.
@@ -410,7 +407,7 @@ choice "Buy ale (cost: {{gold}} gold)":
 ### Multiple Templates in One String
 
 ```cyoa
-"You have {{gold}} gold pieces and {{hp}} HP remaining."
+You have {{gold}} gold pieces and {{hp}} HP remaining.
 ```
 
 ### Template Rules
@@ -445,13 +442,13 @@ text.
 
 ```cyoa
 event start:
-  "You stand beneath the bows of a dark and ancient forest. Before you"
-  "a partially tumbled down, thatch-roofed cottage and a track that may once have been"
-  "the beaten path, but is now partially concealed by stinging nettles,"
-  "gnarled roots, and leaf-litter."
+  You stand beneath the bows of a dark and ancient forest. Before you
+  a partially tumbled down, thatch-roofed cottage and a track that may once have been
+  the beaten path, but is now partially concealed by stinging nettles,
+  gnarled roots, and leaf-litter.
 
-  "The faint glow of candlelight flickers can be seen through grimy iron wrought"
-  "windows, the only sign of habitation."
+  The faint glow of candlelight flickers can be seen through grimy iron wrought
+  windows, the only sign of habitation.
 
   choice "Knock on the cottage door.":
     ...
@@ -463,31 +460,20 @@ lines of the second paragraph produce a **second** paragraph.
 
 ### Explicit Paragraph Separation
 
-To deliberately create two separate paragraphs without a blank line, use an
-explicit `text` statement:
+To deliberately create two separate paragraphs, use a blank line between them:
 
 ```cyoa
 event start:
-  text "First paragraph."
-  text "Second paragraph."  # two distinct paragraphs
+  First paragraph.
+
+  Second paragraph.  # two distinct paragraphs
 ```
 
-### Multi-line Strings (Different from Paragraph Joining)
-
-A **single quoted string** that spans multiple source lines is treated as one
-text block — the newlines within the string are preserved as literal
-content, and paragraph joining does **not** apply inside it:
-
-```cyoa
-event start:
-  "This is line one.
-  This is line two.
-  They are in the same string."
-```
-
-This is distinct from paragraph joining: the above always renders as a single
-paragraph with embedded newlines, regardless of blank lines in the source
-(which are ignored inside a quoted string).
+All body text (event/effect/choice body) is treated as markdown: each source
+line is a separate logical line. Consecutive text lines (no blank line between
+them) are joined into a single paragraph by the parser. There is no multi-line
+string accumulation — a quoted string that spans multiple source lines is simply
+two separate text lines that get paragraph-joined.
 
 ---
 
@@ -536,7 +522,7 @@ story MyAdventure:
 
   effect found_treasure:
     + gold by 20
-    text "You discover a cache of gold coins!"
+    "You discover a cache of gold coins!"
     add treasure_hunter
 
   event start:
