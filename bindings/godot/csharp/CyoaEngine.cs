@@ -87,6 +87,9 @@ namespace Cyoa.Godot
         [DllImport(DLL_NAME)]
         public static extern int cyoa_can_access_event(IntPtr engine, string id);
 
+        [DllImport(DLL_NAME)]
+        public static extern int cyoa_is_story_complete(IntPtr engine);
+
         // Stats / tags / flags
         [DllImport(DLL_NAME)]
         public static extern IntPtr cyoa_list_stats_json(IntPtr engine);
