@@ -190,7 +190,7 @@ multiple choices using `uses`.
 ```cyoa
 effect found_mushroom:
   + courage by 1
-  "You find a glowing mushroom. It hums softly."
+  You find a glowing mushroom. It hums softly.
 ```
 
 ### Effect Body Syntax
@@ -243,8 +243,8 @@ event old_ruins:
   tags: exploration, early_game     # optional event tags
 
   set visited_old_ruins to true    # optional inline effect (runs on entry)
-  "You stand before ancient stone ruins."
-  "A cold wind whispers from within."
+  You stand before ancient stone ruins.
+  A cold wind whispers from within.
 
   choice "Enter the ruins":
     next river_crossing
@@ -272,7 +272,7 @@ choice) run automatically when the engine enters the event:
 ```cyoa
 event old_ruins:
   set visited_old_ruins to true    # runs once on entry
-  "You stand before ancient stone ruins."
+  You stand before ancient stone ruins.
 ```
 
 This is useful for setting progress flags when the player reaches a location,
@@ -319,7 +319,7 @@ A choice without `next` ends the story:
 
 ```cyoa
 choice "Rest forever":
-  "You sit beneath the tree until the sun sets."
+  You sit beneath the tree until the sun sets.
   # no `next` — story ends
 ```
 
@@ -349,7 +349,7 @@ condition on the following indented lines:
 event guarded_path:
   requires:
     courage >= 5 AND gold > 0
-  "A guarded path lies ahead."
+  A guarded path lies ahead.
 ```
 
 The same multi-line form works inside `choice` blocks:
@@ -392,7 +392,7 @@ syntax (double curly braces).
 
 ```cyoa
 event tavern:
-  "You have {{gold}} gold pieces to spend."
+  You have {{gold}} gold pieces to spend.
 ```
 
 At runtime, `{{gold}}` is replaced with the current value of the `gold` stat.
@@ -407,7 +407,7 @@ choice "Buy ale (cost: {{gold}} gold)":
 ### Multiple Templates in One String
 
 ```cyoa
-"You have {{gold}} gold pieces and {{hp}} HP remaining."
+You have {{gold}} gold pieces and {{hp}} HP remaining.
 ```
 
 ### Template Rules
@@ -442,13 +442,13 @@ text.
 
 ```cyoa
 event start:
-  "You stand beneath the bows of a dark and ancient forest. Before you"
-  "a partially tumbled down, thatch-roofed cottage and a track that may once have been"
-  "the beaten path, but is now partially concealed by stinging nettles,"
-  "gnarled roots, and leaf-litter."
+  You stand beneath the bows of a dark and ancient forest. Before you
+  a partially tumbled down, thatch-roofed cottage and a track that may once have been
+  the beaten path, but is now partially concealed by stinging nettles,
+  gnarled roots, and leaf-litter.
 
-  "The faint glow of candlelight flickers can be seen through grimy iron wrought"
-  "windows, the only sign of habitation."
+  The faint glow of candlelight flickers can be seen through grimy iron wrought
+  windows, the only sign of habitation.
 
   choice "Knock on the cottage door.":
     ...
@@ -464,9 +464,9 @@ To deliberately create two separate paragraphs, use a blank line between them:
 
 ```cyoa
 event start:
-  "First paragraph."
+  First paragraph.
 
-  "Second paragraph."  # two distinct paragraphs
+  Second paragraph.  # two distinct paragraphs
 ```
 
 All body text (event/effect/choice body) is treated as markdown: each source
