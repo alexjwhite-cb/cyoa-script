@@ -51,7 +51,8 @@ Serve the project root and open `/web-demo/`. Ensure your server:
 - **Zero-copy benchmark**: live comparison of serde (high-level) vs
   `Uint8Array` (zero-copy) text access — both read from WASM linear memory
 - **Stats panel**: current stats, story tags (static metadata), and runtime tags
-- **Full gameplay**: make choices, see effect text, track stats in real time
+- **Effect text preview**: hover over choices to see effect text as tooltips (via
+  `previewChoiceEffects`) — no state mutation before committing
 
 ## Files
 

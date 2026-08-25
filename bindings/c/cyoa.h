@@ -65,6 +65,33 @@ int cyoa_current_choice_count(CyoaEngine *engine);
 /** Text of the choice at `index`, or NULL if out of bounds. */
 const char *cyoa_choice_text(CyoaEngine *engine, int index);
 
+/* ── Near-zero-copy byte-length variants ──────────────────────────────────────── */
+/*
+ * These return a pointer + explicit length into an internal multi-slot string
+ * pool. The pointer is engine-owned and valid until the next API call on the
+ * same handle. Use these when you can consume the byte length directly,
+ * avoiding a NUL-scan on the caller side.
+ */
+
+/**
+ * Current event ID as bytes with explicit length.
+ * Writes the byte count to *out_len. Returns NULL if out_len is NULL.
+ * Pointer is valid until the next call on the same handle.
+ */
+const uint8_t *cyoa_current_event_id_bytes(CyoaEngine *engine, size_t *out_len);
+
+/**
+ * Current event text as bytes with explicit length.
+ * Paragraphs are joined by '\n'. Writes the byte count to *out_len.
+ */
+const uint8_t *cyoa_current_event_text_bytes(CyoaEngine *engine, size_t *out_len);
+
+/**
+ * Choice text at `index` as bytes with explicit length.
+ * Returns NULL with *out_len = 0 if `index` is out of bounds.
+ */
+const uint8_t *cyoa_choice_text_bytes(CyoaEngine *engine, int index, size_t *out_len);
+
 /* ── Make a choice ────────────────────────────────────────────────────────── */
 
 /**
@@ -75,10 +102,27 @@ const char *cyoa_choice_text(CyoaEngine *engine, int index);
 void cyoa_make_choice(CyoaEngine *engine, int index);
 
 /**
+ * Preview the effect text from a choice without applying it (does not
+ * mutate state).
+ *
+ * Returns a heap-allocated JSON array of effect text strings:
+ *   ["effect text 1","effect text 2",...]
+ *
+ * Caller MUST free the returned string with `cyoa_free_string()`.
+ */
+char *cyoa_preview_choice_effects(CyoaEngine *engine, int choice_index);
+
+/**
  * Effect text from the most recent `cyoa_make_choice` call.
  * Paragraphs joined by '\n'. Engine-owned, valid until next call.
  */
 const char *cyoa_last_effect_text(CyoaEngine *engine);
+
+/**
+ * Effect text from the most recent `cyoa_make_choice` call, as bytes with
+ * explicit length. Writes the byte count to *out_len.
+ */
+const uint8_t *cyoa_last_effect_text_bytes(CyoaEngine *engine, size_t *out_len);
 
 /* ── Choice history ──────────────────────────────────────────────────────── */
 
@@ -92,6 +136,12 @@ int cyoa_history_length(CyoaEngine *engine);
  * Engine-owned, valid until next call.
  */
 const char *cyoa_history_entry(CyoaEngine *engine, int index);
+
+/**
+ * History entry at `index` as bytes with explicit length.
+ * Returns NULL with *out_len = 0 if `index` is out of bounds.
+ */
+const uint8_t *cyoa_history_entry_bytes(CyoaEngine *engine, int index, size_t *out_len);
 
 /* ── State management ────────────────────────────────────────────────────── */
 

@@ -55,40 +55,60 @@ void cyoa_destroy(CyoaEngine* engine);
 ### Event queries
 
 ```c
+/* const char* = engine-owned, valid until next call */
 const char* cyoa_current_event_id(CyoaEngine* engine);
 const char* cyoa_current_event_text(CyoaEngine* engine);
 int         cyoa_current_choice_count(CyoaEngine* engine);
 const char* cyoa_choice_text(CyoaEngine* engine, int index);
+
+/* const uint8_t* = engine-owned, pointer+length (near-zero-copy) */
+const uint8_t* cyoa_current_event_id_bytes(CyoaEngine* engine, size_t* out_len);
+const uint8_t* cyoa_current_event_text_bytes(CyoaEngine* engine, size_t* out_len);
+const uint8_t* cyoa_choice_text_bytes(CyoaEngine* engine, int index, size_t* out_len);
 ```
 
 - `cyoa_current_event_id`: Internal event ID (name). Engine-owned string.
 - `cyoa_current_event_text`: Event text paragraphs joined by `\n`. Engine-owned.
 - `cyoa_current_choice_count`: Number of visible choices.
 - `cyoa_choice_text`: Text of choice at `index`, or `NULL` if out of bounds.
+- `cyoa_*_bytes` variants: Same data but returned as `const uint8_t*` with an
+  explicit `size_t* out_len`. The pointer is valid until the next API call on
+  the same handle. Use these for single-copy marshalling (no NUL scan).
 
 ### Make a choice
 
 ```c
 void cyoa_make_choice(CyoaEngine* engine, int index);
-const char* cyoa_last_effect_text(CyoaEngine* engine);
+const char* cyoa_last_effect_text(CyoaEngine* engine);  /* effect text from last choice */
+char*       cyoa_preview_choice_effects(CyoaEngine* engine, int choice_index);  /* JSON array, caller frees */
+const uint8_t* cyoa_last_effect_text_bytes(CyoaEngine* engine, size_t* out_len);
 ```
 
 - `cyoa_make_choice`: Apply the player's choice at `index`. After this call,
   the engine has advanced to the next event.
 - `cyoa_last_effect_text`: Effect text from the most recent `make_choice` call.
   Multiple fragments joined by `\n`. Engine-owned.
+- `cyoa_preview_choice_effects`: Preview the effect text from a choice
+  **without applying it** (no state mutation). Returns a heap-allocated JSON
+  array string (e.g. `["effect text 1", "effect text 2"]`). **Caller must free**
+  with `cyoa_free_string()`.
+- `cyoa_last_effect_text_bytes`: Same as `cyoa_last_effect_text` but with
+  explicit length via `out_len`.
 
 ### History
 
 ```c
 int cyoa_history_length(CyoaEngine* engine);
 const char* cyoa_history_entry(CyoaEngine* engine, int index);
+const uint8_t* cyoa_history_entry_bytes(CyoaEngine* engine, int index, size_t* out_len);
 ```
 
 - `cyoa_history_length`: Number of entries in the choice history.
 - `cyoa_history_entry`: JSON string for one entry:
   `{"eventId":"...","choiceIndex":N,"choiceText":"..."}`. Returns `NULL` if
   `index` is out of bounds. Engine-owned.
+- `cyoa_history_entry_bytes`: Same data as bytes with explicit length. Returns
+  `NULL` with `*out_len = 0` if `index` is out of bounds.
 
 ### State management
 
@@ -289,6 +309,7 @@ engine.SetStateJson(saveJson);
 | `ChoiceCount` | `int` | Number of visible choices |
 | `GetChoiceText(int index)` | `string` | One choice text |
 | `MakeChoice(int index)` | — | Apply a choice |
+| `PreviewChoiceEffects(int index)` | `string[]` | Preview effect text without applying (for tooltips) |
 | `LastEffectText` | `string` | Effect text from last choice |
 | `GetHistory()` | `HistoryEntry[]` | Choice history |
 | `HistoryLength` | `int` | History count |
@@ -306,6 +327,16 @@ engine.SetStateJson(saveJson);
 | `Dispose()` | — | Free native resources |
 
 Unity integration guide: [`bindings/csharp/README.md`](../bindings/csharp/README.md)
+
+### String marshalling (near-zero-copy)
+
+The C# wrapper automatically uses the `*_bytes` C-ABI functions for
+high-frequency string returns. Instead of the C-ABI's `CString` scratch buffer,
+a multi-slot `StringPool` returns pointer+length pairs. The C# wrapper uses
+`StringMarshal.PtrToStringUtf8(ptr, byteLen)` — a single `Marshal.Copy` with a
+known length, avoiding the NUL-scan overhead of `PtrToUtf8String`.
+
+**Unity integration guide:** [`bindings/csharp/README.md`](../bindings/csharp/README.md)
 
 ---
 
@@ -334,3 +365,6 @@ StoryInfo[] fantasy = catalog.StoriesWithTag("fantasy");
 
 See [`bindings/godot/README.md`](../bindings/godot/README.md) for the full
 Godot integration guide and GDScript API.
+
+The GDScript wrapper delegates to the C# class, so it automatically benefits
+from the near-zero-copy string marshalling described above.

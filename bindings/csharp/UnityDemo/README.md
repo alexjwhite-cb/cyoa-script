@@ -100,6 +100,7 @@ using var engine = catalog.CreateEngineByName("ForestAdventure");
 | `CurrentChoices` | `string[]` | All current choice texts |
 | `MakeChoice(int index)` | — | Apply a choice (0-based) |
 | `LastEffectText` | `string` | Effect text from the last choice |
+| `PreviewChoiceEffects(int index)` | `string[]` | Preview effect text without applying (for tooltips) |
 | `HistoryLength` | `int` | Number of history entries |
 | `GetHistoryEntry(int index)` | `ChoiceHistoryEntry?` | One history entry |
 | `GetAllHistory()` | `ChoiceHistoryEntry[]` | All history entries |
@@ -155,6 +156,7 @@ The C# wrapper handles all native memory automatically:
 - All `IntPtr` values are copied to managed `string` before the native memory is freed.
 - `CyoaEngine` and `CyoaStoryCatalog` implement `IDisposable` — always wrap in `using` statements.
 - The native plugin handles its own internal string buffers.
+- The `*_bytes` C-ABI functions return pointer+length pairs from an internal multi-slot string pool. The C# wrapper uses `Marshal.Copy` with the explicit length (via `StringMarshal.PtrToStringUtf8`), avoiding the NUL-scan that `PtrToUtf8String` performs. This reduces the per-call copy overhead from two copies (CString alloc + byte array copy + NUL scan) to one (byte array copy only).
 
 ## Platform notes
 

@@ -216,6 +216,17 @@ engine.make_choice(0)
 print(engine.get_current_event_text())
 ```
 
+### `preview_choice_effects(index: int) -> PackedStringArray`
+
+Preview the effect text from a choice **without applying it** (does not mutate
+state). Useful for showing tooltips before the player commits.
+
+```gdscript
+var effects = engine.preview_choice_effects(0)
+for effect in effects:
+    print(effect)
+```
+
 ### `get_last_effect_text() -> String`
 
 Effect text from the most recent `make_choice()` call. Multiple effect

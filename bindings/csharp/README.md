@@ -43,6 +43,9 @@ using var engine = new CyoaEngine(bytecode);
 string text = engine.CurrentEventText;
 string[] choices = engine.CurrentChoices;
 
+// Preview a choice's effect text before committing (for tooltips)
+string[] tooltips = engine.PreviewChoiceEffects(0);
+
 // Make a choice (0-based index)
 engine.MakeChoice(0);
 Console.WriteLine(engine.CurrentEventText);
@@ -98,6 +101,14 @@ The C# wrapper requires **no external NuGet packages**. JSON parsing is
 implemented manually (sufficient for the arrays-of-objects schemas the engine
 returns). Only `System.Text`, `System.Runtime.InteropServices`, and
 `System.Collections.Generic` from the standard library are used.
+
+### String marshalling
+
+The wrapper automatically uses the near-zero-copy `*_bytes` C-ABI functions.
+Instead of scanning for NUL terminators on the C# side, the native library
+returns a pointer + explicit length from an internal multi-slot string pool.
+The C# wrapper uses `Marshal.Copy` with the known length, reducing per-call
+copy overhead.
 
 See [`UnityDemo/README.md`](UnityDemo/README.md) for the full API reference
 and the Unity demo scene setup guide.

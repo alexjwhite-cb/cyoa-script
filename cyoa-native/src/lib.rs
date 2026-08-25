@@ -9,6 +9,9 @@
 //! - **`*const char` returns** point into engine-owned memory, valid until
 //!   the next API call on the same engine/catalog handle. The caller must
 //!   copy the string if it needs to persist.
+//! - **`*const uint8_t` returns** (from `*_bytes` functions) point into the
+//!   engine's string pool, valid until the next API call on the same handle.
+//!   The caller receives an explicit `out_len` so no NUL-scan is needed.
 //! - **`*mut char` returns** (from `*_json` and `*_state` functions) are
 //!   heap-allocated. The caller must free them with [`cyoa_free_string`].
 //! - Handles created by `cyoa_create` / `cyoa_catalog_create` must be freed
@@ -28,26 +31,80 @@ use cyoa_bytecode::Bytecode;
 use cyoa_runtime::{Engine, StoryCatalog, StoryMetadata};
 
 // ──────────────────────────────────────────────────────────────────────────
+// String pool — multi-slot scratch buffer for engine-owned returns
+// ──────────────────────────────────────────────────────────────────────────
+
+/// A round-robin pool of NUL-terminated string slots for engine-owned returns.
+///
+/// Replaces the old single-slot `str_buf: CString`. Using multiple slots
+/// ensures that concurrent live views (e.g. event text + choice text) don't
+/// clobber each other, as long as the caller doesn't hold more than
+/// `NUM_SLOTS` live pointers at once.
+struct StringPool {
+    slots: Vec<CString>,
+    cursor: usize,
+}
+
+impl StringPool {
+    fn new() -> Self {
+        Self {
+            slots: vec![
+                CString::new("").unwrap(),
+                CString::new("").unwrap(),
+                CString::new("").unwrap(),
+                CString::new("").unwrap(),
+            ],
+            cursor: 0,
+        }
+    }
+
+    /// Store `s` in the next slot (round-robin) and return a NUL-terminated
+    /// `*const c_char` pointer. The pointer is valid until the pool wraps
+    /// around to the same slot.
+    fn store(&mut self, s: &str) -> *const c_char {
+        let cstr = CString::new(s).unwrap_or_default();
+        self.slots[self.cursor] = cstr;
+        let ptr = self.slots[self.cursor].as_ptr();
+        self.cursor = (self.cursor + 1) % self.slots.len();
+        ptr
+    }
+
+    /// Store `s` and return a `(*const u8, usize)` pair for callers that can
+    /// use an explicit length (near-zero-copy: no NUL scan needed on the
+    /// consumer side).
+    fn store_bytes(&mut self, s: &str) -> (*const u8, usize) {
+        let len = s.len();
+        let ptr = self.store(s);
+        (ptr as *const u8, len)
+    }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
 // Engine handle
 // ──────────────────────────────────────────────────────────────────────────
 
 /// Opaque handle to an engine instance — one per story.
 pub struct CyoaEngine {
     engine: Engine,
-    /// Single-slot string buffer for engine-owned returns.
-    /// Overwritten on each call to a function returning `*const c_char`.
-    str_buf: CString,
+    /// Multi-slot string pool for engine-owned returns.
+    /// Each call to a function returning `*const c_char` or `*_bytes`
+    /// advances the round-robin cursor.
+    str_pool: StringPool,
     /// Effect text fragments from the most recent `make_choice` call.
     last_effects: Vec<String>,
 }
 
 impl CyoaEngine {
-    /// Store a Rust string into the engine's scratch buffer and return a
-    /// `*const c_char` view into it (valid until the next call that touches
-    /// `str_buf`).
+    /// Store a Rust string into the engine's string pool and return a
+    /// `*const c_char` view into it (valid until the pool wraps around).
     fn store_str(&mut self, s: &str) -> *const c_char {
-        self.str_buf = CString::new(s).unwrap_or_else(|_| CString::new("").unwrap());
-        self.str_buf.as_ptr()
+        self.str_pool.store(s)
+    }
+
+    /// Store a Rust string into the engine's string pool and return a
+    /// `(*const u8, usize)` pair for near-zero-copy callers.
+    fn store_bytes(&mut self, s: &str) -> (*const u8, usize) {
+        self.str_pool.store_bytes(s)
     }
 }
 
@@ -68,7 +125,7 @@ pub extern "C" fn cyoa_create(bytecode: *const c_uchar, len: usize) -> *mut Cyoa
         Ok(bc) => {
             let engine = CyoaEngine {
                 engine: Engine::new(bc),
-                str_buf: CString::new("").unwrap(),
+                str_pool: StringPool::new(),
                 last_effects: Vec::new(),
             };
             Box::into_raw(Box::new(engine))
@@ -128,6 +185,70 @@ pub extern "C" fn cyoa_choice_text(engine: *mut CyoaEngine, index: c_int) -> *co
     }
 }
 
+// ── Near-zero-copy: `*_bytes` variants ─────────────────────────────────────
+
+/// Get the current event's ID as raw bytes.
+/// Writes the pointer to `out_ptr` and the byte length to `out_len`.
+/// The pointer is engine-owned, valid until the next API call on this handle.
+/// Pass NULL for `out_len` if you don't need the length.
+#[no_mangle]
+pub extern "C" fn cyoa_current_event_id_bytes(
+    engine: *mut CyoaEngine,
+    out_len: *mut usize,
+) -> *const c_uchar {
+    let eng = unsafe { &mut *engine };
+    let id = eng.engine.current_event_id();
+    let (ptr, len) = eng.store_bytes(&id);
+    if !out_len.is_null() {
+        unsafe { *out_len = len };
+    }
+    ptr
+}
+
+/// Get the current event's text as raw bytes (paragraphs joined by `\n`).
+/// Writes the pointer to `out_ptr` and the byte length to `out_len`.
+/// The pointer is engine-owned, valid until the next API call on this handle.
+/// Pass NULL for `out_len` if you don't need the length.
+#[no_mangle]
+pub extern "C" fn cyoa_current_event_text_bytes(
+    engine: *mut CyoaEngine,
+    out_len: *mut usize,
+) -> *const c_uchar {
+    let eng = unsafe { &mut *engine };
+    let paragraphs = eng.engine.current_event_text();
+    let combined = paragraphs.join("\n");
+    let (ptr, len) = eng.store_bytes(&combined);
+    if !out_len.is_null() {
+        unsafe { *out_len = len };
+    }
+    ptr
+}
+
+/// Get choice text as raw bytes.
+/// Writes the pointer to `out_ptr` and the byte length to `out_len`.
+/// Returns NULL and writes 0 to `out_len` if `index` is out of bounds.
+#[no_mangle]
+pub extern "C" fn cyoa_choice_text_bytes(
+    engine: *mut CyoaEngine,
+    index: c_int,
+    out_len: *mut usize,
+) -> *const c_uchar {
+    let eng = unsafe { &mut *engine };
+    let choices = eng.engine.current_choices();
+    if index >= 0 && (index as usize) < choices.len() {
+        let (ptr, len) = eng.store_bytes(&choices[index as usize]);
+        if !out_len.is_null() {
+            unsafe { *out_len = len };
+        }
+        ptr
+    } else {
+        if !out_len.is_null() {
+            unsafe { *out_len = 0 };
+        }
+        ptr::null()
+    }
+}
+
 // ── Make a choice ──────────────────────────────────────────────────────────
 
 /// Apply the player's choice at `index`.
@@ -147,6 +268,47 @@ pub extern "C" fn cyoa_last_effect_text(engine: *mut CyoaEngine) -> *const c_cha
     let eng = unsafe { &mut *engine };
     let combined = eng.last_effects.join("\n");
     eng.store_str(&combined)
+}
+
+/// Get the effect text from the most recent [`cyoa_make_choice`] call as raw
+/// bytes (texts joined by `\n`).
+/// Writes the pointer to `out_ptr` and the byte length to `out_len`.
+/// The pointer is engine-owned, valid until the next API call on this handle.
+#[no_mangle]
+pub extern "C" fn cyoa_last_effect_text_bytes(
+    engine: *mut CyoaEngine,
+    out_len: *mut usize,
+) -> *const c_uchar {
+    let eng = unsafe { &mut *engine };
+    let combined = eng.last_effects.join("\n");
+    let (ptr, len) = eng.store_bytes(&combined);
+    if !out_len.is_null() {
+        unsafe { *out_len = len };
+    }
+    ptr
+}
+
+// ── Choice effect preview (non-mutating) ────────────────────────────────────
+
+/// Preview the effect text from a choice without applying it.
+///
+/// `choice_index` is the index into the list of *visible* choices (same
+/// indexing as [`cyoa_make_choice`]). Returns a JSON array string of effect
+/// text fragments, e.g. `["\"You drink a potion.\"", "\"You find a mushroom.\""]`.
+///
+/// Returns a **heap-allocated** string that the caller **must** free with
+/// [`cyoa_free_string`].
+#[no_mangle]
+pub extern "C" fn cyoa_preview_choice_effects(
+    engine: *mut CyoaEngine,
+    choice_index: c_int,
+) -> *mut c_char {
+    let eng = unsafe { &*engine };
+    let texts = eng.engine.preview_choice_effects(choice_index);
+    let json = serde_json::to_string(&texts).unwrap_or_else(|_| "[]".to_string());
+    CString::new(json)
+        .map(|c| c.into_raw())
+        .unwrap_or(ptr::null_mut())
 }
 
 // ── Choice history ────────────────────────────────────────────────────────
@@ -180,6 +342,38 @@ pub extern "C" fn cyoa_history_entry(engine: *mut CyoaEngine, index: c_int) -> *
     }
 }
 
+/// Get a history entry as raw bytes (JSON string).
+/// Writes the pointer to `out_ptr` and the byte length to `out_len`.
+/// Returns NULL and writes 0 to `out_len` if `index` is out of bounds.
+#[no_mangle]
+pub extern "C" fn cyoa_history_entry_bytes(
+    engine: *mut CyoaEngine,
+    index: c_int,
+    out_len: *mut usize,
+) -> *const c_uchar {
+    let eng = unsafe { &mut *engine };
+    let history = eng.engine.history();
+    if index >= 0 && (index as usize) < history.len() {
+        let entry = &history[index as usize];
+        let json = serde_json::json!({
+            "eventId": entry.event_id,
+            "choiceIndex": entry.choice_index,
+            "choiceText": entry.choice_text,
+        });
+        let json_str = serde_json::to_string(&json).unwrap();
+        let (ptr, len) = eng.store_bytes(&json_str);
+        if !out_len.is_null() {
+            unsafe { *out_len = len };
+        }
+        ptr
+    } else {
+        if !out_len.is_null() {
+            unsafe { *out_len = 0 };
+        }
+        ptr::null()
+    }
+}
+
 // ── State management ──────────────────────────────────────────────────────
 
 /// Serialize the full player state (stats, flags, tags, history) as a JSON
@@ -209,8 +403,8 @@ pub extern "C" fn cyoa_set_state_json(engine: *mut CyoaEngine, json: *const c_ch
 
 /// Free a string returned by [`cyoa_get_state_json`], [`cyoa_list_stats_json`],
 /// [`cyoa_list_story_tags_json`], [`cyoa_list_tags_json`],
-/// [`cyoa_list_flags_json`], [`cyoa_available_events_json`], or any of the
-/// `cyoa_catalog_*` functions.
+/// [`cyoa_list_flags_json`], `cyoa_available_events_json`,
+/// `cyoa_preview_choice_effects`, or any of the `cyoa_catalog_*` functions.
 ///
 /// Passing NULL is a no-op.
 #[no_mangle]
@@ -475,7 +669,7 @@ pub extern "C" fn cyoa_catalog_stories_with_all_tags_json(
 }
 
 /// Find all stories that have ANY of the specified tags.
-/// `tagsJson` is a JSON array of tag strings, e.g. `["fantasy","combat"]`.
+/// `tagsJson` is a JSON array of string tags, e.g. `["fantasy","combat"]`.
 ///
 /// Returns a **heap-allocated** JSON array string that the caller **must** free
 /// with [`cyoa_free_string`].
@@ -511,7 +705,7 @@ pub extern "C" fn cyoa_catalog_create_engine(
         .map(|engine| {
             Box::into_raw(Box::new(CyoaEngine {
                 engine,
-                str_buf: CString::new("").unwrap(),
+                str_pool: StringPool::new(),
                 last_effects: Vec::new(),
             }))
         })
@@ -535,7 +729,7 @@ pub extern "C" fn cyoa_catalog_create_engine_by_name(
         .map(|engine| {
             Box::into_raw(Box::new(CyoaEngine {
                 engine,
-                str_buf: CString::new("").unwrap(),
+                str_pool: StringPool::new(),
                 last_effects: Vec::new(),
             }))
         })

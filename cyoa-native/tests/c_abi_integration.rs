@@ -12,16 +12,20 @@ use std::ptr;
 
 use cyoa_bytecode::Bytecode;
 use cyoa_compiler::{compile_story, parse_story};
+use std::os::raw::c_uchar;
+
 use cyoa_native::{
     cyoa_available_events_json, cyoa_can_access_event, cyoa_catalog_create,
     cyoa_catalog_create_engine, cyoa_catalog_create_engine_by_name, cyoa_catalog_destroy,
     cyoa_catalog_list_stories_json, cyoa_catalog_register, cyoa_catalog_stories_with_all_tags_json,
     cyoa_catalog_stories_with_any_tags_json, cyoa_catalog_stories_with_tag_json,
-    cyoa_catalog_story_count, cyoa_choice_text, cyoa_create, cyoa_current_choice_count,
-    cyoa_current_event_id, cyoa_current_event_text, cyoa_destroy, cyoa_get_stat,
-    cyoa_get_state_json, cyoa_history_entry, cyoa_history_length, cyoa_last_effect_text,
-    cyoa_list_flags_json, cyoa_list_stats_json, cyoa_list_story_tags_json, cyoa_list_tags_json,
-    cyoa_make_choice, cyoa_set_state_json,
+    cyoa_catalog_story_count, cyoa_choice_text, cyoa_choice_text_bytes, cyoa_create,
+    cyoa_current_choice_count, cyoa_current_event_id, cyoa_current_event_id_bytes,
+    cyoa_current_event_text, cyoa_current_event_text_bytes, cyoa_destroy, cyoa_get_stat,
+    cyoa_get_state_json, cyoa_history_entry, cyoa_history_entry_bytes, cyoa_history_length,
+    cyoa_last_effect_text, cyoa_last_effect_text_bytes, cyoa_list_flags_json, cyoa_list_stats_json,
+    cyoa_list_story_tags_json, cyoa_list_tags_json, cyoa_make_choice, cyoa_preview_choice_effects,
+    cyoa_set_state_json,
 };
 
 /// Compile a source string into serialized bytecode bytes (Vec<u8>).
@@ -46,6 +50,16 @@ fn move_json_out_mut(ptr: *mut c_char) -> String {
         .to_str()
         .unwrap()
         .to_string()
+}
+
+/// Read a `*const c_uchar` pointer + length pair into a Rust `String`.
+/// Does NOT free — the pointer belongs to the engine's string pool.
+fn bytes_to_string(ptr: *const c_uchar, len: usize) -> String {
+    assert!(!ptr.is_null(), "null bytes pointer returned");
+    unsafe { std::slice::from_raw_parts(ptr, len) }
+        .iter()
+        .map(|&b| b as char)
+        .collect()
 }
 
 /// A multi-event story with stats, flags, tags, and effects.
@@ -374,6 +388,230 @@ fn test_cyoa_history_entry_oob_returns_null() {
 
     assert!(cyoa_history_entry(engine, 0).is_null());
     assert!(cyoa_history_entry(engine, -1).is_null());
+
+    cyoa_destroy(engine);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Choice effect preview tests (non-mutating)
+// ═══════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_cyoa_preview_choice_effects() {
+    let bytes = compile_to_bytes(STORY_SOURCE);
+    let engine = cyoa_create(bytes.as_ptr(), bytes.len());
+    assert!(!engine.is_null());
+
+    // At "start", choice 0 is "Enter the cave" which has:
+    //   set visited_cave to true (no effect text)
+    //   next deep_in_cave (no effect text)
+    // So preview should be empty.
+    let json_ptr = cyoa_preview_choice_effects(engine, 0);
+    let json = move_json_out_mut(json_ptr);
+    assert_eq!(json, "[]", "Enter the cave has no effect text");
+
+    // Choice 1 is "Walk away" which has no effects
+    let json_ptr2 = cyoa_preview_choice_effects(engine, 1);
+    let json2 = move_json_out_mut(json_ptr2);
+    assert_eq!(json2, "[]", "Walk away has no effect text");
+
+    // Out of bounds returns empty JSON array
+    let json_ptr_oob = cyoa_preview_choice_effects(engine, 99);
+    let json_oob = move_json_out_mut(json_ptr_oob);
+    assert_eq!(json_oob, "[]", "OOB preview returns empty array");
+
+    // Verify engine state is unchanged — we're still at "start"
+    let id = cstr_to_string(cyoa_current_event_id(engine));
+    assert_eq!(id, "start");
+
+    cyoa_destroy(engine);
+}
+
+#[test]
+fn test_cyoa_preview_choice_effects_with_text() {
+    // Story with effect text on a choice
+    let story = r#"
+story PreviewTest:
+  stat hp = 50
+  stat courage = 0
+  effect found_mushroom:
+    + courage by 1
+    "You find a glowing mushroom."
+
+  event start:
+    "Start"
+    choice "Drink potion" uses found_mushroom:
+      + hp by 20
+      "You drink a potion."
+      next end
+  event end:
+    "End"
+"#;
+    let bytes = compile_to_bytes(story);
+    let engine = cyoa_create(bytes.as_ptr(), bytes.len());
+    assert!(!engine.is_null());
+
+    // Preview the choice — should return effect texts
+    let json_ptr = cyoa_preview_choice_effects(engine, 0);
+    let json = move_json_out_mut(json_ptr);
+
+    // Parse the JSON array and verify contents
+    let texts: Vec<String> = serde_json::from_str(&json).expect("valid JSON array");
+    assert_eq!(texts.len(), 2, "should have 2 effect texts");
+    assert!(
+        texts.iter().any(|t| t.contains("potion")),
+        "should contain inline potion text, got: {:?}",
+        texts
+    );
+    assert!(
+        texts.iter().any(|t| t.contains("mushroom")),
+        "should contain uses mushroom text, got: {:?}",
+        texts
+    );
+
+    // State should be completely unchanged — no mutation
+    assert_eq!(cyoa_get_stat(engine, c"hp".as_ptr()), 50);
+    assert_eq!(cyoa_get_stat(engine, c"courage".as_ptr()), 0);
+    assert_eq!(cstr_to_string(cyoa_current_event_id(engine)), "start");
+
+    cyoa_destroy(engine);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Near-zero-copy `*_bytes` tests
+// ═══════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_cyoa_current_event_id_bytes() {
+    let bytes = compile_to_bytes(STORY_SOURCE);
+    let engine = cyoa_create(bytes.as_ptr(), bytes.len());
+    assert!(!engine.is_null());
+
+    let mut len = 0usize;
+    let ptr = cyoa_current_event_id_bytes(engine, &mut len);
+    let id = bytes_to_string(ptr, len);
+    assert_eq!(id, "start");
+    assert_eq!(len, 5);
+
+    cyoa_destroy(engine);
+}
+
+#[test]
+fn test_cyoa_current_event_text_bytes() {
+    let bytes = compile_to_bytes(STORY_SOURCE);
+    let engine = cyoa_create(bytes.as_ptr(), bytes.len());
+    assert!(!engine.is_null());
+
+    let mut len = 0usize;
+    let ptr = cyoa_current_event_text_bytes(engine, &mut len);
+    let text = bytes_to_string(ptr, len);
+    assert!(text.contains("You stand at the entrance of a cave."));
+    assert!(text.contains("The darkness yawns before you."));
+    assert!(len > 0);
+
+    cyoa_destroy(engine);
+}
+
+#[test]
+fn test_cyoa_choice_text_bytes() {
+    let bytes = compile_to_bytes(STORY_SOURCE);
+    let engine = cyoa_create(bytes.as_ptr(), bytes.len());
+    assert!(!engine.is_null());
+
+    let mut len = 0usize;
+
+    // Choice 0: "Enter the cave"
+    let ptr0 = cyoa_choice_text_bytes(engine, 0, &mut len);
+    let text0 = bytes_to_string(ptr0, len);
+    assert_eq!(text0, "Enter the cave");
+
+    // Choice 1: "Walk away"
+    let ptr1 = cyoa_choice_text_bytes(engine, 1, &mut len);
+    let text1 = bytes_to_string(ptr1, len);
+    assert_eq!(text1, "Walk away");
+
+    // OOB returns NULL and len=0
+    let ptr_oob = cyoa_choice_text_bytes(engine, 99, &mut len);
+    assert!(ptr_oob.is_null());
+    assert_eq!(len, 0);
+
+    cyoa_destroy(engine);
+}
+
+#[test]
+fn test_cyoa_last_effect_text_bytes() {
+    let bytes = compile_to_bytes(STORY_SOURCE);
+    let engine = cyoa_create(bytes.as_ptr(), bytes.len());
+    assert!(!engine.is_null());
+
+    // Before any choice, effect text should be empty
+    let mut len = 0usize;
+    let ptr = cyoa_last_effect_text_bytes(engine, &mut len);
+    let text = bytes_to_string(ptr, len);
+    assert_eq!(text, "");
+    assert_eq!(len, 0);
+
+    // Make a choice and check effect text bytes
+    cyoa_make_choice(engine, 0);
+    let ptr2 = cyoa_last_effect_text_bytes(engine, &mut len);
+    let text2 = bytes_to_string(ptr2, len);
+    assert!(
+        text2.contains("visited_cave") || text2.is_empty(),
+        "effect text: {}",
+        text2
+    );
+
+    cyoa_destroy(engine);
+}
+
+#[test]
+fn test_cyoa_history_entry_bytes() {
+    let bytes = compile_to_bytes(STORY_SOURCE);
+    let engine = cyoa_create(bytes.as_ptr(), bytes.len());
+    assert!(!engine.is_null());
+
+    // Make a choice to create history
+    cyoa_make_choice(engine, 0);
+
+    let mut len = 0usize;
+    let ptr = cyoa_history_entry_bytes(engine, 0, &mut len);
+    let entry = bytes_to_string(ptr, len);
+    assert!(entry.contains("\"eventId\":\"start\""));
+    assert!(entry.contains("\"choiceIndex\":0"));
+    assert!(len > 0);
+
+    // OOB returns NULL and len=0
+    let ptr_oob = cyoa_history_entry_bytes(engine, 99, &mut len);
+    assert!(ptr_oob.is_null());
+    assert_eq!(len, 0);
+
+    cyoa_destroy(engine);
+}
+
+#[test]
+fn test_bytes_functions_match_const_char_functions() {
+    let bytes = compile_to_bytes(STORY_SOURCE);
+    let engine = cyoa_create(bytes.as_ptr(), bytes.len());
+    assert!(!engine.is_null());
+
+    // Compare current_event_id
+    let id_cstr = cstr_to_string(cyoa_current_event_id(engine));
+    let mut len = 0usize;
+    let id_bytes_ptr = cyoa_current_event_id_bytes(engine, &mut len);
+    let id_bytes = bytes_to_string(id_bytes_ptr, len);
+    assert_eq!(id_cstr, id_bytes);
+
+    // Compare current_event_text
+    let text_cstr = cstr_to_string(cyoa_current_event_text(engine));
+    let text_bytes_ptr = cyoa_current_event_text_bytes(engine, &mut len);
+    let text_bytes = bytes_to_string(text_bytes_ptr, len);
+    assert_eq!(text_cstr, text_bytes);
+
+    // Compare choice_text
+    let choice_cstr = cstr_to_string(cyoa_choice_text(engine, 0));
+    let choice_bytes_ptr = cyoa_choice_text_bytes(engine, 0, &mut len);
+    let choice_bytes = bytes_to_string(choice_bytes_ptr, len);
+    assert_eq!(choice_cstr, choice_bytes);
 
     cyoa_destroy(engine);
 }

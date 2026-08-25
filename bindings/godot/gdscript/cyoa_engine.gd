@@ -182,6 +182,13 @@ func make_choice(index: int) -> void:
 func get_last_effect_text() -> String:
 	return _engine.LastEffectText ?? "" if _engine != null else ""
 
+# Preview the effect text from a choice without applying it (for tooltips).
+# Returns a PackedStringArray of effect text fragments.
+func preview_choice_effects(index: int) -> PackedStringArray:
+	if _engine == null:
+		return []
+	return PackedStringArray(_engine.PreviewChoiceEffects(index))
+
 # ── History ────────────────────────────────────────────────────────────────────
 
 func get_history_length() -> int:

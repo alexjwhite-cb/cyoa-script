@@ -134,6 +134,7 @@ engine.SetStateJson(saveJson);
 | `get_choice_text(index)` | `String` | Text of a specific choice |
 | `get_current_choices()` | `PackedStringArray` | All current choice texts |
 | `make_choice(index)` | `void` | Apply a choice (0-based) |
+| `preview_choice_effects(index)` | `PackedStringArray` | Preview effect text without applying (for tooltips) |
 | `get_last_effect_text()` | `String` | Effect text from the last choice |
 | `get_history_length()` | `int` | History entry count |
 | `get_history_entry(index)` | `Dictionary` | One entry: `{ event_id, choice_index, choice_text }` |
@@ -165,7 +166,13 @@ Same API as the Unity `CyoaStoryCatalog` — `RegisterStory`, `StoriesWithTag`,
 
 ## Memory management
 
-The C# wrapper implements `IDisposable` and frees native handles on `Dispose()`.
+The C# wrapper uses near-zero-copy string marshalling: the `*_bytes` C-ABI
+functions return a pointer + explicit length from an internal multi-slot string
+pool. The C# wrapper uses `Marshal.Copy` with the known length (via
+`StringMarshal.PtrToStringUtf8`), avoiding the NUL-scan that
+`PtrToUtf8String` performs. This reduces per-call copy overhead.
+
+The C# wrapper also implements `IDisposable` and frees native handles on `Dispose()`.
 Always wrap in a `using` statement or call `Dispose()` when done:
 
 ```csharp

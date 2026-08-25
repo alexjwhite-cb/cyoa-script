@@ -152,6 +152,9 @@ engine:
   const engine = catalog.createEngineByName("ForestAdventure");
   const event = engine.getCurrentEvent();
   console.log(event.text, event.choices);
+  // Preview effect text before committing (for tooltips)
+  const tooltip = engine.previewChoiceEffects(0);
+
   engine.makeChoice(0);
 
   // Zero-copy text (returns a view into WASM linear memory)
@@ -206,6 +209,10 @@ var fantasy_stories = catalog.stories_with_tag("fantasy")
 var engine = catalog.create_engine_by_name("ForestAdventure")
 print(engine.get_current_event_text())
 print(engine.get_current_choices())
+
+# Preview effect text before committing (for tooltips)
+print(engine.preview_choice_effects(0))
+
 engine.make_choice(0)
 ```
 
