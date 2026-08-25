@@ -64,111 +64,41 @@ pub struct Line {
 
 /// Split input into lines, counting indentation and stripping comments.
 ///
-/// Lines that contain an unterminated quoted string are accumulated with
-/// subsequent lines until the closing quote is found. This allows writers
-/// to span quoted text across multiple source lines for readability.
+/// Each source line becomes one logical line — there is no multi-line
+/// string accumulation. All body text (event/effect/choice body) is
+/// treated as markdown: consecutive text lines are joined into a single
+/// paragraph by the parser, and blank lines create paragraph breaks.
+///
+/// For lines that become empty after comment stripping (e.g. comment-only
+/// or whitespace-only lines), indentation is taken from the original raw
+/// line so that the parser sees the correct nesting level.
 fn tokenize_lines(input: &str) -> Vec<Line> {
-    // First, scan for multi-line quoted strings and accumulate them into
-    // single logical lines. We strip comments from each line *before*
-    // checking quote balance so that unbalanced quotes inside comments
-    // don't trigger false multi-line accumulation (which would swallow
-    // following lines of real text).
-    //
-    // String state is tracked across lines: when a `#` comment line is
-    // encountered while inside a string literal, the `#` is treated as
-    // literal content, not a comment marker. This preserves `#` inside
-    // multi-line quoted strings.
-    //
-    // For lines that become empty after comment stripping (e.g. comment-only
-    // or whitespace-only lines), indentation is taken from the original raw
-    // line so that the parser sees the correct nesting level.
     let raw_lines: Vec<&str> = input.lines().collect();
 
-    let mut lines: Vec<Line> = Vec::new();
-    let mut i = 0;
-    while i < raw_lines.len() {
-        let start_idx = i;
-        // Preserve the indentation from the original raw line so that
-        // comment-only lines (which become empty after stripping) still
-        // report the correct indent level to the parser.
-        let first_indent = raw_lines[i].chars().take_while(|c| *c == ' ').count();
+    raw_lines
+        .iter()
+        .enumerate()
+        .map(|(i, raw)| {
+            let first_indent = raw.chars().take_while(|c| *c == ' ').count();
+            let stripped = strip_comment(raw).trim_end().to_string();
 
-        let (stripped, mut in_string) = strip_comment_with_state(raw_lines[i], false);
-        let mut combined = stripped.trim_end().to_string();
-        while !is_quote_balanced(&combined) && i + 1 < raw_lines.len() {
-            i += 1;
-            combined.push('\n');
-            let (stripped_line, new_in_string) = strip_comment_with_state(raw_lines[i], in_string);
-            combined.push_str(stripped_line.trim_end());
-            in_string = new_in_string;
-        }
+            // If the line became empty after comment stripping, preserve
+            // the original indentation so the parser sees the correct level.
+            let (indent, raw_content) = if stripped.is_empty() {
+                (first_indent, stripped.as_str())
+            } else {
+                strip_indent(&stripped)
+            };
+            let content = strip_comment(raw_content).trim_end().to_string();
 
-        let (indent, raw_content) = if combined.is_empty() {
-            // Line became empty after comment stripping — use original indent
-            (first_indent, combined.as_str())
-        } else {
-            strip_indent(&combined)
-        };
-        let content = strip_comment(raw_content).trim_end().to_string();
-
-        lines.push(Line {
-            indent,
-            content,
-            line_num: start_idx + 1,
-            col: indent + 1,
-        });
-        i += 1;
-    }
-
-    lines
-}
-
-/// Strip a `#` comment from a line, respecting quoted strings, and tracking
-/// whether the line ends while still inside a string literal. This allows
-/// callers to maintain string state across multiple line boundaries.
-///
-/// Returns the stripped line (as a slice of the input) and the final
-/// `in_string` state.
-fn strip_comment_with_state(line: &str, mut in_string: bool) -> (&str, bool) {
-    let mut escape = false;
-    for (i, c) in line.char_indices() {
-        if escape {
-            escape = false;
-            continue;
-        }
-        if in_string {
-            if c == '\\' {
-                escape = true;
-            } else if c == '"' {
-                in_string = false;
+            Line {
+                indent,
+                content,
+                line_num: i + 1,
+                col: indent + 1,
             }
-            continue;
-        }
-        if c == '"' {
-            in_string = true;
-        } else if c == '#' {
-            return (&line[..i], in_string);
-        }
-    }
-    (line, in_string)
-}
-
-/// Count quotes outside of escape sequences. Returns true if all quotes
-/// are balanced (even number of unescaped quotes).
-fn is_quote_balanced(s: &str) -> bool {
-    let mut quote_count = 0;
-    let mut chars = s.chars().peekable();
-    while let Some(c) = chars.next() {
-        if c == '\\' {
-            // Skip the next character (escape sequence)
-            chars.next();
-            continue;
-        }
-        if c == '"' {
-            quote_count += 1;
-        }
-    }
-    quote_count % 2 == 0
+        })
+        .collect()
 }
 
 /// Count leading spaces for indentation.

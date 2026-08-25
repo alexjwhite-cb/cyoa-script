@@ -1050,19 +1050,24 @@ story Test:
         StoryItem::EventDef(e) => e,
         _ => panic!("expected EventDef"),
     };
-    // The multi-line string should be a single TextContent item
+    // Without multi-line string accumulation, each line is a separate logical line.
+    // Paragraph joining combines them into one TextContent with spaces.
     assert_eq!(ev.text.len(), 1);
     let segments = &ev.text[0].segments;
-    // Should be a single literal segment containing newlines
-    assert_eq!(segments.len(), 1);
-    match &segments[0] {
-        TextSegment::Literal(s) => {
-            assert!(s.contains('\n'), "multi-line string should contain newline");
-            assert!(s.contains("first paragraph"));
-            assert!(s.contains("second paragraph"));
-        }
-        other => panic!("expected Literal, got {:?}", other),
-    }
+    let text: String = segments
+        .iter()
+        .map(|s| match s {
+            TextSegment::Literal(s) => s.as_str(),
+            TextSegment::StatRef(s) => s.as_str(),
+        })
+        .collect();
+    assert!(
+        !text.contains('\n'),
+        "paragraph joining should not preserve source newlines"
+    );
+    assert!(text.contains("first paragraph"));
+    assert!(text.contains("second paragraph"));
+    assert!(text.contains("same string"));
 }
 
 #[test]
@@ -1091,11 +1096,14 @@ story Test:
 
 #[test]
 fn test_parse_multiline_string_with_comment_inside() {
+    // Without multi-line string accumulation, each line is a separate logical line.
+    // A `#` on its own line is always treated as a comment, even if the previous
+    // line started a quoted string — this is the markdown-style behavior.
     let source = r#"
 story Test:
   event start:
     "Hello world
-    # this is not a comment, it is inside the string
+    # this is a comment (stripped)
     Goodbye"
 "#;
     let story = parse_story(source).unwrap();
@@ -1103,16 +1111,28 @@ story Test:
         StoryItem::EventDef(e) => e,
         _ => panic!("expected EventDef"),
     };
-    assert_eq!(ev.text.len(), 1);
-    let segments = &ev.text[0].segments;
-    match &segments[0] {
-        TextSegment::Literal(s) => {
-            assert!(s.contains("# this is not a comment"));
-            assert!(s.contains("Hello world"));
-            assert!(s.contains("Goodbye"));
-        }
-        other => panic!("expected Literal, got {:?}", other),
-    }
+    // Two paragraphs: "Hello world" and "Goodbye" (blank line from stripped comment)
+    assert_eq!(ev.text.len(), 2);
+    let text1: String = ev.text[0]
+        .segments
+        .iter()
+        .map(|s| match s {
+            TextSegment::Literal(s) => s.as_str(),
+            TextSegment::StatRef(s) => s.as_str(),
+        })
+        .collect();
+    let text2: String = ev.text[1]
+        .segments
+        .iter()
+        .map(|s| match s {
+            TextSegment::Literal(s) => s.as_str(),
+            TextSegment::StatRef(s) => s.as_str(),
+        })
+        .collect();
+    assert!(text1.contains("Hello world"));
+    assert!(!text1.contains("# this is a comment"));
+    assert!(text2.contains("Goodbye"));
+    assert!(!text2.contains("# this is a comment"));
 }
 
 #[test]

@@ -115,9 +115,12 @@ fn cmd_play(input: &str) {
     println!("{}", "| CYOA Interactive".bold());
 
     loop {
-        // Print current event text
+        // Print current event text (paragraphs separated by blank lines)
         let text = engine.current_event_text();
-        for line in &text {
+        for (i, line) in text.iter().enumerate() {
+            if i > 0 {
+                println!();
+            }
             println!("{}", line);
         }
 

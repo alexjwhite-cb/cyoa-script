@@ -340,10 +340,6 @@ event start:
   "Second paragraph."  # two distinct paragraphs
 ```
 
-**Quoted strings that span multiple source lines** (see §3.6 Events)
-are treated as a single text block and are **not** subject to paragraph joining —
-the newlines within the string are preserved.
-
 ### 3.11 Story Block
 
 The `story` block wraps all definitions:

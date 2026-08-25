@@ -469,22 +469,11 @@ event start:
   "Second paragraph."  # two distinct paragraphs
 ```
 
-### Multi-line Strings (Different from Paragraph Joining)
-
-A **single quoted string** that spans multiple source lines is treated as one
-text block — the newlines within the string are preserved as literal
-content, and paragraph joining does **not** apply inside it:
-
-```cyoa
-event start:
-  "This is line one.
-  This is line two.
-  They are in the same string."
-```
-
-This is distinct from paragraph joining: the above always renders as a single
-paragraph with embedded newlines, regardless of blank lines in the source
-(which are ignored inside a quoted string).
+All body text (event/effect/choice body) is treated as markdown: each source
+line is a separate logical line. Consecutive text lines (no blank line between
+them) are joined into a single paragraph by the parser. There is no multi-line
+string accumulation — a quoted string that spans multiple source lines is simply
+two separate text lines that get paragraph-joined.
 
 ---
 

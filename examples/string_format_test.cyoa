@@ -2,9 +2,9 @@ story test:
   stat three = 3
   event start:
     # Test 1
-    # Multi-line quoted string: newlines should be preserved in all bindings.
-    # CLI: each line on its own line (println preserves \n)
-    # JS: each line on its own line (pre-wrap CSS preserves \n)
+    # All body text is treated as markdown: each source line is a separate
+    # logical line. Consecutive lines are joined into one paragraph (space separator).
+    # Quotes in body text are preserved as literal characters.
     # Expected: "This a poem demonstrating how new lines work in three formats."
     "This a poem
     demonstrating how new lines work in three formats."
@@ -25,7 +25,7 @@ story test:
 
     # Test 4
     # Escaped quotes in unquoted text: \" produces a literal " character.
-    # The lines do NOT start/end with matching quotes, so no quote stripping.
+    # Quotes in body text are always preserved (not stripped).
     # \n produces a real newline in the output.
     # Expected: "But what if", you ask, "I wanted my string to start wrapped in double-quotes?"
     \"But what if", you ask,
@@ -33,10 +33,10 @@ story test:
     wrapped in double-quotes?"
 
     # Test 5
-    # Quoted text in a paragraph: quotes are stripped from each line.
-    # "Or I were to add" → Or I were to add
-    # "text" → text (quotes stripped, inner word has no quotes)
-    # a markdown stanza? → a markdown stanza? (bare unquoted)
+    # Quoted text in a paragraph: quotes are PRESERVED (not stripped) in body text.
+    # "Or I were to add" → "Or I were to add" (quotes preserved)
+    # "text" → "text" (quotes preserved)
+    # a markdown stanza? → a markdown stanza? (bare unquoted, no quotes)
     # Expected: "Or I were to add" "text" before the first line of a markdown stanza?
     "Or I were to add"
     "text" before the first line of
@@ -50,8 +50,8 @@ story test:
     # stanza where each line was new
     #
     # line separated?
-    # CLI should have preserved both new lines to delineate paragraphs, but
-    # currently only outputs one new line. JS works as expected.
+    # Both CLI and JS: blank lines between source stanzas produce separate
+    # paragraphs, displayed with a blank line between them.
     Or if I did a
 
     stanza where each line was new
