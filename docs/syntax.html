@@ -432,7 +432,7 @@ advanced patterns.</p>
 <ul>
 <li><strong>Indentation</strong>: 2 spaces (tabs are rejected).</li>
 <li><strong>Comments</strong>: Start with <code>#</code> and extend to end of line.</li>
-<li><strong>Quotes</strong>: Text strings may use double quotes or be unquoted. Escaped quotes (<code>\&quot;</code>) inside quoted text render as literal <code>&quot;</code>. Other supported escapes: <code>\\</code> → <code>\</code>, <code>\n</code> → newline, <code>\t</code> → tab, <code>\r</code> → carriage return.</li>
+<li><strong>Quotes</strong>: Text strings may use double quotes or be unquoted. Surrounding quotes are <strong>preserved</strong> in body text (event, effect, and choice bodies) and only stripped from choice labels (text after <code>choice</code>). Escaped quotes (<code>\&quot;</code>) render as literal <code>&quot;</code>. Other supported escapes (processed in both quoted and unquoted text): <code>\\</code> → <code>\</code>, <code>\n</code> → newline, <code>\t</code> → tab, <code>\r</code> → carriage return, <code>\s</code> → space.</li>
 </ul>
 <hr>
 <h2>Story Declaration</h2>
@@ -553,7 +553,7 @@ collisions are detected and reported as errors.</li>
 multiple choices using <code>uses</code>.</p>
 <pre><code class="language-cyoa">effect found_mushroom:
   + courage by 1
-  text &quot;You find a glowing mushroom. It hums softly.&quot;
+  You find a glowing mushroom. It hums softly.
 </code></pre>
 <h3>Effect Body Syntax</h3>
 <p>Inside an effect block (indented 4 spaces), you can use:</p>
@@ -585,19 +585,18 @@ multiple choices using <code>uses</code>.</p>
 <td>Add a runtime tag</td>
 </tr>
 <tr>
-<td><code>text &quot;string&quot;</code></td>
-<td>Text output to display</td>
+<td><code>&quot;string&quot;</code> or <code>string</code></td>
+<td>Text output (quotes preserved in body text)</td>
 </tr>
 <tr>
-<td><code>text &quot;string with {{templating}}&quot;</code></td>
+<td><code>&quot;string with {{templating}}&quot;</code></td>
 <td>Templated text output</td>
 </tr>
 </tbody></table>
-<p>You can also use unquoted text as shorthand for <code>text</code>:</p>
-<pre><code class="language-cyoa">effect found_mushroom:
-  + courage by 1
-  &quot;You find a glowing mushroom. It hums softly.&quot;  # equivalent to: text &quot;...&quot;
-</code></pre>
+<p>Text can be quoted (<code>&quot;...&quot;</code>) or bare (unquoted). In both cases, escape sequences
+are processed. Surrounding quotes are <strong>preserved</strong> in body text (event, effect,
+and choice bodies) — they are only stripped from choice labels (the text after
+the <code>choice</code> keyword).</p>
 <h3>Referencing Effects</h3>
 <p>Use <code>uses</code> in a choice to append an effect block:</p>
 <pre><code class="language-cyoa">choice &quot;Follow the trail&quot;:
@@ -618,8 +617,8 @@ tags, text, and choices.</p>
   tags: exploration, early_game     # optional event tags
 
   set visited_old_ruins to true    # optional inline effect (runs on entry)
-  &quot;You stand before ancient stone ruins.&quot;
-  &quot;A cold wind whispers from within.&quot;
+  You stand before ancient stone ruins.
+  A cold wind whispers from within.
 
   choice &quot;Enter the ruins&quot;:
     next river_crossing
@@ -668,7 +667,7 @@ tags, text, and choices.</p>
 choice) run automatically when the engine enters the event:</p>
 <pre><code class="language-cyoa">event old_ruins:
   set visited_old_ruins to true    # runs once on entry
-  &quot;You stand before ancient stone ruins.&quot;
+  You stand before ancient stone ruins.
 </code></pre>
 <p>This is useful for setting progress flags when the player reaches a location,
 regardless of which choice they made to get there.</p>
@@ -699,7 +698,7 @@ effects, reference reusable effects, and specify the next event.</p>
 <tr>
 <td>Inline effects</td>
 <td>No</td>
-<td><code>+/- stat</code>, <code>set flag</code>, <code>text</code>, <code>add tag</code></td>
+<td><code>+/- stat</code>, <code>set flag</code>, <code>add tag</code></td>
 </tr>
 <tr>
 <td><code>uses</code></td>
@@ -727,7 +726,7 @@ effects, reference reusable effects, and specify the next event.</p>
 <h3>Terminal Choices</h3>
 <p>A choice without <code>next</code> ends the story:</p>
 <pre><code class="language-cyoa">choice &quot;Rest forever&quot;:
-  &quot;You sit beneath the tree until the sun sets.&quot;
+  You sit beneath the tree until the sun sets.
   # no `next` — story ends
 </code></pre>
 <hr>
@@ -747,7 +746,7 @@ condition on the following indented lines:</p>
 <pre><code class="language-cyoa">event guarded_path:
   requires:
     courage &gt;= 5 AND gold &gt; 0
-  &quot;A guarded path lies ahead.&quot;
+  A guarded path lies ahead.
 </code></pre>
 <p>The same multi-line form works inside <code>choice</code> blocks:</p>
 <pre><code class="language-cyoa">choice &quot;Browse the stalls.&quot;:
@@ -819,7 +818,7 @@ use the bare flag name — it evaluates to true if the flag is currently set.</p
 syntax (double curly braces).</p>
 <h3>Basic Templating</h3>
 <pre><code class="language-cyoa">event tavern:
-  &quot;You have {{gold}} gold pieces to spend.&quot;
+  You have {{gold}} gold pieces to spend.
 </code></pre>
 <p>At runtime, <code>{{gold}}</code> is replaced with the current value of the <code>gold</code> stat.</p>
 <h3>Templated Choices</h3>
@@ -827,7 +826,7 @@ syntax (double curly braces).</p>
   requires: gold &gt;= 5
 </code></pre>
 <h3>Multiple Templates in One String</h3>
-<pre><code class="language-cyoa">&quot;You have {{gold}} gold pieces and {{hp}} HP remaining.&quot;
+<pre><code class="language-cyoa">You have {{gold}} gold pieces and {{hp}} HP remaining.
 </code></pre>
 <h3>Template Rules</h3>
 <ul>
@@ -856,13 +855,13 @@ line becomes distinct paragraphs.</li>
 text.</p>
 <p><strong>Example</strong> (using <code>forest_adventure.cyoa</code> style):</p>
 <pre><code class="language-cyoa">event start:
-  &quot;You stand beneath the bows of a dark and ancient forest. Before you&quot;
-  &quot;a partially tumbled down, thatch-roofed cottage and a track that may once have been&quot;
-  &quot;the beaten path, but is now partially concealed by stinging nettles,&quot;
-  &quot;gnarled roots, and leaf-litter.&quot;
+  You stand beneath the bows of a dark and ancient forest. Before you
+  a partially tumbled down, thatch-roofed cottage and a track that may once have been
+  the beaten path, but is now partially concealed by stinging nettles,
+  gnarled roots, and leaf-litter.
 
-  &quot;The faint glow of candlelight flickers can be seen through grimy iron wrought&quot;
-  &quot;windows, the only sign of habitation.&quot;
+  The faint glow of candlelight flickers can be seen through grimy iron wrought
+  windows, the only sign of habitation.
 
   choice &quot;Knock on the cottage door.&quot;:
     ...
@@ -871,24 +870,17 @@ text.</p>
 produce <strong>one</strong> paragraph. The blank line creates a paragraph break, so the two
 lines of the second paragraph produce a <strong>second</strong> paragraph.</p>
 <h3>Explicit Paragraph Separation</h3>
-<p>To deliberately create two separate paragraphs without a blank line, use an
-explicit <code>text</code> statement:</p>
+<p>To deliberately create two separate paragraphs, use a blank line between them:</p>
 <pre><code class="language-cyoa">event start:
-  text &quot;First paragraph.&quot;
-  text &quot;Second paragraph.&quot;  # two distinct paragraphs
+  First paragraph.
+
+  Second paragraph.  # two distinct paragraphs
 </code></pre>
-<h3>Multi-line Strings (Different from Paragraph Joining)</h3>
-<p>A <strong>single quoted string</strong> that spans multiple source lines is treated as one
-text block — the newlines within the string are preserved as literal
-content, and paragraph joining does <strong>not</strong> apply inside it:</p>
-<pre><code class="language-cyoa">event start:
-  &quot;This is line one.
-  This is line two.
-  They are in the same string.&quot;
-</code></pre>
-<p>This is distinct from paragraph joining: the above always renders as a single
-paragraph with embedded newlines, regardless of blank lines in the source
-(which are ignored inside a quoted string).</p>
+<p>All body text (event/effect/choice body) is treated as markdown: each source
+line is a separate logical line. Consecutive text lines (no blank line between
+them) are joined into a single paragraph by the parser. There is no multi-line
+string accumulation — a quoted string that spans multiple source lines is simply
+two separate text lines that get paragraph-joined.</p>
 <hr>
 <h2>Standard Library</h2>
 <h3><code>std/healing</code></h3>
@@ -925,7 +917,7 @@ story MyAdventure:
 
   effect found_treasure:
     + gold by 20
-    text &quot;You discover a cache of gold coins!&quot;
+    &quot;You discover a cache of gold coins!&quot;
     add treasure_hunter
 
   event start:
