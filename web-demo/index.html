@@ -486,6 +486,11 @@
             renderEvent(effects.effectText);
             renderStats();
           };
+          // Hover to preview effect text (tooltip) without mutating state
+          const preview = eng.previewChoiceEffects(i);
+          if (preview.length > 0) {
+            btn.title = preview.join('\n');
+          }
           els.choices.appendChild(btn);
         }
       }
