@@ -139,15 +139,6 @@ export class WasmEngine {
   };
 
   /**
-   * Preview the effect text from a choice without applying it (does not
-   * mutate state). Useful for showing tooltips before the player commits.
-   *
-   * @param choiceIndex 0-based index into the visible (prerequisite-filtered) choices.
-   * @returns Array of effect text strings (paragraphs already split).
-   */
-  previewChoiceEffects(choiceIndex: number): string[];
-
-  /**
    * Get the choice history as an array of:
    * ```json
    * [{ "eventId": "...", "choiceIndex": 0, "choiceText": "..." }]

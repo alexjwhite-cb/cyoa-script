@@ -465,56 +465,36 @@ handle, or <code>NULL</code> on failure.</li>
 <li><code>cyoa_destroy</code>: Destroy an engine. Passing <code>NULL</code> is a no-op.</li>
 </ul>
 <h3>Event queries</h3>
-<pre><code class="language-c">/* const char* = engine-owned, valid until next call */
-const char* cyoa_current_event_id(CyoaEngine* engine);
+<pre><code class="language-c">const char* cyoa_current_event_id(CyoaEngine* engine);
 const char* cyoa_current_event_text(CyoaEngine* engine);
 int         cyoa_current_choice_count(CyoaEngine* engine);
 const char* cyoa_choice_text(CyoaEngine* engine, int index);
-
-/* const uint8_t* = engine-owned, pointer+length (near-zero-copy) */
-const uint8_t* cyoa_current_event_id_bytes(CyoaEngine* engine, size_t* out_len);
-const uint8_t* cyoa_current_event_text_bytes(CyoaEngine* engine, size_t* out_len);
-const uint8_t* cyoa_choice_text_bytes(CyoaEngine* engine, int index, size_t* out_len);
 </code></pre>
 <ul>
 <li><code>cyoa_current_event_id</code>: Internal event ID (name). Engine-owned string.</li>
 <li><code>cyoa_current_event_text</code>: Event text paragraphs joined by <code>\n</code>. Engine-owned.</li>
 <li><code>cyoa_current_choice_count</code>: Number of visible choices.</li>
 <li><code>cyoa_choice_text</code>: Text of choice at <code>index</code>, or <code>NULL</code> if out of bounds.</li>
-<li><code>cyoa_*_bytes</code> variants: Same data but returned as <code>const uint8_t*</code> with an
-explicit <code>size_t* out_len</code>. The pointer is valid until the next API call on
-the same handle. Use these for single-copy marshalling (no NUL scan).</li>
 </ul>
 <h3>Make a choice</h3>
 <pre><code class="language-c">void cyoa_make_choice(CyoaEngine* engine, int index);
-const char* cyoa_last_effect_text(CyoaEngine* engine);  /* effect text from last choice */
-char*       cyoa_preview_choice_effects(CyoaEngine* engine, int choice_index);  /* JSON array, caller frees */
-const uint8_t* cyoa_last_effect_text_bytes(CyoaEngine* engine, size_t* out_len);
+const char* cyoa_last_effect_text(CyoaEngine* engine);
 </code></pre>
 <ul>
 <li><code>cyoa_make_choice</code>: Apply the player&#39;s choice at <code>index</code>. After this call,
 the engine has advanced to the next event.</li>
 <li><code>cyoa_last_effect_text</code>: Effect text from the most recent <code>make_choice</code> call.
 Multiple fragments joined by <code>\n</code>. Engine-owned.</li>
-<li><code>cyoa_preview_choice_effects</code>: Preview the effect text from a choice
-<strong>without applying it</strong> (no state mutation). Returns a heap-allocated JSON
-array string (e.g. <code>[&quot;effect text 1&quot;, &quot;effect text 2&quot;]</code>). <strong>Caller must free</strong>
-with <code>cyoa_free_string()</code>.</li>
-<li><code>cyoa_last_effect_text_bytes</code>: Same as <code>cyoa_last_effect_text</code> but with
-explicit length via <code>out_len</code>.</li>
 </ul>
 <h3>History</h3>
 <pre><code class="language-c">int cyoa_history_length(CyoaEngine* engine);
 const char* cyoa_history_entry(CyoaEngine* engine, int index);
-const uint8_t* cyoa_history_entry_bytes(CyoaEngine* engine, int index, size_t* out_len);
 </code></pre>
 <ul>
 <li><code>cyoa_history_length</code>: Number of entries in the choice history.</li>
 <li><code>cyoa_history_entry</code>: JSON string for one entry:
 <code>{&quot;eventId&quot;:&quot;...&quot;,&quot;choiceIndex&quot;:N,&quot;choiceText&quot;:&quot;...&quot;}</code>. Returns <code>NULL</code> if
 <code>index</code> is out of bounds. Engine-owned.</li>
-<li><code>cyoa_history_entry_bytes</code>: Same data as bytes with explicit length. Returns
-<code>NULL</code> with <code>*out_len = 0</code> if <code>index</code> is out of bounds.</li>
 </ul>
 <h3>State management</h3>
 <pre><code class="language-c">char* cyoa_get_state_json(CyoaEngine* engine);
@@ -756,11 +736,6 @@ engine.SetStateJson(saveJson);
 <td>Apply a choice</td>
 </tr>
 <tr>
-<td><code>PreviewChoiceEffects(int index)</code></td>
-<td><code>string[]</code></td>
-<td>Preview effect text without applying (for tooltips)</td>
-</tr>
-<tr>
 <td><code>LastEffectText</code></td>
 <td><code>string</code></td>
 <td>Effect text from last choice</td>
@@ -837,13 +812,6 @@ engine.SetStateJson(saveJson);
 </tr>
 </tbody></table>
 <p>Unity integration guide: <a href="https://github.com/alexjwhite-cb/cyoa-script/blob/main/../bindings/csharp/README.md" target="_blank"><code>bindings/csharp/README.md</code></a></p>
-<h3>String marshalling (near-zero-copy)</h3>
-<p>The C# wrapper automatically uses the <code>*_bytes</code> C-ABI functions for
-high-frequency string returns. Instead of the C-ABI&#39;s <code>CString</code> scratch buffer,
-a multi-slot <code>StringPool</code> returns pointer+length pairs. The C# wrapper uses
-<code>StringMarshal.PtrToStringUtf8(ptr, byteLen)</code> — a single <code>Marshal.Copy</code> with a
-known length, avoiding the NUL-scan overhead of <code>PtrToUtf8String</code>.</p>
-<p><strong>Unity integration guide:</strong> <a href="https://github.com/alexjwhite-cb/cyoa-script/blob/main/../bindings/csharp/README.md" target="_blank"><code>bindings/csharp/README.md</code></a></p>
 <hr>
 <h2>C# (Godot) Wrapper</h2>
 <p>The C# wrapper (<code>bindings/godot/csharp/CyoaEngine.cs</code>) uses <code>DllImport</code> to
@@ -866,8 +834,6 @@ StoryInfo[] fantasy = catalog.StoriesWithTag(&quot;fantasy&quot;);
 </code></pre>
 <p>See <a href="https://github.com/alexjwhite-cb/cyoa-script/blob/main/../bindings/godot/README.md" target="_blank"><code>bindings/godot/README.md</code></a> for the full
 Godot integration guide and GDScript API.</p>
-<p>The GDScript wrapper delegates to the C# class, so it automatically benefits
-from the near-zero-copy string marshalling described above.</p>
 
       </article>
     </main>
