@@ -179,6 +179,19 @@ const result = engine.makeChoice(0);
 // → { effectText: ["You find a glowing mushroom. It hums softly."], gameStateChanged: true }
 ```
 
+#### `previewChoiceEffects(choiceIndex: number): string[]`
+
+Preview the effect text from a choice **without applying it** (does not mutate
+state). Useful for showing tooltips before the player commits.
+
+The `choiceIndex` references visible choices (prerequisites already filtered),
+same indexing as `makeChoice`.
+
+```typescript
+const effects = engine.previewChoiceEffects(0);
+// → ["You find a glowing mushroom. It hums softly."]
+```
+
 #### `getHistory(): { eventId: string; choiceIndex: number; choiceText: string }[]`
 
 Get the choice history as an array of objects. Useful for UI display,
@@ -358,6 +371,7 @@ export class WasmEngine {
   currentEventId(): string;
   getCurrentEvent(): { id: string; text: string[]; choices: string[] };
   makeChoice(choiceIndex: number): { effectText: string[]; gameStateChanged: boolean };
+  previewChoiceEffects(choiceIndex: number): string[];
   getHistory(): Array<{ eventId: string; choiceIndex: number; choiceText: string }>;
   getStateJson(): string;
   setStateJson(json: string): void;

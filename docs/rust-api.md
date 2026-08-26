@@ -50,6 +50,9 @@ for (i, choice) in choices.iter().enumerate() {
 
 ```rust
 engine.make_choice(index: i32) -> Vec<String>   // effect text from the choice
+
+// Preview effect text without applying the choice (no state mutation)
+engine.preview_choice_effects(choice_index: i32) -> Vec<String>
 ```
 
 **Example**:
@@ -57,6 +60,12 @@ engine.make_choice(index: i32) -> Vec<String>   // effect text from the choice
 let effects = engine.make_choice(0);
 for text in effects {
     println!("{}", text);
+}
+
+// Preview without committing
+let preview = engine.preview_choice_effects(0);
+for text in &preview {
+    println!("Would trigger: {}", text);
 }
 ```
 

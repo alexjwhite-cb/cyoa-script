@@ -517,6 +517,10 @@ engine.makeChoice(choiceIndex: number): {
   gameStateChanged: boolean;
 };
 
+engine.previewChoiceEffects(choiceIndex: number): string[];
+  // Preview effect text from a choice WITHOUT applying it (no state mutation).
+  // Useful for tooltips / hover previews before the player commits.
+
 engine.getHistory(): { eventId: string; choiceIndex: number; choiceText: string }[];
 
 engine.getStateJson(): string;      // full state as JSON (for save files)
@@ -579,13 +583,23 @@ const char* cyoa_current_event_text(CyoaEngine* engine);  /* paragraphs joined b
 int         cyoa_current_choice_count(CyoaEngine* engine);
 const char* cyoa_choice_text(CyoaEngine* engine, int index);  /* NULL if OOB */
 
+/* Near-zero-copy byte-length variants (const uint8_t* = engine-owned, pointer+length) */
+const uint8_t* cyoa_current_event_id_bytes(CyoaEngine* engine, size_t* out_len);
+const uint8_t* cyoa_current_event_text_bytes(CyoaEngine* engine, size_t* out_len);
+const uint8_t* cyoa_choice_text_bytes(CyoaEngine* engine, int index, size_t* out_len);
+
 /* Make a choice */
 void cyoa_make_choice(CyoaEngine* engine, int index);
 const char* cyoa_last_effect_text(CyoaEngine* engine);  /* effect text from last choice */
 
+/* Preview effect text without applying a choice (const char* = heap-allocated, caller must free) */
+char* cyoa_preview_choice_effects(CyoaEngine* engine, int choice_index);  /* JSON array */
+const uint8_t* cyoa_last_effect_text_bytes(CyoaEngine* engine, size_t* out_len);
+
 /* Choice history */
 int cyoa_history_length(CyoaEngine* engine);
 const char* cyoa_history_entry(CyoaEngine* engine, int index);  /* JSON or NULL */
+const uint8_t* cyoa_history_entry_bytes(CyoaEngine* engine, int index, size_t* out_len);
 
 /* State management (char* = heap-allocated, caller must free) */
 char* cyoa_get_state_json(CyoaEngine* engine);

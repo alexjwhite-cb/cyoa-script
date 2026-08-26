@@ -286,6 +286,19 @@ impl WasmEngine {
         serde_wasm_bindgen::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
+    /// Preview the effect text from a choice without applying it (for tooltips).
+    ///
+    /// `choiceIndex` is 0-based, referencing only choices visible to the player
+    /// (prerequisites are already filtered).
+    ///
+    /// This is a read-only operation — stats, flags, and cursor position are
+    /// not modified. Use it to display effect text as a tooltip before the
+    /// player commits to a choice.
+    #[wasm_bindgen(js_name = previewChoiceEffects)]
+    pub fn preview_choice_effects(&self, choice_index: i32) -> Vec<String> {
+        self.engine.preview_choice_effects(choice_index)
+    }
+
     /// Get the choice history as an array of `{ eventId, choiceIndex, choiceText }`.
     #[wasm_bindgen(js_name = getHistory)]
     pub fn get_history(&self) -> Result<JsValue, JsValue> {

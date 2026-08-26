@@ -122,9 +122,25 @@ impl Engine {
     /// Get the current event's available choices (templates rendered).
     /// Choices with unmet prerequisites are excluded.
     pub fn current_choices(&self) -> Vec<String> {
-        let event = match self.bytecode.events.get(self.cursor.current_event as usize) {
-            Some(e) => e,
-            None => return vec![],
+        let accessible = self.accessible_choice_indices();
+        let mut result = Vec::with_capacity(accessible.len());
+        for choice_idx in accessible {
+            let raw_text = self
+                .bytecode
+                .string_at(self.bytecode.choices[choice_idx].text);
+            let rendered = self.render_template(raw_text);
+            result.push(rendered);
+        }
+        result
+    }
+
+    /// Helper: return indices into `self.bytecode.choices` for all choices
+    /// whose prerequisites are met (i.e., the choices visible to the player).
+    /// Reused by `current_choices`, `make_choice`, and `preview_choice_effects`.
+    fn accessible_choice_indices(&self) -> Vec<usize> {
+        let event_idx = self.cursor.current_event as usize;
+        let Some(event) = self.bytecode.events.get(event_idx) else {
+            return Vec::new();
         };
 
         let mut result = Vec::new();
@@ -134,19 +150,64 @@ impl Engine {
                 continue;
             };
 
-            // Check prerequisites
             if choice.requires != 0 {
                 let cond_str = self.bytecode.string_at(choice.requires);
                 if !self.evaluate_condition(cond_str) {
                     continue;
                 }
             }
-
-            let raw_text = self.bytecode.string_at(choice.text);
-            let rendered = self.render_template(raw_text);
-            result.push(rendered);
+            result.push(choice_idx);
         }
         result
+    }
+
+    /// Preview the effect text from a choice without mutating state.
+    ///
+    /// Collects text produced by `GetText`/`RenderTemplate` opcodes in the
+    /// choice's inline effects and referenced `uses` effects, while skipping
+    /// all state-mutating opcodes (`ChangeStat`, `SetFlag`, `ClearFlag`,
+    /// `AddTag`). The index references only choices visible to the player
+    /// (prerequisites are already filtered).
+    ///
+    /// This is a read-only operation — stats, flags, and cursor position are
+    /// not modified. Use it to display effect text as a tooltip before the
+    /// player commits to a choice.
+    pub fn preview_choice_effects(&self, choice_index: i32) -> Vec<String> {
+        let accessible = self.accessible_choice_indices();
+
+        let Some(&actual_idx) = accessible.get(choice_index as usize) else {
+            return Vec::new();
+        };
+        let Some(choice) = self.bytecode.choices.get(actual_idx) else {
+            return Vec::new();
+        };
+
+        let mut effect_texts = Vec::new();
+
+        // Collect text from inline effect steps (no state mutation)
+        effect_texts.extend(self.execute_text_range(choice.step_start, choice.step_len));
+
+        // Collect text from referenced effects (`uses`)
+        if choice.use_len > 0 {
+            let uses_str = self.bytecode.string_at(choice.use_start).to_string();
+            for name in uses_str.split(',') {
+                let name = name.trim();
+                if name.is_empty() {
+                    continue;
+                }
+                let effect_range = self
+                    .bytecode
+                    .effects
+                    .iter()
+                    .find(|e| self.bytecode.string_at(e.name) == name)
+                    .map(|e| (e.inst_start, e.inst_len));
+                if let Some((start, len)) = effect_range {
+                    effect_texts.extend(self.execute_text_range(start, len));
+                }
+            }
+        }
+
+        effect_texts
     }
 
     /// Make a choice at the given index.
@@ -161,21 +222,7 @@ impl Engine {
         };
 
         // Collect accessible choices (filtering by prerequisites)
-        let mut accessible: Vec<usize> = Vec::new();
-        for i in 0..event.choice_len {
-            let choice_idx = (event.choice_start + i) as usize;
-            let Some(choice) = self.bytecode.choices.get(choice_idx) else {
-                continue;
-            };
-
-            if choice.requires != 0 {
-                let cond_str = self.bytecode.string_at(choice.requires);
-                if !self.evaluate_condition(cond_str) {
-                    continue;
-                }
-            }
-            accessible.push(choice_idx);
-        }
+        let accessible = self.accessible_choice_indices();
 
         let Some(&actual_idx) = accessible.get(choice_index as usize) else {
             return effect_texts;

@@ -976,3 +976,178 @@ story NoTags:
     let matched = catalog.stories_with_any_tags(&["anything"]);
     assert!(matched.is_empty());
 }
+
+// ===== Effect text preview tests =====
+
+#[test]
+fn test_engine_preview_choice_effects_returns_text() {
+    let bc = compile(
+        r#"
+story T:
+  stat hp = 0
+  effect found_mushroom:
+    + courage by 1
+    "You find a glowing mushroom."
+
+  event start:
+    "Start"
+    choice "Heal" uses found_mushroom:
+      + hp by 20
+      "You drink a potion."
+      next end
+  event end:
+    "End"
+"#,
+    );
+    let engine = Engine::new(bc);
+
+    // Preview should return effect text without advancing
+    let preview = engine.preview_choice_effects(0);
+    assert_eq!(preview.len(), 2);
+    assert!(preview.contains(&"\"You drink a potion.\"".to_string()));
+    assert!(preview.contains(&"\"You find a glowing mushroom.\"".to_string()));
+
+    // Engine should still be at "start" — no advancement
+    assert_eq!(engine.current_event_id(), "start");
+}
+
+#[test]
+fn test_engine_preview_choice_effects_no_mutation() {
+    let bc = compile(
+        r#"
+story T:
+  stat courage = 0
+  stat gold = 0
+  effect found_mushroom:
+    + courage by 1
+    "You find a glowing mushroom."
+
+  event start:
+    "Start"
+    choice "Take mushroom" uses found_mushroom:
+      - gold by 3
+      "You take the mushroom."
+      next end
+  event end:
+    "End"
+"#,
+    );
+    let engine = Engine::new(bc);
+
+    // Stats before preview
+    assert_eq!(engine.get_stat("courage"), 0);
+    assert_eq!(engine.get_stat("gold"), 0);
+    assert!(engine.list_flags().is_empty());
+    assert!(engine.list_tags().is_empty());
+
+    // Preview the choice — text should be returned
+    let preview = engine.preview_choice_effects(0);
+    assert!(preview.contains(&"\"You take the mushroom.\"".to_string()));
+    assert!(preview.contains(&"\"You find a glowing mushroom.\"".to_string()));
+
+    // State should be completely unchanged — no mutation
+    assert_eq!(engine.get_stat("courage"), 0);
+    assert_eq!(engine.get_stat("gold"), 0);
+    assert!(engine.list_flags().is_empty());
+    assert!(engine.list_tags().is_empty());
+
+    // Event should not have advanced
+    assert_eq!(engine.current_event_id(), "start");
+    assert!(!engine.is_story_complete());
+}
+
+#[test]
+fn test_engine_preview_choice_effects_filters_prerequisites() {
+    let bc = compile(
+        r#"
+story T:
+  stat courage = 0
+  effect found_mushroom:
+    + courage by 1
+    "You find a glowing mushroom."
+
+  event start:
+    "Choose:"
+    choice "Attack" requires: courage >= 10:
+      + courage by 5
+      "You attack!"
+      next end
+    choice "Run":
+      next end
+  event end:
+    "End"
+"#,
+    );
+    let engine = Engine::new(bc.clone());
+
+    // courage = 0, so "Attack" (index 0) is hidden; "Run" is index 0 of visible
+    // Previewing index 0 should show the Run choice (which has no effect text)
+    let preview = engine.preview_choice_effects(0);
+    assert!(preview.is_empty(), "Run choice has no effect text");
+
+    // Out of bounds preview returns empty
+    let preview_oob = engine.preview_choice_effects(5);
+    assert!(preview_oob.is_empty());
+
+    // Use a fresh engine to test the visible-choice index mapping
+    let engine2 = Engine::new(bc);
+    let preview_run = engine2.preview_choice_effects(0);
+    assert!(preview_run.is_empty()); // Run has no effect text
+}
+
+#[test]
+fn test_engine_preview_choice_effects_with_template() {
+    let bc = compile(
+        r#"
+story T:
+  stat gold = 50
+  event start:
+    "Start"
+    choice "Buy potion (50 gold)":
+      - gold by 50
+      "You spend {{gold}} gold on a potion."
+      + gold by 0
+      next end
+  event end:
+    "End"
+"#,
+    );
+    let engine = Engine::new(bc);
+
+    // Template should be rendered with current stat value (50)
+    let preview = engine.preview_choice_effects(0);
+    assert!(
+        preview.iter().any(|t| t.contains("50")),
+        "preview should contain rendered template with gold=50"
+    );
+
+    // State unchanged after preview
+    assert_eq!(engine.get_stat("gold"), 50);
+}
+
+#[test]
+fn test_engine_preview_choice_effects_terminal_choice() {
+    let bc = compile(
+        r#"
+story T:
+  stat hp = 50
+  event start:
+    "Start"
+    choice "End story":
+      + hp by 10
+      "You feel empowered."
+  event after_end:
+    "This should not be reachable"
+"#,
+    );
+    let engine = Engine::new(bc);
+
+    // Preview a terminal choice (no `next`)
+    let preview = engine.preview_choice_effects(0);
+    assert!(preview.contains(&"\"You feel empowered.\"".to_string()));
+
+    // Engine should not have advanced or completed
+    assert!(!engine.is_story_complete());
+    assert_eq!(engine.current_event_id(), "start");
+    assert_eq!(engine.get_stat("hp"), 50);
+}

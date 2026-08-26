@@ -43,7 +43,7 @@ namespace Cyoa.Godot
         [DllImport(DLL_NAME)]
         public static extern void cyoa_destroy(IntPtr engine);
 
-        // Event queries
+        // Event queries (engine-owned, NUL-terminated)
         [DllImport(DLL_NAME)]
         public static extern IntPtr cyoa_current_event_id(IntPtr engine);
 
@@ -56,12 +56,31 @@ namespace Cyoa.Godot
         [DllImport(DLL_NAME)]
         public static extern IntPtr cyoa_choice_text(IntPtr engine, int index);
 
+        // Event queries (near-zero-copy: pointer + length)
+        [DllImport(DLL_NAME)]
+        public static extern IntPtr cyoa_current_event_id_bytes(IntPtr engine, out UIntPtr out_len);
+
+        [DllImport(DLL_NAME)]
+        public static extern IntPtr cyoa_current_event_text_bytes(IntPtr engine, out UIntPtr out_len);
+
+        [DllImport(DLL_NAME)]
+        public static extern IntPtr cyoa_choice_text_bytes(IntPtr engine, int index, out UIntPtr out_len);
+
         // Make a choice
         [DllImport(DLL_NAME)]
         public static extern void cyoa_make_choice(IntPtr engine, int index);
 
+        // Effect text (engine-owned, NUL-terminated)
         [DllImport(DLL_NAME)]
         public static extern IntPtr cyoa_last_effect_text(IntPtr engine);
+
+        // Effect text (near-zero-copy)
+        [DllImport(DLL_NAME)]
+        public static extern IntPtr cyoa_last_effect_text_bytes(IntPtr engine, out UIntPtr out_len);
+
+        // Choice effect preview (heap-allocated JSON array, caller must free)
+        [DllImport(DLL_NAME)]
+        public static extern IntPtr cyoa_preview_choice_effects(IntPtr engine, int choice_index);
 
         // Choice history
         [DllImport(DLL_NAME)]
@@ -69,6 +88,10 @@ namespace Cyoa.Godot
 
         [DllImport(DLL_NAME)]
         public static extern IntPtr cyoa_history_entry(IntPtr engine, int index);
+
+        // Choice history (near-zero-copy)
+        [DllImport(DLL_NAME)]
+        public static extern IntPtr cyoa_history_entry_bytes(IntPtr engine, int index, out UIntPtr out_len);
 
         // State management
         [DllImport(DLL_NAME)]
@@ -142,12 +165,15 @@ namespace Cyoa.Godot
 
     internal static class StringMarshal
     {
+        /// <summary>
+        /// Read a NUL-terminated UTF-8 string from an unmanaged pointer.
+        /// Uses a NUL scan — slower than <see cref="PtrToStringUtf8"/>.
+        /// </summary>
         public static string? PtrToUtf8String(IntPtr ptr)
         {
             if (ptr == IntPtr.Zero)
                 return null;
 
-            // Find the length by scanning for NUL
             int len = 0;
             while (Marshal.ReadByte(ptr, len) != 0)
                 len++;
@@ -157,6 +183,20 @@ namespace Cyoa.Godot
 
             byte[] bytes = new byte[len];
             Marshal.Copy(ptr, bytes, 0, len);
+            return Encoding.UTF8.GetString(bytes);
+        }
+
+        /// <summary>
+        /// Read a UTF-8 string from an unmanaged pointer using an explicit length.
+        /// No NUL scan needed — single Marshal.Copy call.
+        /// </summary>
+        public static string PtrToStringUtf8(IntPtr ptr, int byteLen)
+        {
+            if (ptr == IntPtr.Zero || byteLen == 0)
+                return string.Empty;
+
+            byte[] bytes = new byte[byteLen];
+            Marshal.Copy(ptr, bytes, 0, byteLen);
             return Encoding.UTF8.GetString(bytes);
         }
 
@@ -526,16 +566,34 @@ namespace Cyoa.Godot
 
         // ── Event queries ───────────────────────────────────────────────────
 
-        public string CurrentEventId =>
-            StringMarshal.PtrToUtf8String(Native.cyoa_current_event_id(handle)) ?? "";
+        public string CurrentEventId
+        {
+            get
+            {
+                UIntPtr len;
+                IntPtr ptr = Native.cyoa_current_event_id_bytes(handle, out len);
+                return StringMarshal.PtrToStringUtf8(ptr, (int)len);
+            }
+        }
 
-        public string CurrentEventText =>
-            StringMarshal.PtrToUtf8String(Native.cyoa_current_event_text(handle)) ?? "";
+        public string CurrentEventText
+        {
+            get
+            {
+                UIntPtr len;
+                IntPtr ptr = Native.cyoa_current_event_text_bytes(handle, out len);
+                return StringMarshal.PtrToStringUtf8(ptr, (int)len);
+            }
+        }
 
         public int ChoiceCount => Native.cyoa_current_choice_count(handle);
 
-        public string? GetChoiceText(int index) =>
-            StringMarshal.PtrToUtf8String(Native.cyoa_choice_text(handle, index));
+        public string? GetChoiceText(int index)
+        {
+            UIntPtr len;
+            IntPtr ptr = Native.cyoa_choice_text_bytes(handle, index, out len);
+            return ptr == IntPtr.Zero ? null : StringMarshal.PtrToStringUtf8(ptr, (int)len);
+        }
 
         public string[] CurrentChoices
         {
@@ -558,8 +616,28 @@ namespace Cyoa.Godot
             Native.cyoa_make_choice(handle, index);
         }
 
-        public string LastEffectText =>
-            StringMarshal.PtrToUtf8String(Native.cyoa_last_effect_text(handle)) ?? "";
+        public string LastEffectText
+        {
+            get
+            {
+                UIntPtr len;
+                IntPtr ptr = Native.cyoa_last_effect_text_bytes(handle, out len);
+                return StringMarshal.PtrToStringUtf8(ptr, (int)len);
+            }
+        }
+
+        // ── Choice effect preview (non-mutating) ────────────────────────────────
+
+        /// <summary>
+        /// Preview the effect text from a choice without applying it.
+        /// Returns an array of effect text strings (for tooltip display).
+        /// </summary>
+        public string[] PreviewChoiceEffects(int index)
+        {
+            IntPtr ptr = Native.cyoa_preview_choice_effects(handle, index);
+            string? json = StringMarshal.ReadAndFree(ptr);
+            return ParseStringArray(json);
+        }
 
         // ── Choice history ──────────────────────────────────────────────────
 
@@ -567,9 +645,10 @@ namespace Cyoa.Godot
 
         public ChoiceHistoryEntry? GetHistoryEntry(int index)
         {
-            IntPtr ptr = Native.cyoa_history_entry(handle, index);
-            string? json = StringMarshal.PtrToUtf8String(ptr);
-            if (json == null) return null;
+            UIntPtr len;
+            IntPtr ptr = Native.cyoa_history_entry_bytes(handle, index, out len);
+            if (ptr == IntPtr.Zero) return null;
+            string json = StringMarshal.PtrToStringUtf8(ptr, (int)len);
             return ParseHistoryEntry(json);
         }
 

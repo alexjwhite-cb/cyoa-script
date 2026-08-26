@@ -48,7 +48,11 @@ stories at runtime (e.g., random event systems).
   game engine handles cross-story coordination (e.g., passing gold between quests).
 - **Zero-copy text** — the VM reads text directly from bytecode memory; no
   allocation on the hot path (WASM returns `Uint8Array` views, native returns
-  `const char*` into engine-owned buffers).
+  `const char*` into engine-owned buffers). Near-zero-copy via `*_bytes` C-ABI
+  functions and `StringMarshal.PtrToStringUtf8` in C# wrappers.
+- **Preview before commit** — `previewChoiceEffects` / `preview_choice_effects`
+  / `cyoa_preview_choice_effects` lets callers see effect text as a tooltip before
+  applying a choice, without mutating state.
 - **Declarative DSL** — writers describe "what exists" (events, choices,
   effects) rather than imperative control flow.
 

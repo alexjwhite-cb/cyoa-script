@@ -56,7 +56,7 @@ namespace Cyoa
         [DllImport(DLL_NAME)]
         public static extern void cyoa_destroy(IntPtr engine);
 
-        // Event queries
+        // Event queries (engine-owned, NUL-terminated)
         [DllImport(DLL_NAME)]
         public static extern IntPtr cyoa_current_event_id(IntPtr engine);
 
@@ -69,12 +69,31 @@ namespace Cyoa
         [DllImport(DLL_NAME)]
         public static extern IntPtr cyoa_choice_text(IntPtr engine, int index);
 
+        // Event queries (near-zero-copy: pointer + length)
+        [DllImport(DLL_NAME)]
+        public static extern IntPtr cyoa_current_event_id_bytes(IntPtr engine, out UIntPtr out_len);
+
+        [DllImport(DLL_NAME)]
+        public static extern IntPtr cyoa_current_event_text_bytes(IntPtr engine, out UIntPtr out_len);
+
+        [DllImport(DLL_NAME)]
+        public static extern IntPtr cyoa_choice_text_bytes(IntPtr engine, int index, out UIntPtr out_len);
+
         // Make a choice
         [DllImport(DLL_NAME)]
         public static extern void cyoa_make_choice(IntPtr engine, int index);
 
+        // Effect text (engine-owned, NUL-terminated)
         [DllImport(DLL_NAME)]
         public static extern IntPtr cyoa_last_effect_text(IntPtr engine);
+
+        // Effect text (near-zero-copy: pointer + length)
+        [DllImport(DLL_NAME)]
+        public static extern IntPtr cyoa_last_effect_text_bytes(IntPtr engine, out UIntPtr out_len);
+
+        // Choice effect preview (heap-allocated JSON array, caller must free)
+        [DllImport(DLL_NAME)]
+        public static extern IntPtr cyoa_preview_choice_effects(IntPtr engine, int choice_index);
 
         // Choice history
         [DllImport(DLL_NAME)]
@@ -82,6 +101,10 @@ namespace Cyoa
 
         [DllImport(DLL_NAME)]
         public static extern IntPtr cyoa_history_entry(IntPtr engine, int index);
+
+        // Choice history (near-zero-copy)
+        [DllImport(DLL_NAME)]
+        public static extern IntPtr cyoa_history_entry_bytes(IntPtr engine, int index, out UIntPtr out_len);
 
         // State management
         [DllImport(DLL_NAME)]
@@ -157,6 +180,7 @@ namespace Cyoa
     {
         /// <summary>
         /// Read a NUL-terminated UTF-8 string from an unmanaged pointer.
+        /// Uses a NUL scan to find the length — slower than <see cref="PtrToStringUtf8"/>.
         /// Returns null if the pointer is zero.
         /// </summary>
         public static string? PtrToUtf8String(IntPtr ptr)
@@ -174,6 +198,22 @@ namespace Cyoa
 
             byte[] bytes = new byte[len];
             Marshal.Copy(ptr, bytes, 0, len);
+            return Encoding.UTF8.GetString(bytes);
+        }
+
+        /// <summary>
+        /// Read a UTF-8 string from an unmanaged pointer using an explicit length.
+        /// Uses a single Marshal.Copy with the known length — no NUL scan needed,
+        /// which is faster than <see cref="PtrToUtf8String"/> for callers that
+        /// receive a `*_bytes` function with an out_len parameter.
+        /// </summary>
+        public static string PtrToStringUtf8(IntPtr ptr, int byteLen)
+        {
+            if (ptr == IntPtr.Zero || byteLen == 0)
+                return string.Empty;
+
+            byte[] bytes = new byte[byteLen];
+            Marshal.Copy(ptr, bytes, 0, byteLen);
             return Encoding.UTF8.GetString(bytes);
         }
 
@@ -552,15 +592,31 @@ namespace Cyoa
 
         /// <summary>
         /// Current event's internal ID (name).
+        /// Uses near-zero-copy marshalling (no NUL scan on the C# side).
         /// </summary>
-        public string CurrentEventId =>
-            StringMarshal.PtrToUtf8String(Native.cyoa_current_event_id(handle)) ?? "";
+        public string CurrentEventId
+        {
+            get
+            {
+                UIntPtr len;
+                IntPtr ptr = Native.cyoa_current_event_id_bytes(handle, out len);
+                return StringMarshal.PtrToStringUtf8(ptr, (int)len);
+            }
+        }
 
         /// <summary>
         /// Current event text — paragraphs joined by newlines.
+        /// Uses near-zero-copy marshalling (no NUL scan on the C# side).
         /// </summary>
-        public string CurrentEventText =>
-            StringMarshal.PtrToUtf8String(Native.cyoa_current_event_text(handle)) ?? "";
+        public string CurrentEventText
+        {
+            get
+            {
+                UIntPtr len;
+                IntPtr ptr = Native.cyoa_current_event_text_bytes(handle, out len);
+                return StringMarshal.PtrToStringUtf8(ptr, (int)len);
+            }
+        }
 
         /// <summary>
         /// Number of currently available choices.
@@ -570,9 +626,14 @@ namespace Cyoa
         /// <summary>
         /// Get the text of a choice at the given index.
         /// Returns null if index is out of bounds.
+        /// Uses near-zero-copy marshalling (no NUL scan on the C# side).
         /// </summary>
-        public string? GetChoiceText(int index) =>
-            StringMarshal.PtrToUtf8String(Native.cyoa_choice_text(handle, index));
+        public string? GetChoiceText(int index)
+        {
+            UIntPtr len;
+            IntPtr ptr = Native.cyoa_choice_text_bytes(handle, index, out len);
+            return ptr == IntPtr.Zero ? null : StringMarshal.PtrToStringUtf8(ptr, (int)len);
+        }
 
         /// <summary>
         /// Get all current choices as an array.
@@ -603,11 +664,38 @@ namespace Cyoa
         }
 
         /// <summary>
-        /// Effect text from the most recent <see cref="MakeChoice"/> call.
+        /// Effect text from the most recent <see cref="MakeChoice"/>.
         /// Multiple effect texts are joined by newlines.
+        /// Uses near-zero-copy marshalling (no NUL scan on the C# side).
         /// </summary>
-        public string LastEffectText =>
-            StringMarshal.PtrToUtf8String(Native.cyoa_last_effect_text(handle)) ?? "";
+        public string LastEffectText
+        {
+            get
+            {
+                UIntPtr len;
+                IntPtr ptr = Native.cyoa_last_effect_text_bytes(handle, out len);
+                return StringMarshal.PtrToStringUtf8(ptr, (int)len);
+            }
+        }
+
+        // ── Choice effect preview (non-mutating) ────────────────────────────────
+
+        /// <summary>
+        /// Preview the effect text from a choice without applying it.
+        /// Returns an array of effect text strings (for tooltip display).
+        ///
+        /// <paramref name="index"/> is 0-based, referencing only choices visible
+        /// to the player (prerequisites are already filtered).
+        ///
+        /// This is a read-only operation — stats, flags, and cursor position
+        /// are not modified.
+        /// </summary>
+        public string[] PreviewChoiceEffects(int index)
+        {
+            IntPtr ptr = Native.cyoa_preview_choice_effects(handle, index);
+            string? json = StringMarshal.ReadAndFree(ptr);
+            return ParseStringArray(json);
+        }
 
         // ── Choice history ──────────────────────────────────────────────────
 
@@ -619,12 +707,14 @@ namespace Cyoa
         /// <summary>
         /// Get a history entry at the given index.
         /// Returns null if the index is out of bounds.
+        /// Uses near-zero-copy marshalling (no NUL scan on the C# side).
         /// </summary>
         public ChoiceHistoryEntry? GetHistoryEntry(int index)
         {
-            IntPtr ptr = Native.cyoa_history_entry(handle, index);
-            string? json = StringMarshal.PtrToUtf8String(ptr);
-            if (json == null) return null;
+            UIntPtr len;
+            IntPtr ptr = Native.cyoa_history_entry_bytes(handle, index, out len);
+            if (ptr == IntPtr.Zero) return null;
+            string json = StringMarshal.PtrToStringUtf8(ptr, (int)len);
             return ParseHistoryEntry(json);
         }
 
