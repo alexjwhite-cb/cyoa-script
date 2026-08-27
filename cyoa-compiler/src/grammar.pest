@@ -70,7 +70,9 @@ effect_step = _{
 }
 
 stat_change = {
-    ("+" | "-") ~ WS* ~ "stat" ~ WS+ ~ identifier ~ WS* ~ "by" ~ WS+ ~ integer ~ NEWLINE*
+    (("+" | "-") ~ WS* ~ integer ~ WS+ ~ identifier)      # prefix:  +3 health, - 5 gold
+    | (identifier ~ WS+ ~ ("+" | "-") ~ WS* ~ integer)    # postfix:  health +3, gold - 5
+    ~ NEWLINE*
 }
 
 flag_set = {

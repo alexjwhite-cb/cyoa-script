@@ -2,14 +2,14 @@
 # Import via: import "std/combat"
 
 effect basic_attack:
-  + courage by 1
+  +1 courage
   You strike at your opponent.
 
 effect critical_hit:
-  + courage by 5
-  - hp by 0
+  +5 courage
+  -0 hp
   A critical hit! Your opponent reels.
 
 effect dodge:
-  + courage by 2
+  +2 courage
   You gracefully dodge the attack.

@@ -24,7 +24,7 @@ story ForestAdventure:
 
     effect drink_potion:
         set drank_witch_potion to true
-        - hp by 5
+        -5 hp
         Removing the cork from the vial you sniff the contents. It's fragrant. The scent of rose,
         iris, and freesia gently waft through the air. You place the vial to your lips and tilt your
         head back, allowing the oily contents to coat your mouth. There's little taste of note, but
@@ -81,7 +81,7 @@ story ForestAdventure:
             next start
 
         choice "\"A love potion.\"":
-            - gold by 5
+            -5 gold
             next receive_potion
 
     event receive_potion:
@@ -168,7 +168,7 @@ story ForestAdventure:
             requires:
                 drank_witch_potion
             set was_mugged to true
-            - gold by 5
+            -5 gold
             next browse_unaware
 
         choice "Visit tavern.":
@@ -185,7 +185,7 @@ story ForestAdventure:
 
         choice "Purchase sword for 5 gold."
             requires: gold >= 5
-            - gold by 5
+            -5 gold
             Pleased with your new purchase you proceed to the tavern.
             next tavern
 
@@ -210,7 +210,7 @@ story ForestAdventure:
         choice "Request a room for the night.":
             requires:
                 gold > 0
-            - gold by 1
+            -1 gold
             You pay the tavern keeper for a room for the night. You gaze at the moon through the slats.
 
         choice "Request a room for the night.":

@@ -14,7 +14,7 @@ story TavernTales:
   flag bard_met
 
   effect earn_respect:
-    + respect by 1
+    +1 respect
     "The crowd nods in appreciation."
 
   event start:
@@ -24,17 +24,17 @@ story TavernTales:
     "You have {{gold}} gold to spend."
 
     choice "Sing a ballad":
-      + charisma by 2
+      +2 charisma
       uses earn_respect
       next tavern_success
 
     choice "Buy a drink (2 gold)":
       requires: gold >= 2
-      - gold by 2
+      -2 gold
       next tavern_conversation
 
     choice "Leave":
-      - gold by 0
+      -0 gold
       next tavern_end
 
   event tavern_conversation:
@@ -42,7 +42,7 @@ story TavernTales:
     "An old bard notices your coin and offers a trade: a story for a story."
 
     choice "Trade stories":
-      + charisma by 1
+      +1 charisma
       uses earn_respect
       set bard_met to true
       next bard_deal

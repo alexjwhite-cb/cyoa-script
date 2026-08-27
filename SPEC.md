@@ -162,13 +162,13 @@ Reusable consequence blocks. Defined once, referenced by `uses` in choices:
 
 ```
 effect wolf_scare:
-  - hp by 10
+  -10 hp
   "The wolf's claws scratch you. You take 10 damage."
 ```
 
 **Effect body syntax** (inside an effect block):
-- `+ stat by N` — increase stat
-- `- stat by N` — decrease stat
+- `+N stat` or `+ N stat` — increase stat by N
+- `-N stat` or `- N stat` — decrease stat by N
 - `set flag to true` / `set flag to false` — set boolean
 - `add tag` — add a tag to the current event context
 - Quoted text `"string"` or `"string" with {{templating}}` — text output (surrounding quotes are preserved as literal characters)
@@ -221,7 +221,7 @@ Both forms may be mixed freely within the same story.
 
 ```
 choice "Attack the wolf":
-  + courage by 2
+  +2 courage
   uses wolf_scare
   "You charge at the wolf."
   next wolf_fight
@@ -233,7 +233,7 @@ choice "Attack the wolf":
 > **preserves** surrounding quotes as literal characters.
 
 **Choice fields** (in any order):
-- Effect inline: `+ stat by N`, `- stat by N`, `set flag to bool`
+- Effect inline: `+N stat`, `-N stat`, `set flag to bool`
 - `uses effect_name` — append a reusable effect block
 - Text output — quoted `"string"` (quotes preserved in event/choice body text) or bare prose
 - `requires:` — local prerequisite (optional, inline or multi-line)
@@ -688,7 +688,7 @@ declare. Only `next` (event) and `uses` (effect) references are validated.
 At runtime, the VM treats any stat not declared via `stat <name> = N` as having
 a value of **0**. If an effect (imported or local) modifies an undeclared stat,
 the runtime silently creates it with a starting value of 0 and applies the
-delta. For example, `+ courage by 1` on an undeclared `courage` stat results in
+delta. For example, `+1 courage` on an undeclared `courage` stat results in
 `courage = 1`. This means stories are not required to pre-declare every stat
 that their effects might touch — undeclared stats work but start at 0.
 

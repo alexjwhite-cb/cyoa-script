@@ -82,7 +82,7 @@ story ForestAdventure:
   stat gold = 0
 
   effect found_mushroom:
-    + courage by 1
+    +1 courage
     "You find a glowing mushroom. It hums softly."
 
   event old_ruins:
@@ -101,12 +101,12 @@ story ForestAdventure:
     "A wolf blocks your path."
 
     choice "Attack the wolf":
-      + courage by 2
+      +2 courage
       uses found_mushroom
       next wolf_fight
 
     choice "Offer food" uses found_mushroom:
-      - gold by 3
+      -3 gold
       next peace_with_wolf
 
   event tavern:
@@ -115,7 +115,7 @@ story ForestAdventure:
 
     choice "Buy ale (5 gold)":
       requires: gold >= 5
-      - gold by 5
+      -5 gold
       "You buy an ale."
       next tavern
 ```
