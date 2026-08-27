@@ -230,6 +230,24 @@ export class WasmEngine {
         return this;
     }
     /**
+     * Preview the effect text from a choice without applying it (for tooltips).
+     *
+     * `choiceIndex` is 0-based, referencing only choices visible to the player
+     * (prerequisites are already filtered).
+     *
+     * This is a read-only operation — stats, flags, and cursor position are
+     * not modified. Use it to display effect text as a tooltip before the
+     * player commits to a choice.
+     * @param {number} choice_index
+     * @returns {string[]}
+     */
+    previewChoiceEffects(choice_index) {
+        const ret = wasm.wasmengine_previewChoiceEffects(this.__wbg_ptr, choice_index);
+        var v1 = getArrayJsValueFromWasm0(ret[0], ret[1]);
+        wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
+        return v1;
+    }
+    /**
      * Restore state from a JSON string produced by [`getStateJson`](Self::get_state_json).
      * @param {string} json
      */

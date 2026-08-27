@@ -103,6 +103,17 @@ export class WasmEngine {
      */
     constructor(bytes: Uint8Array);
     /**
+     * Preview the effect text from a choice without applying it (for tooltips).
+     *
+     * `choiceIndex` is 0-based, referencing only choices visible to the player
+     * (prerequisites are already filtered).
+     *
+     * This is a read-only operation — stats, flags, and cursor position are
+     * not modified. Use it to display effect text as a tooltip before the
+     * player commits to a choice.
+     */
+    previewChoiceEffects(choice_index: number): string[];
+    /**
      * Restore state from a JSON string produced by [`getStateJson`](Self::get_state_json).
      */
     setStateJson(json: string): void;
@@ -194,6 +205,7 @@ export interface InitOutput {
     readonly wasmengine_listTags: (a: number) => [number, number];
     readonly wasmengine_makeChoice: (a: number, b: number) => [number, number, number];
     readonly wasmengine_new: (a: number, b: number) => [number, number, number];
+    readonly wasmengine_previewChoiceEffects: (a: number, b: number) => [number, number];
     readonly wasmengine_setStateJson: (a: number, b: number, c: number) => [number, number];
     readonly wasmstorycatalog_createEngine: (a: number, b: number) => number;
     readonly wasmstorycatalog_createEngineByName: (a: number, b: number, c: number) => number;
