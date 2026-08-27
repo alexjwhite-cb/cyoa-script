@@ -1,7 +1,9 @@
 name: Deploy Docs
 
 # This workflow builds and deploys the documentation website (HTML pages) to
-# GitHub Pages without requiring a release tag or rebuilding WASM.
+# GitHub Pages without requiring a release tag. It uses keep_files: true to
+# preserve existing content on the gh-pages branch — including WASM artifacts
+# deployed by the release workflow. WASM is only updated on release (tag push).
 # Triggered by:
 # - Manual dispatch (workflow_dispatch)
 # - Pushes to docs/, web-demo/, README.md, docs-site/, package.json, or this workflow
@@ -32,38 +34,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download latest release WASM artifacts
+      - name: Prepare site directory
         run: |
-          mkdir -p _site/cyoa-wasm/pkg _site/examples _site/web-demo
-          # Download WASM bindings from the latest release
-          # (avoids rebuilding WASM — WASM is only changed on release)
-          # Uses the GitHub API to find the latest release tag and asset list,
-          # then downloads each cyoa_wasm* file via curl (no auth needed for
-          # public repos' release asset download URLs).
-          echo "Fetching latest release info from GitHub API..."
-
-          RELEASE_JSON=$(curl -sL "https://api.github.com/repos/alexjwhite-cb/cyoa-script/releases/latest")
-          RELEASE_TAG=$(echo "$RELEASE_JSON" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/"tag_name": *"\([^"]*\)"/\1/')
-
-          if [ -z "$RELEASE_TAG" ] || [ "$RELEASE_TAG" = "null" ]; then
-            echo "  WARNING: No published release found — web demo may not load engine"
-          else
-            echo "  Latest release tag: $RELEASE_TAG"
-            # Extract asset names from the release JSON
-            ASSETS=$(echo "$RELEASE_JSON" | grep -o '"name": *"[^"]*"' | sed 's/"name": *"\([^"]*\)"/\1/' | tr -d '"')
-
-            # Download each cyoa_wasm* asset
-            for asset in $ASSETS; do
-              if echo "$asset" | grep -q "cyoa_wasm"; then
-                echo "  Downloading $asset..."
-                curl -sL "https://github.com/alexjwhite-cb/cyoa-script/releases/download/${RELEASE_TAG}/${asset}" \
-                  -o "_site/cyoa-wasm/pkg/${asset}"
-              fi
-            done
-          fi
-
-          echo "  WASM files in _site/cyoa-wasm/pkg/: $(ls _site/cyoa-wasm/pkg/ 2>/dev/null)"
-          # Copy example bytecode from the repo (not released as artifacts)
+          # Only prepare docs-related files here.
+          # WASM artifacts on gh-pages are preserved via keep_files: true
+          # and are only updated by the release workflow (tag push).
+          mkdir -p _site/examples _site/web-demo
           cp examples/*.cyoa.bc _site/examples/ 2>/dev/null || true
 
       - name: Setup Node.js
@@ -95,3 +71,4 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./_site
+          keep_files: true
