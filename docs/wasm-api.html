@@ -501,6 +501,14 @@ effects (e.g., &quot;You find a glowing mushroom.&quot;).</p>
 <pre><code class="language-typescript">const result = engine.makeChoice(0);
 // → { effectText: [&quot;You find a glowing mushroom. It hums softly.&quot;], gameStateChanged: true }
 </code></pre>
+<h4><code>previewChoiceEffects(choiceIndex: number): string[]</code></h4>
+<p>Preview the effect text from a choice <strong>without applying it</strong> (does not mutate
+state). Useful for showing tooltips before the player commits.</p>
+<p>The <code>choiceIndex</code> references visible choices (prerequisites already filtered),
+same indexing as <code>makeChoice</code>.</p>
+<pre><code class="language-typescript">const effects = engine.previewChoiceEffects(0);
+// → [&quot;You find a glowing mushroom. It hums softly.&quot;]
+</code></pre>
 <h4><code>getHistory(): { eventId: string; choiceIndex: number; choiceText: string }[]</code></h4>
 <p>Get the choice history as an array of objects. Useful for UI display,
 analytics, and save/load systems.</p>
@@ -617,6 +625,7 @@ export class WasmEngine {
   currentEventId(): string;
   getCurrentEvent(): { id: string; text: string[]; choices: string[] };
   makeChoice(choiceIndex: number): { effectText: string[]; gameStateChanged: boolean };
+  previewChoiceEffects(choiceIndex: number): string[];
   getHistory(): Array&lt;{ eventId: string; choiceIndex: number; choiceText: string }&gt;;
   getStateJson(): string;
   setStateJson(json: string): void;

@@ -433,11 +433,20 @@ for (i, choice) in choices.iter().enumerate() {
 </code></pre>
 <h3>Making choices</h3>
 <pre><code class="language-rust">engine.make_choice(index: i32) -&gt; Vec&lt;String&gt;   // effect text from the choice
+
+// Preview effect text without applying the choice (no state mutation)
+engine.preview_choice_effects(choice_index: i32) -&gt; Vec&lt;String&gt;
 </code></pre>
 <p><strong>Example</strong>:</p>
 <pre><code class="language-rust">let effects = engine.make_choice(0);
 for text in effects {
     println!(&quot;{}&quot;, text);
+}
+
+// Preview without committing
+let preview = engine.preview_choice_effects(0);
+for text in &amp;preview {
+    println!(&quot;Would trigger: {}&quot;, text);
 }
 </code></pre>
 <h3>History</h3>

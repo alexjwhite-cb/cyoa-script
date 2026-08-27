@@ -552,7 +552,7 @@ collisions are detected and reported as errors.</li>
 <p>Effects are reusable consequence blocks: define once, reference from
 multiple choices using <code>uses</code>.</p>
 <pre><code class="language-cyoa">effect found_mushroom:
-  + courage by 1
+  +1 courage
   You find a glowing mushroom. It hums softly.
 </code></pre>
 <h3>Effect Body Syntax</h3>
@@ -565,11 +565,19 @@ multiple choices using <code>uses</code>.</p>
 </tr>
 </thead>
 <tbody><tr>
-<td><code>+ stat by N</code></td>
+<td><code>+N stat</code> or <code>+ N stat</code></td>
 <td>Increase stat by N</td>
 </tr>
 <tr>
-<td><code>- stat by N</code></td>
+<td><code>-N stat</code> or <code>- N stat</code></td>
+<td>Decrease stat by N</td>
+</tr>
+<tr>
+<td><code>stat +N</code> or <code>stat + N</code></td>
+<td>Increase stat by N</td>
+</tr>
+<tr>
+<td><code>stat -N</code> or <code>stat - N</code></td>
 <td>Decrease stat by N</td>
 </tr>
 <tr>
@@ -676,7 +684,7 @@ regardless of which choice they made to get there.</p>
 <p>Choices are the player-selectable options. Each choice can have inline
 effects, reference reusable effects, and specify the next event.</p>
 <pre><code class="language-cyoa">choice &quot;Attack the wolf&quot;:
-  + courage by 2                    # inline stat change
+  +2 courage                    # inline stat change
   uses wolf_scare                   # append reusable effect
   &quot;You charge at the wolf.&quot;         # text shown after choice
   next wolf_fight                   # advance to next event
@@ -698,7 +706,7 @@ effects, reference reusable effects, and specify the next event.</p>
 <tr>
 <td>Inline effects</td>
 <td>No</td>
-<td><code>+/- stat</code>, <code>set flag</code>, <code>add tag</code></td>
+<td><code>+/-N stat</code>, <code>stat +/-N</code>, <code>set flag</code>, <code>add tag</code></td>
 </tr>
 <tr>
 <td><code>uses</code></td>
@@ -719,7 +727,7 @@ effects, reference reusable effects, and specify the next event.</p>
 <h3>Choice Text Can Be Templated</h3>
 <pre><code class="language-cyoa">choice &quot;Buy ale (cost: {{gold}} gold)&quot;:
   requires: gold &gt;= 5
-  - gold by 5
+  -5 gold
   &quot;You buy an ale. The barkeep grins.&quot;
   next tavern
 </code></pre>
@@ -916,7 +924,7 @@ story MyAdventure:
   flag has_key
 
   effect found_treasure:
-    + gold by 20
+    +20 gold
     &quot;You discover a cache of gold coins!&quot;
     add treasure_hunter
 
@@ -934,7 +942,7 @@ story MyAdventure:
       next mountain_cave
 
     choice &quot;Go home&quot;:
-      - gold by 0
+      -0 gold
       # terminal choice (no `next`)
 
   event forest_path:
@@ -961,7 +969,7 @@ story MyAdventure:
     choice &quot;Use healing potion&quot;:
       requires: gold &gt;= 5
       uses healing_potion
-      - gold by 5
+      -5 gold
       next start
 
   event victory:

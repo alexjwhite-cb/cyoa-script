@@ -526,6 +526,13 @@ engine has advanced to the next event.</p>
 <pre><code class="language-gdscript">engine.make_choice(0)
 print(engine.get_current_event_text())
 </code></pre>
+<h3><code>preview_choice_effects(index: int) -&gt; PackedStringArray</code></h3>
+<p>Preview the effect text from a choice <strong>without applying it</strong> (does not mutate
+state). Useful for showing tooltips before the player commits.</p>
+<pre><code class="language-gdscript">var effects = engine.preview_choice_effects(0)
+for effect in effects:
+    print(effect)
+</code></pre>
 <h3><code>get_last_effect_text() -&gt; String</code></h3>
 <p>Effect text from the most recent <code>make_choice()</code> call. Multiple effect
 fragments are joined by <code>\n</code>. Returns <code>&quot;&quot;</code> if no engine loaded.</p>
