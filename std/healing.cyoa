@@ -3,13 +3,13 @@
 # Import via: import "std/healing"
 
 effect healing_potion:
-  + hp by 20
+  +20 hp
   You drink a healing potion. You recover 20 HP.
 
 effect minor_heal:
-  + hp by 10
+  +10 hp
   You take a moment to rest. You recover 10 HP.
 
 effect full_restore:
   You feel completely revitalized.
-  + hp by 999999
+  +999999 hp

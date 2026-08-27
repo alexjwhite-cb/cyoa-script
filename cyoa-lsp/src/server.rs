@@ -14,7 +14,7 @@ use cyoa_compiler::{parse_story, resolve_imports, validate_references};
 /// Keyword set for semantic token classification.
 const KEYWORDS: &[&str] = &[
     "story", "import", "stat", "flag", "effect", "event", "choice", "requires", "tags", "uses",
-    "next", "set", "add", "by", "to", "AND", "OR", "NOT", "true", "false", "as",
+    "next", "set", "add", "to", "AND", "OR", "NOT", "true", "false", "as",
 ];
 
 /// Token type indices — must match the semanticTokensOptions legend.
@@ -790,10 +790,10 @@ impl Server {
                             EffectStep::ChangeStat { stat, delta } => {
                                 let sign = if *delta >= 0 { "+" } else { "-" };
                                 content.push_str(&format!(
-                                    "- `{}` {} by {}\n",
-                                    stat,
+                                    "- `{}{} {}`\n",
                                     sign,
-                                    delta.abs()
+                                    delta.abs(),
+                                    stat
                                 ));
                             }
                             EffectStep::SetFlag { flag, value } => {
@@ -1310,7 +1310,7 @@ mod tests {
   stat hp = 50
   flag visited_cave
   effect found_item:
-    + hp by 10
+    +10 hp
     "You found a potion!"
   event start:
     "You begin your journey."
@@ -1855,7 +1855,7 @@ mod tests {
         std::fs::create_dir_all(&std_dir).unwrap_or(());
 
         // Write a healing.cyoa in the temp std/ directory
-        let healing = "effect healing_potion:\n  + hp by 20\n  \"You drink a healing potion.\"\n";
+        let healing = "effect healing_potion:\n  +20 hp\n  \"You drink a healing potion.\"\n";
         std::fs::write(std_dir.join("healing.cyoa"), healing).unwrap();
 
         // Story with import and usage of healing_potion

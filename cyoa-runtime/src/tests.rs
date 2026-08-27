@@ -263,7 +263,7 @@ story Test:
   event start:
     "You drink a potion."
     choice "Drink":
-      + hp by 20
+      +20 hp
       next end
   event end:
     "You feel better."
@@ -285,7 +285,7 @@ story Test:
   event start:
     "You take damage."
     choice "Ouch":
-      - hp by 15
+      -15 hp
       next end
   event end:
     "You are hurt."
@@ -353,7 +353,7 @@ fn test_engine_uses_effect_block() {
 story Test:
   stat hp = 0
   effect heal:
-    + hp by 30
+    +30 hp
     "You feel restored."
 
   event start:
@@ -438,7 +438,7 @@ story Test:
     "Choose:"
     choice "Fight":
       requires: courage >= 10
-      + courage by 5
+      +5 courage
       next end
     choice "Run":
       next end
@@ -489,7 +489,7 @@ story T:
   event start:
     "Start"
     choice "Done":
-      + hp by 10
+      +10 hp
       set found_key to true
       next end
   event end:
@@ -518,8 +518,8 @@ story T:
   event start:
     "Start"
     choice "Act":
-      + hp by 10
-      - gold by 5
+      +10 hp
+      -5 gold
       set found_key to true
       next end
   event end:
@@ -552,7 +552,7 @@ story T:
   event start:
     "Start"
     choice "End story":
-      + hp by 10
+      +10 hp
   event after_end:
     "This should not be reachable"
 "#,
@@ -576,7 +576,7 @@ story T:
   event start:
     "Start"
     choice "End story":
-      + hp by 10
+      +10 hp
   event after_end:
     "This should not be reachable"
 "#,
@@ -592,7 +592,7 @@ story T:
   event start:
     "Start"
     choice "End story":
-      + hp by 10
+      +10 hp
   event after_end:
     "This should not be reachable"
 "#,
@@ -610,9 +610,9 @@ story T:
   stat hp = 0
   stat courage = 0
   effect heal:
-    + hp by 20
+    +20 hp
   effect boost:
-    + courage by 5
+    +5 courage
 
   event start:
     "Start"
@@ -986,13 +986,13 @@ fn test_engine_preview_choice_effects_returns_text() {
 story T:
   stat hp = 0
   effect found_mushroom:
-    + courage by 1
+    +1 courage
     "You find a glowing mushroom."
 
   event start:
     "Start"
     choice "Heal" uses found_mushroom:
-      + hp by 20
+      +20 hp
       "You drink a potion."
       next end
   event end:
@@ -1019,13 +1019,13 @@ story T:
   stat courage = 0
   stat gold = 0
   effect found_mushroom:
-    + courage by 1
+    +1 courage
     "You find a glowing mushroom."
 
   event start:
     "Start"
     choice "Take mushroom" uses found_mushroom:
-      - gold by 3
+      -3 gold
       "You take the mushroom."
       next end
   event end:
@@ -1063,13 +1063,13 @@ fn test_engine_preview_choice_effects_filters_prerequisites() {
 story T:
   stat courage = 0
   effect found_mushroom:
-    + courage by 1
+    +1 courage
     "You find a glowing mushroom."
 
   event start:
     "Choose:"
     choice "Attack" requires: courage >= 10:
-      + courage by 5
+      +5 courage
       "You attack!"
       next end
     choice "Run":
@@ -1104,9 +1104,9 @@ story T:
   event start:
     "Start"
     choice "Buy potion (50 gold)":
-      - gold by 50
+      -50 gold
       "You spend {{gold}} gold on a potion."
-      + gold by 0
+      +0 gold
       next end
   event end:
     "End"
@@ -1134,7 +1134,7 @@ story T:
   event start:
     "Start"
     choice "End story":
-      + hp by 10
+      +10 hp
       "You feel empowered."
   event after_end:
     "This should not be reachable"

@@ -525,14 +525,113 @@ fn parse_effect_block(
     Ok((EffectDef { name, body }, body_indent))
 }
 
+/// Check if a word is a DSL keyword. Keywords can never be a stat name
+/// in the postfix form (`health +3`).
+fn is_dsl_keyword(word: &str) -> bool {
+    matches!(
+        word,
+        "story"
+            | "import"
+            | "stat"
+            | "flag"
+            | "effect"
+            | "event"
+            | "choice"
+            | "requires"
+            | "tags"
+            | "uses"
+            | "next"
+            | "set"
+            | "add"
+            | "to"
+            | "true"
+            | "false"
+            | "as"
+    )
+}
+
+/// Check if a trimmed line is a postfix stat change: `identifier <sign> <number>`
+/// or `identifier <sign><number>`. Only matches exact 2-3 token lines,
+/// preventing false positives with prose text.
+fn is_postfix_stat_change(trimmed: &str) -> bool {
+    let tokens: Vec<&str> = trimmed.split_whitespace().collect();
+    if tokens.len() < 2 || tokens.len() > 3 {
+        return false;
+    }
+    // First token must be a valid identifier (not a keyword, no quotes)
+    if is_dsl_keyword(tokens[0]) || tokens[0].starts_with('"') {
+        return false;
+    }
+    match tokens.len() {
+        // Postfix compact: `health +3` → ["health", "+3"]
+        2 => {
+            let rest = &tokens[1];
+            (rest.starts_with('+') || rest.starts_with('-'))
+                && rest.len() > 1
+                && rest[1..].parse::<i64>().is_ok()
+        }
+        // Postfix spaced: `health + 3` → ["health", "+", "3"]
+        3 => matches!(tokens[1], "+" | "-") && tokens[2].parse::<i64>().is_ok(),
+        _ => false,
+    }
+}
+
 /// Check if a trimmed line is an effect step (vs prose text).
-/// Effect steps: `+ stat by N`, `- stat by N`, `set flag to bool`,
-/// `add tag`. Quoted text and bare prose are NOT effect steps.
+/// Effect steps: `+3 stat`, `+ 3 stat`, `stat +3`, `stat + 3`,
+/// `set flag to bool`, `add tag`. Quoted text and bare prose are NOT effect steps.
 fn is_effect_step(trimmed: &str) -> bool {
     trimmed.starts_with('+')
         || trimmed.starts_with('-')
         || trimmed.starts_with("set ")
         || trimmed.starts_with("add ")
+        || is_postfix_stat_change(trimmed)
+}
+
+/// Parse a stat change line in any of 4 supported forms:
+/// - Prefix compact: `+3 health`
+/// - Prefix spaced:  `+ 3 health`
+/// - Postfix compact: `health +3`
+/// - Postfix spaced:  `health + 3`
+///
+/// Returns (stat_name, delta) or None if the line doesn't match any form.
+fn parse_stat_change(trimmed: &str) -> Option<(String, i64)> {
+    let tokens: Vec<&str> = trimmed.split_whitespace().collect();
+
+    match tokens.len() {
+        2 => {
+            // Prefix compact: `+3 health` → ["+3", "health"]
+            if let Some(rest) = tokens[0].strip_prefix(['+', '-']) {
+                let n: i64 = rest.parse().ok()?;
+                let sign: i64 = if tokens[0].starts_with('+') { 1 } else { -1 };
+                return Some((tokens[1].to_string(), sign * n));
+            }
+            // Postfix compact: `health +3` → ["health", "+3"]
+            if !is_dsl_keyword(tokens[0]) {
+                if let Some(rest) = tokens[1].strip_prefix(['+', '-']) {
+                    let n: i64 = rest.parse().ok()?;
+                    let sign: i64 = if tokens[1].starts_with('+') { 1 } else { -1 };
+                    return Some((tokens[0].to_string(), sign * n));
+                }
+            }
+            None
+        }
+        3 => {
+            // Prefix spaced: `+ 3 health` → ["+", "3", "health"]
+            if matches!(tokens[0], "+" | "-") {
+                let n: i64 = tokens[1].parse().ok()?;
+                let sign: i64 = if tokens[0] == "+" { 1 } else { -1 };
+                return Some((tokens[2].to_string(), sign * n));
+            }
+            // Postfix spaced: `health + 3` → ["health", "+", "3"]
+            if !is_dsl_keyword(tokens[0]) && matches!(tokens[1], "+" | "-") {
+                let n: i64 = tokens[2].parse().ok()?;
+                let sign: i64 = if tokens[1] == "+" { 1 } else { -1 };
+                return Some((tokens[0].to_string(), sign * n));
+            }
+            None
+        }
+        _ => None,
+    }
 }
 
 fn parse_effect_step(content: &str, line: usize, col: usize) -> Result<EffectStep, ParseError> {
@@ -541,33 +640,24 @@ fn parse_effect_step(content: &str, line: usize, col: usize) -> Result<EffectSte
         return Err(ParseError::at("empty effect step", line, col));
     }
 
-    // Stat change: + <name> by <N>  or  - <name> by <N>
-    // Also handles: + stat <name> by <N>
-    if let Some(after_sign) = trimmed
-        .strip_prefix('+')
-        .or_else(|| trimmed.strip_prefix('-'))
-    {
-        let sign_val: i64 = if trimmed.starts_with('+') { 1 } else { -1 };
-        let rest = after_sign.trim_start();
-        let (name_part, value_str) = rest
-            .split_once(" by ")
-            .map(|(n, v)| (n.trim(), v.trim()))
-            .ok_or_else(|| {
-                ParseError::at(
-                    format!("expected '<stat> by <N>' after + or -, got '{}'", trimmed),
-                    line,
-                    col,
-                )
-            })?;
-        // Accept both "+ courage by 1" and "+ stat courage by 1"
-        let stat_name = name_part.strip_prefix("stat ").unwrap_or(name_part).trim();
-        let n: i64 = value_str
-            .parse()
-            .map_err(|_| ParseError::at("invalid number in stat change", line, col))?;
-        return Ok(EffectStep::ChangeStat {
-            stat: stat_name.to_string(),
-            delta: sign_val * n,
-        });
+    // Stat change — prefix forms: `+3 health`, `+ 3 health`, `-5 gold`, `- 5 gold`
+    if trimmed.starts_with('+') || trimmed.starts_with('-') {
+        let (stat, delta) = parse_stat_change(trimmed).ok_or_else(|| {
+            ParseError::at(
+                format!(
+                    "invalid stat change after +/-: '{}'. Expected `+N <stat>` or `+ N <stat>`",
+                    trimmed
+                ),
+                line,
+                col,
+            )
+        })?;
+        return Ok(EffectStep::ChangeStat { stat, delta });
+    }
+
+    // Stat change — postfix forms: `health +3`, `health + 3`, `gold -5`, `gold - 5`
+    if let Some((stat, delta)) = parse_stat_change(trimmed) {
+        return Ok(EffectStep::ChangeStat { stat, delta });
     }
 
     // Set flag: set <name> to true/false

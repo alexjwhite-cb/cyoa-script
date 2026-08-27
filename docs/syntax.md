@@ -189,7 +189,7 @@ multiple choices using `uses`.
 
 ```cyoa
 effect found_mushroom:
-  + courage by 1
+  +1 courage
   You find a glowing mushroom. It hums softly.
 ```
 
@@ -199,8 +199,10 @@ Inside an effect block (indented 4 spaces), you can use:
 
 | Syntax                              | Description            |
 |-------------------------------------|------------------------|
-| `+ stat by N`                       | Increase stat by N     |
-| `- stat by N`                       | Decrease stat by N     |
+| `+N stat` or `+ N stat`            | Increase stat by N     |
+| `-N stat` or `- N stat`            | Decrease stat by N     |
+| `stat +N` or `stat + N`            | Increase stat by N     |
+| `stat -N` or `stat - N`            | Decrease stat by N     |
 | `set flag to true`                  | Set flag to true       |
 | `set flag to false`                 | Set flag to false      |
 | `add tag`                           | Add a runtime tag      |
@@ -287,7 +289,7 @@ effects, reference reusable effects, and specify the next event.
 
 ```cyoa
 choice "Attack the wolf":
-  + courage by 2                    # inline stat change
+  +2 courage                    # inline stat change
   uses wolf_scare                   # append reusable effect
   "You charge at the wolf."         # text shown after choice
   next wolf_fight                   # advance to next event
@@ -298,7 +300,7 @@ choice "Attack the wolf":
 | Field | Required? | Description |
 |-------|-----------|-------------|
 | Text | Yes | The choice label shown to the player |
-| Inline effects | No | `+/- stat`, `set flag`, `add tag` |
+| Inline effects | No | `+/-N stat`, `stat +/-N`, `set flag`, `add tag` |
 | `uses` | No | Reference to one or more effect blocks |
 | `requires:` | No | Local prerequisite (inline or multi-line) |
 | `next` | No* | Event to advance to (`*required` for non-terminal choices) |
@@ -308,7 +310,7 @@ choice "Attack the wolf":
 ```cyoa
 choice "Buy ale (cost: {{gold}} gold)":
   requires: gold >= 5
-  - gold by 5
+  -5 gold
   "You buy an ale. The barkeep grins."
   next tavern
 ```
@@ -521,7 +523,7 @@ story MyAdventure:
   flag has_key
 
   effect found_treasure:
-    + gold by 20
+    +20 gold
     "You discover a cache of gold coins!"
     add treasure_hunter
 
@@ -539,7 +541,7 @@ story MyAdventure:
       next mountain_cave
 
     choice "Go home":
-      - gold by 0
+      -0 gold
       # terminal choice (no `next`)
 
   event forest_path:
@@ -566,7 +568,7 @@ story MyAdventure:
     choice "Use healing potion":
       requires: gold >= 5
       uses healing_potion
-      - gold by 5
+      -5 gold
       next start
 
   event victory:

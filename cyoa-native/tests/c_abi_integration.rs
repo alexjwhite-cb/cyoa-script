@@ -72,7 +72,7 @@ story TestAdventure:
   stat gold = 0
 
   effect found_mushroom:
-    + courage by 1
+    +1 courage
     "You find a glowing mushroom."
 
   event start:
@@ -92,13 +92,13 @@ story TestAdventure:
     "It's dark inside. You hear a growl."
 
     choice "Fight the growl" uses found_mushroom:
-      + courage by 2
-      - hp by 5
+      +2 courage
+      -5 hp
       "You draw your sword."
       next victory
 
     choice "Flee":
-      - courage by 1
+      -1 courage
       next start
 
   event gave_up:
@@ -435,13 +435,13 @@ story PreviewTest:
   stat hp = 50
   stat courage = 0
   effect found_mushroom:
-    + courage by 1
+    +1 courage
     "You find a glowing mushroom."
 
   event start:
     "Start"
     choice "Drink potion" uses found_mushroom:
-      + hp by 20
+      +20 hp
       "You drink a potion."
       next end
   event end:

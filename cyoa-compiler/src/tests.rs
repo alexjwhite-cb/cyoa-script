@@ -75,7 +75,7 @@ fn test_parse_effect_block() {
     let source = r#"
 story Test:
   effect heal:
-    + hp by 20
+    +20 hp
     "You feel healthier."
 "#;
     let story = parse_story(source).unwrap();
@@ -92,10 +92,10 @@ fn test_parse_effect_steps() {
 story Test:
   stat hp = 0
   effect damage:
-    - hp by 10
+    -10 hp
     "You take damage."
   effect heal:
-    + hp by 20
+    +20 hp
     set wounded to false
 "#;
     let story = parse_story(source).unwrap();
@@ -174,7 +174,7 @@ fn test_parse_choice_with_uses() {
     let source = r#"
 story Test:
   effect heal:
-    + hp by 10
+    +10 hp
   event start:
     "You are wounded."
     choice "Use potion":
@@ -194,7 +194,7 @@ fn test_parse_choice_with_inline_modifier() {
     let source = r#"
 story Test:
   effect heal:
-    + hp by 10
+    +10 hp
   event start:
     "You are wounded."
     choice "Use potion" uses heal:
@@ -459,7 +459,7 @@ fn test_validate_references_all_defined() {
 story Test:
   stat hp = 50
   effect heal:
-    + hp by 10
+    +10 hp
   event start:
     "You begin."
     choice "Go north":
@@ -498,7 +498,7 @@ import "std/healing"
 
 story Test:
   effect local_heal:
-    + hp by 5
+    +5 hp
   event start:
     "You begin."
     choice "Drink healing potion":
@@ -526,7 +526,7 @@ story Test:
     requires: missing_stat >= 5
     "You have {{missing_stat}} points."
     choice "Go north":
-      + missing_stat by 5
+      +5 missing_stat
       next start
 "#;
     let story = parse_story(source).unwrap();
@@ -571,7 +571,7 @@ fn test_validate_references_imported_effect_not_flagged() {
 
     std::fs::write(
         std_dir.join("combat.cyoa"),
-        "effect basic_attack:\n  + courage by 1\n  text \"You strike.\"\n",
+        "effect basic_attack:\n  +1 courage\n  text \"You strike.\"\n",
     )
     .unwrap();
 
@@ -749,10 +749,10 @@ story TestStory:
   stat hp = 50
 
   effect heal:
-    + hp by 20
+    +20 hp
 
   effect damage:
-    - hp by 10
+    -10 hp
     "Ouch!"
 
   event start:
@@ -861,11 +861,7 @@ fn test_resolve_imports_std() {
     std::fs::create_dir_all(&std_subdir).unwrap();
 
     // std/healing.cyoa — a library file without a story block
-    std::fs::write(
-        std_subdir.join("healing.cyoa"),
-        "effect heal:\n  + hp by 10\n",
-    )
-    .unwrap();
+    std::fs::write(std_subdir.join("healing.cyoa"), "effect heal:\n  +10 hp\n").unwrap();
 
     let source = r#"
 import "std/healing"
@@ -898,7 +894,7 @@ fn test_resolve_imports_local() {
         &local_file,
         r#"
 effect extra:
-  + hp by 5
+  +5 hp
 "#,
     )
     .unwrap();
@@ -968,7 +964,7 @@ fn test_resolve_imports_name_collision() {
         test_dir.join("a.cyoa"),
         r#"
 effect shared:
-  + hp by 5
+  +5 hp
 "#,
     )
     .unwrap();
@@ -977,7 +973,7 @@ effect shared:
         test_dir.join("b.cyoa"),
         r#"
 effect shared:
-  + hp by 10
+  +10 hp
 "#,
     )
     .unwrap();
@@ -1266,7 +1262,7 @@ fn test_parse_effect_paragraph_joining() {
     let source = r#"
 story Test:
   effect drink:
-    + hp by 5
+    +5 hp
     "You take a sip."
     "The liquid is warm."
 
@@ -1410,7 +1406,7 @@ story Test:
   effect blast:
     "You cast a spell."
     "Fire erupts."
-    + hp by 10
+    +10 hp
     "Your power returns."
 
   event start:
@@ -1426,7 +1422,7 @@ story Test:
     };
     // Body: Text(joined), ChangeStat, Text
     // "You cast a spell." + "Fire erupts." → joined into one Text step
-    // + hp by 10 → ChangeStat
+    // +10 hp → ChangeStat
     // "Your power returns." → Text step
     assert_eq!(eff.body.len(), 3);
     match &eff.body[0] {
