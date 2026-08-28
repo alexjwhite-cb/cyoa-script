@@ -699,6 +699,15 @@ fn parse_effect_step(content: &str, line: usize, col: usize) -> Result<EffectSte
         });
     }
 
+    // Remove tag: remove [tag] <name>
+    if trimmed.starts_with("remove ") {
+        let rest = trimmed.strip_prefix("remove").unwrap().trim();
+        let tag_name = rest.strip_prefix("tag ").unwrap_or(rest).trim();
+        return Ok(EffectStep::RemoveTag {
+            tag: tag_name.to_string(),
+        });
+    }
+
     // Bare quoted or unquoted text — quotes are preserved as literal characters
     // in effect body text (only choice labels strip surrounding quotes)
     Ok(EffectStep::Text(parse_template_string(trimmed, false)?))

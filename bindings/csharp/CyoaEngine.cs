@@ -879,7 +879,8 @@ namespace Cyoa
         }
 
         /// <summary>
-        /// Runtime tags currently applied during play.
+        /// Runtime tags currently applied/removed during play
+/// (added via `add tag`, removed via `remove tag`).
         /// </summary>
         public string[] GetTags()
         {

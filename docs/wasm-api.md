@@ -265,7 +265,7 @@ console.log(engine.listStoryTags());
 #### `listTags(): string[]`
 
 List runtime tags currently applied during play (added by `add tag` or the
-`AddTag` opcode).
+`AddTag` opcode, removed by `remove tag` or the `RemoveTag` opcode).
 
 ```typescript
 console.log(engine.listTags());

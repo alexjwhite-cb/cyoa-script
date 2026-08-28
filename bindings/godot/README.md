@@ -146,7 +146,7 @@ engine.SetStateJson(saveJson);
 | `get_stats()` | `Dictionary` | Stat name → value |
 | `get_stat(name)` | `int` | Individual stat value |
 | `get_story_tags()` | `PackedStringArray` | Story-level tags (static) |
-| `get_tags()` | `PackedStringArray` | Runtime tags applied during play |
+| `get_tags()` | `PackedStringArray` | Runtime tags (added/removed during play) |
 | `get_flags()` | `PackedStringArray` | Runtime flags currently set |
 
 ### `CyoaEngine` (C#)

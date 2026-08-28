@@ -366,6 +366,10 @@ impl CodegenContext {
                 let tag_idx = self.intern(tag);
                 self.emit_instruction(Opcode::AddTag, tag_idx, 0);
             }
+            EffectStep::RemoveTag { tag } => {
+                let tag_idx = self.intern(tag);
+                self.emit_instruction(Opcode::RemoveTag, tag_idx, 0);
+            }
             EffectStep::Text(text) => {
                 let idx = self.compile_text(text);
                 if text

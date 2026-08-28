@@ -171,6 +171,7 @@ effect wolf_scare:
 - `-N stat` or `- N stat` — decrease stat by N
 - `set flag to true` / `set flag to false` — set boolean
 - `add tag` — add a tag to the current event context
+- `remove tag` — remove a tag from the current event context
 - Quoted text `"string"` or `"string" with {{templating}}` — text output (surrounding quotes are preserved as literal characters)
 - Bare prose text — text output (no quotes to strip)
 
@@ -412,6 +413,7 @@ and returns `&str` into it (zero-copy).
 | `SetFlag` | `u32` (flag idx) | Set flag to true |
 | `ClearFlag` | `u32` (flag idx) | Set flag to false |
 | `AddTag` | `u32` (tag idx) | Add tag to current event context |
+| `RemoveTag` | `u32` (tag idx) | Remove tag from current event context |
 | `CheckCondition` | `u32` (condition idx) | Evaluate prereq → push bool |
 | `RecordHistory` | `u32` event_id, `i32` choice_idx | Record choice in history |
 | `BranchIfTrue` | `u32` addr, `u32` addr | Pop bool; jump if true |
@@ -437,9 +439,10 @@ pub struct PlayerState {
 - Game engines never access `PlayerState` directly — they use API calls.
 
 > **Note**: `PlayerState.tags` holds **runtime-applied** tags (added via the `AddTag`
-> opcode during play). **Story-level tags** (declared via `tags:` at the story block
-> scope) are static metadata stored in the `Bytecode` struct and accessed via
-> `Engine::list_story_tags()` — they are distinct from runtime tags and never change
+> opcode or removed via the `RemoveTag` opcode during play). **Story-level tags**
+> (declared via `tags:` at the story block scope) are static metadata stored in the
+> `Bytecode` struct and accessed via `Engine::list_story_tags()` — they are distinct
+> from runtime tags and never change
 > during play.
 
 ### 6.2 StoryCursor
@@ -761,3 +764,4 @@ error itself is surfaced as a parse or diagnostic error instead.
 | 0.7.0 | 2026-08-23 | Install scripts (`install.sh`, `install.ps1`) and `cyoa version` CLI command; docs site rendered as HTML with sidebar navigation; GitHub Pages deployment CI |
 | 0.8.0 | 2026-08-23 | Enhanced CLI validation, end-of-story tracking (`is_story_complete`), flexible syntax for multi-line tags/requires, `complete` flag in state JSON save/load |
 | 0.9.0 | 2026-08-24 | Markdown-style paragraph joining — consecutive prose lines joined into paragraphs, blank lines as separators (parser, all bindings, web demo); effect text rendered before next event; end-of-story overlay with restart/catalog buttons in web demo |
+| 0.10.0 | 2026-08-28 | Runtime tag removal — `remove tag <name>` DSL syntax (both `remove tag <name>` and `remove <name>` forms); `RemoveTag` opcode (u8 8); bytecode `VERSION` bumped to 2; symmetric with flag set/clear and existing `add tag` |

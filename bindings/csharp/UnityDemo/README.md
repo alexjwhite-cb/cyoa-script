@@ -112,7 +112,7 @@ using var engine = catalog.CreateEngineByName("ForestAdventure");
 | `GetStats()` | `Dictionary<string,int>` | All stats as name→value |
 | `GetStat(string name)` | `int` | Value of a specific stat |
 | `GetStoryTags()` | `string[]` | Story-level tags (static) |
-| `GetTags()` | `string[]` | Runtime tags |
+| `GetTags()` | `string[]` | Runtime tags (added/removed during play) |
 | `GetFlags()` | `string[]` | Runtime flags |
 | `Dispose()` | — | Free the native handle |
 

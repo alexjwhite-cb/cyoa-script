@@ -57,6 +57,7 @@ pub enum EffectStep {
     ChangeStat { stat: String, delta: i64 },
     SetFlag { flag: String, value: bool },
     AddTag { tag: String },
+    RemoveTag { tag: String },
     Text(TextContent),
 }
 

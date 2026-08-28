@@ -802,6 +802,9 @@ impl Server {
                             EffectStep::AddTag { tag } => {
                                 content.push_str(&format!("- `add {}`\n", tag));
                             }
+                            EffectStep::RemoveTag { tag } => {
+                                content.push_str(&format!("- `remove {}`\n", tag));
+                            }
                             EffectStep::Text(t) => {
                                 let txt = format_text_segments(&t.segments);
                                 content.push_str(&format!("- \"{}\"\n", txt));

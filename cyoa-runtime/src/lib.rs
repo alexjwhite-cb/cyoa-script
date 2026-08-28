@@ -166,7 +166,7 @@ impl Engine {
     /// Collects text produced by `GetText`/`RenderTemplate` opcodes in the
     /// choice's inline effects and referenced `uses` effects, while skipping
     /// all state-mutating opcodes (`ChangeStat`, `SetFlag`, `ClearFlag`,
-    /// `AddTag`). The index references only choices visible to the player
+    /// `AddTag`, `RemoveTag`). The index references only choices visible to the player
     /// (prerequisites are already filtered).
     ///
     /// This is a read-only operation — stats, flags, and cursor position are
@@ -328,6 +328,10 @@ impl Engine {
                 Opcode::AddTag => {
                     let tag_name = self.bytecode.string_at(instr.operand_a);
                     self.state.tags.insert(tag_name.to_string());
+                }
+                Opcode::RemoveTag => {
+                    let tag_name = self.bytecode.string_at(instr.operand_a);
+                    self.state.tags.remove(tag_name);
                 }
                 Opcode::Return => break,
                 _ => {}

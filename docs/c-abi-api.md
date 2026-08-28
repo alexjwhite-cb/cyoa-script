@@ -144,7 +144,8 @@ int   cyoa_get_stat(CyoaEngine* engine, const char* name);
 
 - `cyoa_list_stats_json`: JSON object `{"statName": value, ...}`. **Caller must free**.
 - `cyoa_list_story_tags_json`: JSON array of story-level tags. **Caller must free**.
-- `cyoa_list_tags_json`: JSON array of runtime tags. **Caller must free**.
+- `cyoa_list_tags_json`: JSON array of runtime tags (added via `add tag`,
+  removed via `remove tag`). **Caller must free**.
 - `cyoa_list_flags_json`: JSON array of runtime flags. **Caller must free**.
 - `cyoa_get_stat`: Returns stat value as `i64`, or `0` if not found.
 
@@ -319,7 +320,7 @@ engine.SetStateJson(saveJson);
 | `GetStats()` | `Dictionary<string, int>` | Stat name → value |
 | `GetStat(string name)` | `long` | Single stat |
 | `GetStoryTags()` | `string[]` | Story-level tags |
-| `GetTags()` | `string[]` | Runtime tags |
+| `GetTags()` | `string[]` | Runtime tags (added/removed during play) |
 | `GetFlags()` | `string[]` | Runtime flags |
 | `CanAccessEvent(string id)` | `bool` | Event reachable? |
 | `IsStoryComplete` | `bool` | True if a terminal choice was made |

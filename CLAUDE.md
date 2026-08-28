@@ -181,7 +181,7 @@ The VM returns `&str` pointing directly into the loaded bytecode — no allocati
 
 ### VM: Register-Based Stack Machine
 
-Instructions: `GetText`, `RenderTemplate`, `GetChoice`, `ApplyEffect`, `ChangeStat`, `SetFlag`, `ClearFlag`, `AddTag`, `CheckCondition`, `RecordHistory`, `BranchIfTrue`, `Goto`, `Return`.
+Instructions: `GetText`, `RenderTemplate`, `GetChoice`, `ApplyEffect`, `ChangeStat`, `SetFlag`, `ClearFlag`, `AddTag`, `RemoveTag`, `CheckCondition`, `RecordHistory`, `BranchIfTrue`, `Goto`, `Return`.
 
 The VM owns `PlayerState` (stats/flags/tags) and `StoryCursor` (current event + history). Game engines never touch state directly — they use API calls. Story-level tags are static metadata stored in the `Bytecode` struct (not runtime state) and exposed via `Engine::list_story_tags()`.
 

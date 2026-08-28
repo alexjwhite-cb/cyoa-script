@@ -150,6 +150,46 @@ story Test:
 }
 
 #[test]
+fn test_parse_remove_tag() {
+    let source = r#"
+story Test:
+  effect unmark:
+    remove explored
+"#;
+    let story = parse_story(source).unwrap();
+    let eff = match &story.items[0] {
+        StoryItem::EffectDef(e) => e,
+        _ => panic!("expected EffectDef"),
+    };
+    assert_eq!(
+        eff.body[0],
+        EffectStep::RemoveTag {
+            tag: "explored".into()
+        }
+    );
+}
+
+#[test]
+fn test_parse_remove_tag_with_tag_keyword() {
+    let source = r#"
+story Test:
+  effect unmark:
+    remove tag explored
+"#;
+    let story = parse_story(source).unwrap();
+    let eff = match &story.items[0] {
+        StoryItem::EffectDef(e) => e,
+        _ => panic!("expected EffectDef"),
+    };
+    assert_eq!(
+        eff.body[0],
+        EffectStep::RemoveTag {
+            tag: "explored".into()
+        }
+    );
+}
+
+#[test]
 fn test_parse_event_with_text_and_choices() {
     let source = r#"
 story Test:
