@@ -493,7 +493,8 @@ indented lines (one per line or comma-separated per line):</p>
   ...
 </code></pre>
 <h4>Event-level Tags</h4>
-<p>Declared per-event, describing that event&#39;s content.</p>
+<p>Declared per-event, describing that event&#39;s content. These are decorative metadata
+and not retrievable at runtime.</p>
 <pre><code class="language-cyoa">event old_ruins:
   tags: exploration, early_game
 </code></pre>
@@ -503,11 +504,17 @@ indented lines (one per line or comma-separated per line):</p>
     exploration
     early_game
 </code></pre>
-<blockquote>
-<p><strong>Note</strong>: Story-level tags are distinct from runtime tags (see <code>add tag</code>
-in effects). Story tags are static; runtime tags are applied dynamically
-during play and are part of <code>PlayerState</code>.</p>
-</blockquote>
+<h4>Runtime Tags</h4>
+<p>Runtime tags are dynamically set and removed as part of story. Tags can not be used as
+part of <code>requires:</code> blocks. They are intended as a way of communicating state to the
+host game engine to aid and influence presentation. Runtime tags are a part of <code>PlayerState</code>,
+not the <code>StoryCursor</code>.</p>
+<pre><code class="language-cyoa">effect poison:
+    add tag poisoned
+
+effect cured:
+    remove tag poisoned
+</code></pre>
 <hr>
 <h2>Imports</h2>
 <p>Writers can import definitions from other <code>.cyoa</code> files. All imports are
@@ -591,6 +598,10 @@ multiple choices using <code>uses</code>.</p>
 <tr>
 <td><code>add tag</code></td>
 <td>Add a runtime tag</td>
+</tr>
+<tr>
+<td><code>remove tag</code></td>
+<td>Remove a runtime tag</td>
 </tr>
 <tr>
 <td><code>&quot;string&quot;</code> or <code>string</code></td>
@@ -706,7 +717,7 @@ effects, reference reusable effects, and specify the next event.</p>
 <tr>
 <td>Inline effects</td>
 <td>No</td>
-<td><code>+/-N stat</code>, <code>stat +/-N</code>, <code>set flag</code>, <code>add tag</code></td>
+<td><code>+/-N stat</code>, <code>stat +/-N</code>, <code>set flag</code>, <code>add tag</code>, <code>remove tag</code></td>
 </tr>
 <tr>
 <td><code>uses</code></td>

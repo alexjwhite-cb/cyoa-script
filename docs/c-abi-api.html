@@ -544,7 +544,8 @@ int   cyoa_get_stat(CyoaEngine* engine, const char* name);
 <ul>
 <li><code>cyoa_list_stats_json</code>: JSON object <code>{&quot;statName&quot;: value, ...}</code>. <strong>Caller must free</strong>.</li>
 <li><code>cyoa_list_story_tags_json</code>: JSON array of story-level tags. <strong>Caller must free</strong>.</li>
-<li><code>cyoa_list_tags_json</code>: JSON array of runtime tags. <strong>Caller must free</strong>.</li>
+<li><code>cyoa_list_tags_json</code>: JSON array of runtime tags (added via <code>add tag</code>,
+removed via <code>remove tag</code>). <strong>Caller must free</strong>.</li>
 <li><code>cyoa_list_flags_json</code>: JSON array of runtime flags. <strong>Caller must free</strong>.</li>
 <li><code>cyoa_get_stat</code>: Returns stat value as <code>i64</code>, or <code>0</code> if not found.</li>
 </ul>
@@ -808,7 +809,7 @@ engine.SetStateJson(saveJson);
 <tr>
 <td><code>GetTags()</code></td>
 <td><code>string[]</code></td>
-<td>Runtime tags</td>
+<td>Runtime tags (added/removed during play)</td>
 </tr>
 <tr>
 <td><code>GetFlags()</code></td>

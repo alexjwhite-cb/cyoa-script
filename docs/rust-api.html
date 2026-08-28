@@ -484,7 +484,7 @@ engine2.set_state_json(&amp;save)?;
 <pre><code class="language-rust">engine.stats_json() -&gt; String        // JSON: {&quot;statName&quot;: value, ...}
 engine.get_stat(name: &amp;str) -&gt; i64    // 0 if stat doesn&#39;t exist
 engine.list_flags() -&gt; Vec&lt;String&gt;   // runtime flags currently set
-engine.list_tags() -&gt; Vec&lt;String&gt;    // runtime tags applied during play
+engine.list_tags() -&gt; Vec&lt;String&gt;    // runtime tags added/removed during play
 engine.list_story_tags() -&gt; Vec&lt;String&gt;  // static story-level tags
 </code></pre>
 <h3>Queries</h3>
@@ -541,10 +541,10 @@ if let Some(story) = fantasy.first() {
 </code></pre>
 <blockquote>
 <p><strong>Note</strong>: <code>PlayerState.tags</code> holds <strong>runtime-applied</strong> tags (added via the
-<code>AddTag</code> opcode during play). <strong>Story-level tags</strong> (declared via <code>tags:</code> at
-the story block scope) are static metadata stored in the <code>Bytecode</code> struct
-and accessed via <code>Engine::list_story_tags()</code> — they are distinct from runtime
-tags and never change during play.</p>
+<code>AddTag</code> or removed via the <code>RemoveTag</code> opcode during play). <strong>Story-level tags</strong>
+(declared via <code>tags:</code> at the story block scope) are static metadata stored in the
+<code>Bytecode</code> struct and accessed via <code>Engine::list_story_tags()</code> — they are distinct
+from runtime tags and never change during play.</p>
 </blockquote>
 <h2>StoryCursor</h2>
 <pre><code class="language-rust">pub struct StoryCursor {
