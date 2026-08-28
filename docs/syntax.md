@@ -120,7 +120,8 @@ story ForestAdventure:
 
 #### Event-level Tags
 
-Declared per-event, describing that event's content.
+Declared per-event, describing that event's content. These are decorative metadata
+and not retrievable at runtime.
 
 ```cyoa
 event old_ruins:
@@ -136,9 +137,20 @@ event old_ruins:
     early_game
 ```
 
-> **Note**: Story-level tags are distinct from runtime tags (see `add tag`
-> and `remove tag` in effects). Story tags are static; runtime tags are
-> applied dynamically during play and are part of `PlayerState`.
+#### Runtime Tags
+
+Runtime tags are dynamically set and removed as part of story. Tags can not be used as
+part of `requires:` blocks. They are intended as a way of communicating state to the
+host game engine to aid and influence presentation. Runtime tags are a part of `PlayerState`,
+not the `StoryCursor`.
+
+```cyoa
+effect poison:
+    add tag poisoned
+
+effect cured:
+    remove tag poisoned
+```
 
 ---
 
