@@ -117,7 +117,7 @@ engine2.set_state_json(&save)?;
 engine.stats_json() -> String        // JSON: {"statName": value, ...}
 engine.get_stat(name: &str) -> i64    // 0 if stat doesn't exist
 engine.list_flags() -> Vec<String>   // runtime flags currently set
-engine.list_tags() -> Vec<String>    // runtime tags applied during play
+engine.list_tags() -> Vec<String>    // runtime tags added/removed during play
 engine.list_story_tags() -> Vec<String>  // static story-level tags
 ```
 
@@ -192,10 +192,10 @@ pub struct PlayerState {
 ```
 
 > **Note**: `PlayerState.tags` holds **runtime-applied** tags (added via the
-> `AddTag` opcode during play). **Story-level tags** (declared via `tags:` at
-> the story block scope) are static metadata stored in the `Bytecode` struct
-> and accessed via `Engine::list_story_tags()` — they are distinct from runtime
-> tags and never change during play.
+> `AddTag` or removed via the `RemoveTag` opcode during play). **Story-level tags**
+> (declared via `tags:` at the story block scope) are static metadata stored in the
+> `Bytecode` struct and accessed via `Engine::list_story_tags()` — they are distinct
+> from runtime tags and never change during play.
 
 ## StoryCursor
 

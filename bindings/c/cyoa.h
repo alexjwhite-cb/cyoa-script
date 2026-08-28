@@ -199,7 +199,8 @@ char *cyoa_list_stats_json(CyoaEngine *engine);
 char *cyoa_list_story_tags_json(CyoaEngine *engine);
 
 /**
- * Runtime tags currently applied during play as a JSON array.
+ * Runtime tags currently applied/removed during play as a JSON array
+ * (added via `add tag`, removed via `remove tag`).
  * Heap-allocated, caller must free with `cyoa_free_string`.
  */
 char *cyoa_list_tags_json(CyoaEngine *engine);

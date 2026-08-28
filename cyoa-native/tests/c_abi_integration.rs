@@ -354,6 +354,76 @@ fn test_cyoa_list_tags_and_flags_empty_at_start() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Tag add/remove tests
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Story that adds and later removes a runtime tag across two choices.
+const TAG_STORY_SOURCE: &str = r#"
+story TagTest:
+  tags: fantasy
+
+  event start:
+    "You enter a fight."
+    choice "Fight":
+      add tag in_combat
+      next mid
+
+  event mid:
+    "You win the fight."
+    choice "Leave":
+      remove tag in_combat
+      next end
+
+  event end:
+    "You walk away."
+"#;
+
+#[test]
+fn test_cyoa_tag_add_and_remove_via_dsl() {
+    let bytes = compile_to_bytes(TAG_STORY_SOURCE);
+    let engine = cyoa_create(bytes.as_ptr(), bytes.len());
+    assert!(!engine.is_null());
+
+    // No runtime tags at start
+    let tags = move_json_out_mut(cyoa_list_tags_json(engine));
+    assert_eq!(tags, "[]");
+
+    // First choice adds "in_combat" tag
+    cyoa_make_choice(engine, 0);
+    let tags_after_add = move_json_out_mut(cyoa_list_tags_json(engine));
+    assert!(tags_after_add.contains("in_combat"));
+
+    // Second choice removes "in_combat" tag
+    cyoa_make_choice(engine, 0);
+    let tags_after_remove = move_json_out_mut(cyoa_list_tags_json(engine));
+    assert!(!tags_after_remove.contains("in_combat"));
+    assert_eq!(tags_after_remove, "[]");
+
+    cyoa_destroy(engine);
+}
+
+#[test]
+fn test_cyoa_tag_remove_nonexistent_is_noop() {
+    let bytes = compile_to_bytes(TAG_STORY_SOURCE);
+    let engine = cyoa_create(bytes.as_ptr(), bytes.len());
+    assert!(!engine.is_null());
+
+    // Removing a tag that doesn't exist should be a no-op, not an error
+    cyoa_make_choice(engine, 0);
+    assert!(move_json_out_mut(cyoa_list_tags_json(engine)).contains("in_combat"));
+
+    // Remove a tag that was never added
+    cyoa_make_choice(engine, 0); // removes in_combat
+    cyoa_make_choice(engine, 0); // terminal — story complete
+
+    // Tags should be empty
+    let tags = move_json_out_mut(cyoa_list_tags_json(engine));
+    assert_eq!(tags, "[]");
+
+    cyoa_destroy(engine);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // History tests
 // ═══════════════════════════════════════════════════════════════════════════
 

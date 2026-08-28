@@ -347,6 +347,72 @@ story Test:
 }
 
 #[test]
+fn test_engine_choice_removes_tag() {
+    let bc = compile(
+        r#"
+story Test:
+  event start:
+    "Combat!"
+    choice "Attack":
+      add combat_started
+      next mid
+  event mid:
+    "Still fighting."
+    choice "End combat":
+      remove combat_started
+      next end
+  event end:
+    "Done."
+"#,
+    );
+    let mut engine = Engine::new(bc);
+    assert!(!engine.list_tags().contains(&"combat_started".to_string()));
+
+    // First choice adds the tag
+    engine.make_choice(0);
+    assert!(engine.list_tags().contains(&"combat_started".to_string()));
+
+    // Second choice removes the tag
+    engine.make_choice(0);
+    assert!(!engine.list_tags().contains(&"combat_started".to_string()));
+    assert!(engine.list_tags().is_empty());
+}
+
+#[test]
+fn test_engine_remove_tag_via_effect_block() {
+    let bc = compile(
+        r#"
+story Test:
+  effect clear_combat:
+    remove combat_started
+  effect start_combat:
+    add combat_started
+
+  event start:
+    "Combat!"
+    choice "Engage":
+      uses start_combat
+      next mid
+  event mid:
+    "Still fighting."
+    choice "End":
+      uses clear_combat
+      next end
+  event end:
+    "Done."
+"#,
+    );
+    let mut engine = Engine::new(bc);
+
+    engine.make_choice(0);
+    assert!(engine.list_tags().contains(&"combat_started".to_string()));
+
+    engine.make_choice(0);
+    assert!(!engine.list_tags().contains(&"combat_started".to_string()));
+    assert!(engine.list_tags().is_empty());
+}
+
+#[test]
 fn test_engine_uses_effect_block() {
     let bc = compile(
         r#"

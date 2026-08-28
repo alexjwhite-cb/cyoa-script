@@ -338,7 +338,8 @@ Story-level tags (static metadata from the `.cyoa` file).
 
 ### `get_tags() -> PackedStringArray`
 
-Runtime tags currently applied during play.
+Runtime tags currently applied during play (added via `add tag`,
+removed via `remove tag`).
 
 ### `get_flags() -> PackedStringArray`
 

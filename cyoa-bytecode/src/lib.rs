@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 /// Magic number: "CYOA" (0x43594F41)
 pub const MAGIC: u32 = 0x43594F41;
-pub const VERSION: u32 = 1;
+pub const VERSION: u32 = 2;
 
 /// Bytecode file header.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -93,11 +93,12 @@ pub enum Opcode {
     SetFlag = 5,
     ClearFlag = 6,
     AddTag = 7,
-    CheckCondition = 8,
-    RecordHistory = 9,
-    BranchIfTrue = 10,
-    Goto = 11,
-    Return = 12,
+    RemoveTag = 8,
+    CheckCondition = 9,
+    RecordHistory = 10,
+    BranchIfTrue = 11,
+    Goto = 12,
+    Return = 13,
 }
 
 impl Opcode {
@@ -111,11 +112,12 @@ impl Opcode {
             5 => Opcode::SetFlag,
             6 => Opcode::ClearFlag,
             7 => Opcode::AddTag,
-            8 => Opcode::CheckCondition,
-            9 => Opcode::RecordHistory,
-            10 => Opcode::BranchIfTrue,
-            11 => Opcode::Goto,
-            12 => Opcode::Return,
+            8 => Opcode::RemoveTag,
+            9 => Opcode::CheckCondition,
+            10 => Opcode::RecordHistory,
+            11 => Opcode::BranchIfTrue,
+            12 => Opcode::Goto,
+            13 => Opcode::Return,
             _ => return None,
         })
     }

@@ -80,13 +80,14 @@ sessions. The JSON format is identical across all languages:
 
 - **`stats`**: Stat name → current `i64` value (note: JS returns these as `bigint`)
 - **`flags`**: Set of flag names currently set
-- **`tags`**: Runtime tags applied during play (not story-level tags)
+- **`tags`**: Runtime tags applied/removed during play (not story-level tags)
 - **`current_event`**: Event table index for cursor restoration
 - **`choice_history`**: All choices made, for replay/analytics
 - **`complete`**: `true` if a terminal choice was made (story has ended)
 
 > **Important**: `tags` in state are **runtime-applied** tags (added during play
-> via `add tag`). **Story-level tags** are static metadata in the bytecode and
+> via `add tag`, removed via `remove tag`). **Story-level tags** are static metadata
+> in the bytecode and
 > are queried via `listStoryTags()` / `list_story_tags()` — they are not part
 > the state JSON.
 
