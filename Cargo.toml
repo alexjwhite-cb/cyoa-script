@@ -13,7 +13,7 @@ members = [
 
 # Workspace-wide dependencies — versions pinned for reproducibility
 [workspace.package]
-version = "0.11.1"
+version = "0.11.2"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 rust-version = "1.80"

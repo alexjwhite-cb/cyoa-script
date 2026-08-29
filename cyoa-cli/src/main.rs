@@ -67,6 +67,18 @@ fn cmd_compile(input: &str) {
         }
     };
 
+    // Resolve imports so that symbols from std/ and local imports are recognized
+    let input_path = std::path::Path::new(input);
+    let base_dir = input_path.parent().unwrap_or(std::path::Path::new("."));
+    let std_paths = find_std_dirs(base_dir);
+    let story = match cyoa_compiler::resolve_imports(&story, base_dir, &std_paths) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("Import error: {}", e);
+            std::process::exit(1);
+        }
+    };
+
     let bytecode = match cyoa_compiler::compile_story(&story) {
         Ok(bc) => bc,
         Err(e) => {
