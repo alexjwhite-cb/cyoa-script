@@ -5,7 +5,7 @@
 // Design principles:
 // - Writer-first: prose-like, indentation-based, minimal syntax
 // - Comments use # (familiar, doesn't conflict with {{}} templating)
-// - Keywords: story, import, stat, flag, effect, event, choice, requires, tags, uses, next, set
+// - Keywords: story, import, stat, flag, effect, event, choice, requires, tags, uses, next, set, add, remove, to, AND, OR, NOT, true, false, as
 // - Text can be quoted or unquoted prose
 // - Templates use {{stat_name}} for interpolation
 //
@@ -66,7 +66,7 @@ effect_def = {
 }
 
 effect_step = _{
-    stat_change | flag_set | add_tag | set_to_decl | comment | blank_line
+    stat_change | flag_set | add_tag | remove_tag | set_to_decl | comment | blank_line
 }
 
 stat_change = {
@@ -81,6 +81,10 @@ flag_set = {
 
 add_tag = {
     "add" ~ WS+ ~ identifier ~ NEWLINE*
+}
+
+remove_tag = {
+    "remove" ~ WS+ ~ identifier ~ NEWLINE*
 }
 
 set_to_decl = {
@@ -159,7 +163,7 @@ choice_def = {
 
 // Choice modifiers between the text and the colon
 choice_modifier = _{
-    uses_clause | requires_clause | flag_set | add_tag | set_to_decl
+    uses_clause | requires_clause | flag_set | add_tag | remove_tag | set_to_decl
 }
 
 uses_clause = {
@@ -172,7 +176,7 @@ requires_clause = {
 
 // Body items of a choice
 choice_body_item = _{
-    stat_change | flag_set | add_tag | template_line | next_decl | set_to_decl | comment | blank_line
+    stat_change | flag_set | add_tag | remove_tag | template_line | next_decl | set_to_decl | comment | blank_line
 }
 
 next_decl = {
@@ -237,7 +241,7 @@ template_string = {
 keyword = {
     "story" | "import" | "stat" | "flag" | "effect" | "event" |
     "choice" | "requires" | "tags" | "uses" | "next" |
-    "set" | "add" | "by" | "to" | "AND" | "OR" | "NOT" |
+    "set" | "add" | "remove" | "to" | "AND" | "OR" | "NOT" |
     "true" | "false" | "as"
 }
 

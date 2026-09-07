@@ -543,6 +543,7 @@ fn is_dsl_keyword(word: &str) -> bool {
             | "next"
             | "set"
             | "add"
+            | "remove"
             | "to"
             | "true"
             | "false"

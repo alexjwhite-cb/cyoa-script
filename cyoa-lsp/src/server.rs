@@ -12,9 +12,11 @@ use cyoa_ast::{EffectStep, Story, StoryItem, TextSegment};
 use cyoa_compiler::{parse_story, resolve_imports, validate_references};
 
 /// Keyword set for semantic token classification.
+/// Must be kept in sync with `cyoa-compiler::keyword` (grammar.pest) and
+/// `cyoa-compiler::is_dsl_keyword` (parser.rs).
 const KEYWORDS: &[&str] = &[
     "story", "import", "stat", "flag", "effect", "event", "choice", "requires", "tags", "uses",
-    "next", "set", "add", "to", "AND", "OR", "NOT", "true", "false", "as",
+    "next", "set", "add", "remove", "to", "AND", "OR", "NOT", "true", "false", "as",
 ];
 
 /// Token type indices — must match the semanticTokensOptions legend.
@@ -362,7 +364,7 @@ impl Server {
         // DSL keywords
         for kw in &[
             "event", "choice", "effect", "stat", "flag", "tags", "requires", "next", "uses", "add",
-            "set",
+            "remove", "set",
         ] {
             items.push(CompletionItem {
                 label: kw.to_string(),
@@ -1073,6 +1075,78 @@ fn encode_semantic_tokens(
     data
 }
 
+/// Detect a stat change pattern at the start of a line and return
+/// the byte offset of the stat name (the identifier being modified).
+///
+/// Recognized forms (leading whitespace stripped):
+/// - Prefix: `+N stat`, `+ N stat`, `-N stat`, `- N stat`
+/// - Postfix: `stat +N`, `stat + N`, `stat -N`, `stat - N`
+///
+/// Returns `None` for lines that don't match a stat change pattern
+/// (e.g. prose text, `stat` definitions, `set`/`add`/`remove` effects).
+fn find_stat_name_offset(line: &str) -> Option<usize> {
+    let trimmed = line.trim_start();
+    let indent = line.len() - trimmed.len();
+    let words: Vec<&str> = trimmed.split_whitespace().collect();
+
+    if words.is_empty() {
+        return None;
+    }
+
+    // Helper: check if a word is a DSL keyword (cannot be a stat name)
+    let is_keyword = |w: &str| KEYWORDS.contains(&w);
+
+    // --- Prefix forms: `+N stat` or `+ N stat` (also `-` variants) ---
+    if words[0].starts_with(['+', '-']) {
+        // Compact: `+3 health` → ["+3", "health"]
+        if words[0].len() > 1
+            && words[0][1..].parse::<i64>().is_ok()
+            && words.len() >= 2
+            && !is_keyword(words[1])
+            && !words[1].parse::<i64>().is_ok()
+            && !words[1].starts_with('"')
+        {
+            let stat_offset = trimmed.find(words[1])?;
+            return Some(indent + stat_offset);
+        }
+        // Spaced: `+ 3 health` → ["+", "3", "health"]
+        if words[0].len() == 1
+            && words.len() >= 3
+            && words[1].parse::<i64>().is_ok()
+            && !is_keyword(words[2])
+            && !words[2].parse::<i64>().is_ok()
+            && !words[2].starts_with('"')
+        {
+            let stat_offset = trimmed.find(words[2])?;
+            return Some(indent + stat_offset);
+        }
+    }
+
+    // --- Postfix forms: `stat +N` or `stat + N` ---
+    if words.len() >= 2 {
+        let first = words[0];
+        let second = words[1];
+        if !is_keyword(first) && !first.starts_with('"') && !first.parse::<i64>().is_ok() {
+            // Compact: `health +3` → ["health", "+3"]
+            if second.len() > 1
+                && second.starts_with(['+', '-'])
+                && second[1..].parse::<i64>().is_ok()
+            {
+                return Some(indent);
+            }
+            // Spaced: `health + 3` → ["health", "+", "3"]
+            if (second == "+" || second == "-")
+                && words.len() >= 3
+                && words[2].parse::<i64>().is_ok()
+            {
+                return Some(indent);
+            }
+        }
+    }
+
+    None
+}
+
 /// Tokenize source text into semantic tokens for syntax highlighting.
 /// Tracks multi-line string state (quoted strings spanning multiple source lines).
 fn tokenize_semantic(text: &str) -> Vec<SemanticToken> {
@@ -1083,6 +1157,9 @@ fn tokenize_semantic(text: &str) -> Vec<SemanticToken> {
     for (line_idx, line) in text.lines().enumerate() {
         let line_num = line_idx as u32;
         let bytes = line.as_bytes();
+        // Pre-scan: detect stat change pattern to highlight the stat name
+        // as a parameter/variable (TT_PARAMETER) instead of a generic type.
+        let stat_name_byte = find_stat_name_offset(line);
         let mut i = 0usize;
 
         // If we were inside a string at the end of the previous line,
@@ -1163,7 +1240,11 @@ fn tokenize_semantic(text: &str) -> Vec<SemanticToken> {
                     }
                 }
                 let word = std::str::from_utf8(&bytes[start..i]).unwrap();
-                let token_type = if keywords.contains(word) {
+                let token_type = if Some(start) == stat_name_byte {
+                    // Stat name in a recognized stat-change pattern —
+                    // highlight as a variable/parameter (not a generic type).
+                    TT_PARAMETER
+                } else if keywords.contains(word) {
                     TT_KEYWORD
                 } else {
                     TT_TYPE
@@ -1233,12 +1314,15 @@ fn tokenize_semantic(text: &str) -> Vec<SemanticToken> {
                 continue;
             }
 
-            // Numbers (including negative)
+            // Numbers (including signed): `+3`, `-3`, `+ 3` (compact prefix), `+ 3` (spaced)
+            // In CYOA DSL, `+3` is a stat-change modifier, consistent with `-3`.
+            // `+` alone (not followed by a digit) falls through to the operator handler.
             if c.is_ascii_digit()
                 || (c == '-' && i + 1 < bytes.len() && (bytes[i + 1] as char).is_ascii_digit())
+                || (c == '+' && i + 1 < bytes.len() && (bytes[i + 1] as char).is_ascii_digit())
             {
                 let start = i;
-                if c == '-' {
+                if c == '-' || c == '+' {
                     i += 1;
                 }
                 while i < bytes.len() && (bytes[i] as char).is_ascii_digit() {
@@ -1307,6 +1391,29 @@ impl Default for Server {
 mod tests {
     use super::*;
     use crate::protocol::RawMessage;
+
+    /// Decode LSP semantic-token flat-data into absolute (line, start_char, length, token_type).
+    /// Each token is 5 consecutive numbers: [line_delta, start_char, length, tokenType, modifiers].
+    fn decode_tokens(data: &Vec<serde_json::Value>) -> Vec<(u32, u32, u32, u32)> {
+        let mut result = Vec::new();
+        let mut current_line = 0u32;
+        let mut prev_end: u32 = 0;
+        for chunk in data.chunks(5) {
+            let line_delta = chunk[0].as_u64().unwrap() as u32;
+            current_line += line_delta;
+            let start_char = chunk[1].as_u64().unwrap() as u32;
+            let length = chunk[2].as_u64().unwrap() as u32;
+            let token_type = chunk[3].as_u64().unwrap() as u32;
+            let abs_start = if line_delta == 0 {
+                prev_end + start_char
+            } else {
+                start_char
+            };
+            result.push((current_line, abs_start, length, token_type));
+            prev_end = abs_start + length;
+        }
+        result
+    }
 
     const VALID_STORY: &str = r#"story TestStory:
   tags: fantasy, test
@@ -1505,6 +1612,67 @@ mod tests {
                 );
             }
             _ => panic!("expected PublishDiagnostics"),
+        }
+    }
+
+    #[test]
+    fn test_did_open_remove_tag_syntax_no_diagnostics() {
+        // `remove tag <name>` is valid DSL syntax (see SPEC.md §3.5, §3.7).
+        // The LSP should parse it without errors.
+        let story = r#"story TestStory:
+  stat hp = 50
+  effect cure_poison:
+    remove tag poisoned
+    "You feel better."
+  event start:
+    "You begin your journey."
+    choice "Take antidote":
+      uses cure_poison
+      next start
+"#;
+        let mut server = Server::new();
+        let msg = did_open_msg("file:///test.cyoa", story);
+
+        let responses = server.handle(msg);
+        match &responses[0] {
+            Response::PublishDiagnostics { params, .. } => {
+                assert!(
+                    params.diagnostics.is_empty(),
+                    "expected no diagnostics for remove tag syntax, got: {:?}",
+                    params.diagnostics
+                );
+            }
+            _ => panic!("expected PublishDiagnostics"),
+        }
+
+        // Hover over the effect definition should show the `remove` step.
+        // Line 2 (0-indexed) is: `  effect cure_poison:`
+        // "cure_poison" starts at character 9
+        let hover_msg = request_msg(
+            "textDocument/hover",
+            serde_json::json!({
+                "textDocument": {"uri": "file:///test.cyoa"},
+                "position": {"line": 2, "character": 10} // cursor on "cure_poison"
+            }),
+        );
+        let responses = server.handle(hover_msg);
+        match &responses[0] {
+            Response::Response { result, .. } => {
+                let value = result.as_ref().unwrap()["contents"]["value"]
+                    .as_str()
+                    .unwrap();
+                assert!(
+                    value.contains("remove"),
+                    "hover for cure_poison should mention `remove`, got: {}",
+                    value
+                );
+                assert!(
+                    value.contains("poisoned"),
+                    "hover should show the tag name 'poisoned', got: {}",
+                    value
+                );
+            }
+            _ => panic!("expected Response"),
         }
     }
 
@@ -2032,6 +2200,264 @@ mod tests {
             }
             _ => panic!("expected Response"),
         }
+    }
+
+    #[test]
+    fn test_remove_keyword_is_highlighted() {
+        // `remove` must be tokenized as a keyword (not a regular identifier)
+        // since `remove tag <name>` is part of the DSL syntax.
+        let story = "story TestStory:\n  effect cure:\n    remove tag poisoned\n";
+        let mut server = Server::new();
+        let open_msg = did_open_msg("file:///test.cyoa", story);
+        server.handle(open_msg);
+
+        let tokens_msg = request_msg(
+            "textDocument/semanticTokens",
+            serde_json::json!({
+                "textDocument": {"uri": "file:///test.cyoa"},
+            }),
+        );
+
+        let responses = server.handle(tokens_msg);
+        assert_eq!(responses.len(), 1);
+        match &responses[0] {
+            Response::Response { result, .. } => {
+                let json = result.as_ref().unwrap();
+                let data = json["data"].as_array().unwrap();
+
+                // Flat array: each token is 5 consecutive numbers:
+                // [line, startChar, length, tokenType, tokenModifiers]
+                // Find the token for `remove` on line 2 and check it is a keyword (TT_KEYWORD = 0).
+                let mut found_remove_keyword = false;
+                let mut current_line = 0u32;
+                for i in (0..data.len()).step_by(5) {
+                    let line_delta = data[i].as_u64().unwrap() as u32;
+                    current_line += line_delta;
+                    let start_char = data[i + 1].as_u64().unwrap() as u32;
+                    let length = data[i + 2].as_u64().unwrap() as u32;
+                    let token_type = data[i + 3].as_u64().unwrap() as u32;
+                    if current_line == 2 && start_char == 4 {
+                        assert_eq!(
+                            token_type, TT_KEYWORD,
+                            "expected `remove` to be highlighted as a keyword (type {}), got type {}",
+                            TT_KEYWORD, token_type
+                        );
+                        assert_eq!(length, 6, "expected `remove` token length 6");
+                        found_remove_keyword = true;
+                    }
+                }
+                assert!(
+                    found_remove_keyword,
+                    "expected a keyword token for `remove` on line 2 at char 4"
+                );
+            }
+            _ => panic!("expected Response"),
+        }
+    }
+
+    #[test]
+    fn test_completion_includes_remove() {
+        let mut server = Server::new();
+        let open_msg = did_open_msg("file:///test.cyoa", VALID_STORY);
+        server.handle(open_msg);
+
+        let completion_msg = request_msg(
+            "textDocument/completion",
+            serde_json::json!({
+                "textDocument": {"uri": "file:///test.cyoa"},
+                "position": {"line": 10, "character": 0}
+            }),
+        );
+
+        let responses = server.handle(completion_msg);
+        let json = match &responses[0] {
+            Response::Response { result, .. } => result.as_ref().unwrap(),
+            _ => panic!("expected Response"),
+        };
+        let labels: Vec<&str> = json["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|i| i["label"].as_str().unwrap())
+            .collect();
+        assert!(
+            labels.contains(&"remove"),
+            "completion should include 'remove' keyword; got: {:?}",
+            labels
+        );
+        assert!(
+            labels.contains(&"add"),
+            "completion should include 'add' keyword; got: {:?}",
+            labels
+        );
+    }
+
+    #[test]
+    fn test_prefix_stat_change_tokenization() {
+        // `+3 courage` — `+3` should be a single number token (not `+` + `3`),
+        // and `courage` should be highlighted as a parameter (variable).
+        let story = "story T:\n  effect e:\n    +3 courage\n";
+        let mut server = Server::new();
+        let open_msg = did_open_msg("file:///test.cyoa", story);
+        server.handle(open_msg);
+
+        let tokens_msg = request_msg(
+            "textDocument/semanticTokens",
+            serde_json::json!({ "textDocument": { "uri": "file:///test.cyoa" } }),
+        );
+
+        let responses = server.handle(tokens_msg);
+        let json = match &responses[0] {
+            Response::Response { result, .. } => result.as_ref().unwrap(),
+            _ => panic!("expected Response"),
+        };
+        let data = json["data"].as_array().unwrap();
+        let tokens = decode_tokens(data);
+
+        // Line 2 is `    +3 courage` — `+3` at byte 4, `courage` at byte 7
+        let line2: Vec<_> = tokens.iter().filter(|(l, _, _, _)| *l == 2).collect();
+
+        let plus3 = line2
+            .iter()
+            .find(|(_, s, len, t)| *s == 4 && *len == 2 && *t == TT_NUMBER);
+        let courage = line2.iter().find(|(_, _, _, t)| *t == TT_PARAMETER);
+
+        assert!(
+            plus3.is_some(),
+            "`+3` should be a single TT_NUMBER token on line 2 at byte 4, len 2; tokens: {:?}",
+            line2
+        );
+        assert!(
+            courage.is_some(),
+            "`courage` should be highlighted as TT_PARAMETER in a stat change; tokens: {:?}",
+            line2
+        );
+    }
+
+    #[test]
+    fn test_postfix_stat_change_tokenization() {
+        // `courage +3` — postfix form: stat name then number.
+        let story = "story T:\n  effect e:\n    courage +3\n";
+        let mut server = Server::new();
+        let open_msg = did_open_msg("file:///test.cyoa", story);
+        server.handle(open_msg);
+
+        let tokens_msg = request_msg(
+            "textDocument/semanticTokens",
+            serde_json::json!({ "textDocument": { "uri": "file:///test.cyoa" } }),
+        );
+
+        let responses = server.handle(tokens_msg);
+        let json = match &responses[0] {
+            Response::Response { result, .. } => result.as_ref().unwrap(),
+            _ => panic!("expected Response"),
+        };
+        let data = json["data"].as_array().unwrap();
+        let tokens = decode_tokens(data);
+
+        // Line 2 is `    courage +3` — `courage` at byte 4, `+3` at byte 12
+        let line2: Vec<_> = tokens.iter().filter(|(l, _, _, _)| *l == 2).collect();
+
+        let courage = line2
+            .iter()
+            .find(|(_, s, len, t)| *s == 4 && *len == 7 && *t == TT_PARAMETER);
+        let plus3 = line2
+            .iter()
+            .find(|(_, s, len, t)| *s == 12 && *len == 2 && *t == TT_NUMBER);
+
+        assert!(
+            courage.is_some(),
+            "`courage` should be TT_PARAMETER at byte 4; tokens: {:?}",
+            line2
+        );
+        assert!(
+            plus3.is_some(),
+            "`+3` should be a single TT_NUMBER at byte 12; tokens: {:?}",
+            line2
+        );
+    }
+
+    #[test]
+    fn test_spaced_stat_change_tokenization() {
+        // `+ 3 courage` and `courage + 3` — spaced forms should also work.
+        let story = "story T:\n  effect e1:\n    + 3 courage\n  effect e2:\n    courage + 3\n";
+        let mut server = Server::new();
+        let open_msg = did_open_msg("file:///test.cyoa", story);
+        server.handle(open_msg);
+
+        let tokens_msg = request_msg(
+            "textDocument/semanticTokens",
+            serde_json::json!({ "textDocument": { "uri": "file:///test.cyoa" } }),
+        );
+
+        let responses = server.handle(tokens_msg);
+        let json = match &responses[0] {
+            Response::Response { result, .. } => result.as_ref().unwrap(),
+            _ => panic!("expected Response"),
+        };
+        let data = json["data"].as_array().unwrap();
+        let tokens = decode_tokens(data);
+
+        // Line 2: `    + 3 courage` — `courage` at byte 8
+        let line2: Vec<_> = tokens.iter().filter(|(l, _, _, _)| *l == 2).collect();
+        let prefix_param = line2
+            .iter()
+            .find(|(_, s, len, t)| *s == 8 && *len == 7 && *t == TT_PARAMETER);
+
+        // Line 4: `    courage + 3` — `courage` at byte 4
+        let line4: Vec<_> = tokens.iter().filter(|(l, _, _, _)| *l == 4).collect();
+        let postfix_param = line4
+            .iter()
+            .find(|(_, s, len, t)| *s == 4 && *len == 7 && *t == TT_PARAMETER);
+
+        assert!(
+            prefix_param.is_some(),
+            "spaced prefix `+ 3 courage`: `courage` should be TT_PARAMETER at byte 8; tokens: {:?}",
+            line2
+        );
+        assert!(
+            postfix_param.is_some(),
+            "spaced postfix `courage + 3`: `courage` should be TT_PARAMETER at byte 4; tokens: {:?}",
+            line4
+        );
+    }
+
+    #[test]
+    fn test_non_stat_line_not_treated_as_parameter() {
+        // Stat definitions like `stat hp = 50` should NOT have the stat name
+        // highlighted as TT_PARAMETER (only stat-change lines do).
+        let story = "story T:\n  stat hp = 50\n";
+        let mut server = Server::new();
+        let open_msg = did_open_msg("file:///test.cyoa", story);
+        server.handle(open_msg);
+
+        let tokens_msg = request_msg(
+            "textDocument/semanticTokens",
+            serde_json::json!({ "textDocument": { "uri": "file:///test.cyoa" } }),
+        );
+
+        let responses = server.handle(tokens_msg);
+        let json = match &responses[0] {
+            Response::Response { result, .. } => result.as_ref().unwrap(),
+            _ => panic!("expected Response"),
+        };
+        let data = json["data"].as_array().unwrap();
+        let tokens = decode_tokens(data);
+
+        // Line 1: `  stat hp = 50` — `hp` at byte 7
+        let line1: Vec<_> = tokens.iter().filter(|(l, _, _, _)| *l == 1).collect();
+        let hp = line1.iter().find(|(_, s, len, _)| *s == 7 && *len == 2);
+
+        assert!(
+            hp.is_some(),
+            "expected `hp` token on line 1; tokens: {:?}",
+            line1
+        );
+        assert_eq!(
+            hp.unwrap().3,
+            TT_TYPE,
+            "stat name in `stat hp = 50` should be TT_TYPE, not TT_PARAMETER"
+        );
     }
 
     #[test]
