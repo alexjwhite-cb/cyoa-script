@@ -156,6 +156,21 @@ impl Engine {
                     continue;
                 }
             }
+
+            // If the choice points to another event, check that event's
+            // `requires` condition — the choice is hidden when the target
+            // event's prerequisite is not met.
+            if choice.next != 0 {
+                let next_name = self.bytecode.string_at(choice.next);
+                if let Some(target_idx) = self.find_event_by_name(next_name) {
+                    if let Some(cond_str) = self.event_requires(target_idx) {
+                        if !self.evaluate_condition(cond_str) {
+                            continue;
+                        }
+                    }
+                }
+            }
+
             result.push(choice_idx);
         }
         result
@@ -338,6 +353,23 @@ impl Engine {
             }
         }
         texts
+    }
+
+    /// Look up the `requires` condition string for an event at a given
+    /// bytecode index. Returns `None` if the event has no `requires` or
+    /// doesn't exist.
+    fn event_requires(&self, event_idx: usize) -> Option<&str> {
+        self.bytecode
+            .events
+            .get(event_idx)
+            .and_then(|e| {
+                if e.requires == 0 {
+                    None
+                } else {
+                    Some(e.requires)
+                }
+            })
+            .map(|idx| self.bytecode.string_at(idx))
     }
 
     fn find_event_by_name(&self, name: &str) -> Option<usize> {

@@ -1217,3 +1217,136 @@ story T:
     assert_eq!(engine.current_event_id(), "start");
     assert_eq!(engine.get_stat("hp"), 50);
 }
+
+#[test]
+fn test_engine_event_requires_hides_choice() {
+    let bc = compile(
+        r#"
+story Test:
+  flag my_flag = false
+  event start:
+    "Choose:"
+    choice "Go to gated event":
+      next gated_event
+  event gated_event:
+    requires: my_flag
+    "You entered the gated event."
+    choice "Go to end":
+      next end
+  event end:
+    "Done."
+"#,
+    );
+    let engine = Engine::new(bc);
+
+    // my_flag is false, so "Go to gated event" should be hidden
+    let choices = engine.current_choices();
+    assert!(
+        choices.is_empty(),
+        "choice pointing to gated event should be hidden when flag is false"
+    );
+}
+
+#[test]
+fn test_engine_event_requires_shown_when_met() {
+    let bc = compile(
+        r#"
+story Test:
+  flag my_flag = false
+  event start:
+    "Choose:"
+    choice "Go to gated event":
+      next gated_event
+  event gated_event:
+    requires: my_flag
+    "You entered the gated event."
+    choice "Go to end":
+      next end
+  event end:
+    "Done."
+"#,
+    );
+    let mut engine = Engine::new(bc);
+
+    // Set the flag so the prerequisite is met
+    engine.state.flags.insert("my_flag".into());
+
+    // Now "Go to gated event" should be visible
+    let choices = engine.current_choices();
+    assert_eq!(choices.len(), 1);
+    assert_eq!(choices[0], "Go to gated event");
+}
+
+#[test]
+fn test_engine_event_requires_stat_threshold() {
+    let bc = compile(
+        r#"
+story Test:
+  stat courage = 0
+  event start:
+    "Choose:"
+    choice "Go to cave":
+      next cave
+  event cave:
+    requires: courage >= 5
+    "You enter the dark cave."
+    choice "Go to end":
+      next end
+  event end:
+    "Done."
+"#,
+    );
+    let engine = Engine::new(bc.clone());
+
+    // courage = 0, so the cave choice should be hidden
+    let choices = engine.current_choices();
+    assert!(
+        choices.is_empty(),
+        "choice pointing to event with unmet stat threshold should be hidden"
+    );
+
+    // Now give enough courage
+    let mut engine2 = Engine::new(bc);
+    engine2.state.stats.insert("courage".into(), 5);
+
+    let choices2 = engine2.current_choices();
+    assert_eq!(choices2.len(), 1);
+    assert_eq!(choices2[0], "Go to cave");
+}
+
+#[test]
+fn test_engine_event_requires_mixed_choices() {
+    let bc = compile(
+        r#"
+story Test:
+  flag my_flag = false
+  event start:
+    "Choose:"
+    choice "Go to gated event":
+      next gated_event
+    choice "Go to open event":
+      next open_event
+  event gated_event:
+    requires: my_flag
+    "Gated."
+    choice "End":
+      next end
+  event open_event:
+    "Open."
+    choice "End":
+      next end
+  event end:
+    "Done."
+"#,
+    );
+    let engine = Engine::new(bc);
+
+    // my_flag is false — only "Go to open event" should be visible
+    let choices = engine.current_choices();
+    assert_eq!(
+        choices.len(),
+        1,
+        "only the choice pointing to the ungated event should be visible"
+    );
+    assert_eq!(choices[0], "Go to open event");
+}

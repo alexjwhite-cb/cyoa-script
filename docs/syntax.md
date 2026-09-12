@@ -643,6 +643,30 @@ keywords at line start and scanning forward for indented body lines. Blank
 lines are skipped (not included in fold ranges). Overlapping ranges are
 returned innermost-first per the LSP specification.
 
+### Event-level prerequisites
+
+An `event` can have its own `requires:` condition. When a `choice` in another
+event specifies that event via `next`, the choice is **automatically hidden**
+if the target event's `requires` is not met:
+
+```cyoa
+event start:
+  "Where do you go?"
+  choice "Enter the cave":
+    next dark_cave
+  choice "Go around":
+    next forest_path
+
+event dark_cave:
+  requires: courage >= 5
+  "You venture into the dark cave."
+```
+
+With `courage = 0`, the "Enter the cave" choice is hidden because
+`dark_cave`'s `requires: courage >= 5` is false. Both the choice's own
+`requires` and the target event's `requires` are checked — both must pass
+for the choice to be visible.
+
 ### Error positions
 
 Validation errors include line and column positions pointing to the **reference

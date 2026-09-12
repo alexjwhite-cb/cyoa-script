@@ -218,6 +218,14 @@ event old_ruins:
 
 Both forms may be mixed freely within the same story.
 
+**Event-level `requires` and choice availability**: When a `choice` in one event
+specifies another event via `next`, that choice is automatically hidden if the
+target event's `requires` condition is not met by the player's current state.
+This is checked in addition to the choice's own `requires` — both conditions
+must pass (AND logic) for the choice to be visible. This lets writers gate
+access to an event by placing the prerequisite on the event itself rather than
+duplicating it on every incoming `choice`.
+
 ### 3.7 Choices
 
 ```
