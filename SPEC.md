@@ -788,3 +788,5 @@ formatting, semantic tokenization, and code folding over stdio (JSON-RPC).
 | 0.9.0 | 2026-08-24 | Markdown-style paragraph joining — consecutive prose lines joined into paragraphs, blank lines as separators (parser, all bindings, web demo); effect text rendered before next event; end-of-story overlay with restart/catalog buttons in web demo |
 | 0.10.0 | 2026-08-28 | Runtime tag removal — `remove tag <name>` DSL syntax (both `remove tag <name>` and `remove <name>` forms); `RemoveTag` opcode (u8 8); bytecode `VERSION` bumped to 2; symmetric with flag set/clear and existing `add tag` |
 | 0.11.1 | 2026-08-28 | Version bump to 0.11.1 (patch release consolidating tag removal feature; all docs synchronized) |
+| 0.11.2 | 2026-09-11 | Fix: resolve imports in `cmd_compile` before codegen |
+| 0.12.0 | 2026-09-12 | LSP: remove keyword highlighting + syntax-aware stat change highlighting; LSP code folding for `story`/`event`/`effect`/`choice` blocks with `startCharacter`/`endCharacter` for fold-state preservation; runtime: event-level `requires` gates choice availability when target event prerequisites are unmet |
