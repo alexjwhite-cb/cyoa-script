@@ -23,6 +23,7 @@ The binary (`cyoa-lsp`) is placed in `target/debug/`.
 | Hover info | Hover over a symbol |
 | Completion | Trigger manually or on `.` |
 | Error detail | Hover shows line/column info |
+| Code folding | `textDocument/foldingRange` request |
 
 ## Editor configuration
 

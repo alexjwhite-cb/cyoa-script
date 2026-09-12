@@ -39,6 +39,253 @@ struct SemanticToken {
     token_type: u32,
 }
 
+/// The completion context, determined by analyzing the text before the cursor
+/// on the current line. Each variant restricts which completion items are offered
+/// so that, for example, `add` is not suggested after `next`.
+enum CompletionContext {
+    /// Show all story items and all keywords (default/fallback).
+    All,
+    /// After `next` — show event IDs only.
+    Events,
+    /// After `uses` — show effect names only.
+    Effects,
+    /// After `set` — show flags only.
+    Flags,
+    /// After `requires:` — show stats and flags.
+    Conditions,
+    /// Stat change line (e.g. `+3 courage`) — show stats only.
+    Stats,
+    /// After `add` or `remove` — show tags collected from the story.
+    Tags,
+}
+
+/// Free functions used for completion context detection and shared helpers.
+/// (kept here so the `impl Server` block below stays focused on request handling)
+///
+/// Map a keyword token to the completion context it triggers, if any.
+/// Strips a trailing `:` so that `requires:` is recognised as `requires`.
+fn keyword_trigger(word: &str) -> Option<CompletionContext> {
+    match word.trim_end_matches(':') {
+        "next" => Some(CompletionContext::Events),
+        "uses" => Some(CompletionContext::Effects),
+        "set" => Some(CompletionContext::Flags),
+        "requires" => Some(CompletionContext::Conditions),
+        "add" => Some(CompletionContext::Tags),
+        "remove" => Some(CompletionContext::Tags),
+        _ => None,
+    }
+}
+
+/// Build a `CompletionItem` for a DSL keyword.
+fn keyword_completion(kw: &str) -> CompletionItem {
+    CompletionItem {
+        label: kw.to_string(),
+        kind: Some(CompletionItemKind::Keyword),
+        detail: Some("keyword".to_string()),
+        documentation: None,
+    }
+}
+
+/// Push all story items (events, stats, flags, effects) as completion items.
+fn collect_story_items(story: &Story, items: &mut Vec<CompletionItem>) {
+    for item in &story.items {
+        match item {
+            StoryItem::EventDef(e) => items.push(CompletionItem {
+                label: e.id.clone(),
+                kind: Some(CompletionItemKind::Class),
+                detail: Some("event".to_string()),
+                documentation: None,
+            }),
+            StoryItem::StatDef(s) => items.push(CompletionItem {
+                label: s.name.clone(),
+                kind: Some(CompletionItemKind::Variable),
+                detail: Some(format!("stat = {}", s.default)),
+                documentation: None,
+            }),
+            StoryItem::FlagDef(f) => items.push(CompletionItem {
+                label: f.name.clone(),
+                kind: Some(CompletionItemKind::Field),
+                detail: Some(format!("flag = {}", f.default)),
+                documentation: None,
+            }),
+            StoryItem::EffectDef(e) => items.push(CompletionItem {
+                label: e.name.clone(),
+                kind: Some(CompletionItemKind::Function),
+                detail: Some("effect".to_string()),
+                documentation: None,
+            }),
+            _ => {}
+        }
+    }
+}
+
+/// Collect every tag used in the story (story-level, event-level, and via
+/// `add`/`remove` effect steps). Used for contextual `add`/`remove` completion.
+fn collect_all_tags(story: &Story) -> Vec<String> {
+    let mut tags: Vec<String> = Vec::new();
+    let mut seen: HashSet<String> = HashSet::new();
+
+    // Story-level tags
+    for tag in &story.tags {
+        insert_tag(&mut tags, &mut seen, tag);
+    }
+
+    for item in &story.items {
+        if let StoryItem::EventDef(e) = item {
+            for tag in &e.tags {
+                insert_tag(&mut tags, &mut seen, tag);
+            }
+            // Inline effect steps on event entry
+            for step in &e.body {
+                if let EffectStep::AddTag { tag } | EffectStep::RemoveTag { tag } = step {
+                    insert_tag(&mut tags, &mut seen, tag);
+                }
+            }
+            // Choice steps
+            for choice in &e.choices {
+                for step in &choice.steps {
+                    if let EffectStep::AddTag { tag } | EffectStep::RemoveTag { tag } = step {
+                        insert_tag(&mut tags, &mut seen, tag);
+                    }
+                }
+            }
+        } else if let StoryItem::EffectDef(e) = item {
+            for step in &e.body {
+                if let EffectStep::AddTag { tag } | EffectStep::RemoveTag { tag } = step {
+                    insert_tag(&mut tags, &mut seen, tag);
+                }
+            }
+        }
+    }
+
+    tags
+}
+
+/// Deduplicate-and-push helper for `collect_all_tags`.
+fn insert_tag(tags: &mut Vec<String>, seen: &mut HashSet<String>, tag: &str) {
+    if seen.insert(tag.to_string()) {
+        tags.push(tag.to_string());
+    }
+}
+
+/// Strip a trailing comment (`# ...` to end of line) from a line slice.
+/// Comments inside quoted strings are preserved.
+fn strip_comment(line: &str) -> &str {
+    let mut in_string = false;
+    let mut escape = false;
+    for (i, c) in line.char_indices() {
+        if escape {
+            escape = false;
+            continue;
+        }
+        if in_string {
+            if c == '\\' {
+                escape = true;
+            } else if c == '"' {
+                in_string = false;
+            }
+        } else if c == '#' {
+            return &line[..i];
+        }
+    }
+    line
+}
+
+/// Determine the completion context and partial word from the cursor position.
+///
+/// Returns:
+/// - The `CompletionContext` (what kind of items to show).
+/// - The `partial` word currently being typed (for client-side prefix matching).
+fn compute_completion_context(
+    text: &str,
+    line: u32,
+    character: u32,
+) -> (CompletionContext, String) {
+    let lines: Vec<&str> = text.lines().collect();
+    let line_idx = line as usize;
+
+    if line_idx >= lines.len() {
+        return (CompletionContext::All, String::new());
+    }
+
+    let target_line = lines[line_idx];
+    let cursor_byte = utf16_to_byte_idx(target_line, character);
+    let line_before = &target_line[..cursor_byte.min(target_line.len())];
+    let text_before = strip_comment(line_before);
+
+    // The partial word is the text after the last whitespace before the cursor.
+    let partial_start = text_before
+        .rfind(char::is_whitespace)
+        .map(|pos| pos + 1)
+        .unwrap_or(0);
+    let partial = text_before[partial_start..].to_string();
+
+    // The context text is everything before the partial word.
+    let context_text = &text_before[..partial_start];
+    let tokens: Vec<&str> = context_text.split_whitespace().collect();
+
+    if tokens.is_empty() {
+        // Only whitespace (or empty) before cursor.
+        // If the partial IS a complete trigger keyword (user typed it, hasn't
+        // pressed space yet), treat it as already triggered with empty partial.
+        if let Some(ctx) = keyword_trigger(&partial) {
+            return (ctx, String::new());
+        }
+        // Check for stat change context (prefix form: `+3 stat`)
+        if let Some(ctx) = stat_change_context(context_text) {
+            return (ctx, partial);
+        }
+        return (CompletionContext::All, partial);
+    }
+
+    let last_token = tokens.last().unwrap();
+
+    if partial.is_empty() {
+        // Cursor is after whitespace — the last token is a complete word.
+        if let Some(ctx) = keyword_trigger(last_token) {
+            return (ctx, String::new());
+        }
+    } else {
+        // Cursor is in the middle of a word (the partial).
+        // If the previous complete token is a trigger keyword, use that context.
+        if let Some(ctx) = keyword_trigger(last_token) {
+            return (ctx, partial);
+        }
+    }
+
+    // Check for stat change context (prefix form: `+3 stat`)
+    if let Some(ctx) = stat_change_context(context_text) {
+        return (ctx, partial);
+    }
+
+    (CompletionContext::All, partial)
+}
+
+/// Check if the text before the cursor indicates a prefix stat-change context
+/// (e.g. `+3 courage` or `+ 3 courage`). Returns `Stats` context if the line
+/// starts with a signed delta in prefix position.
+fn stat_change_context(text: &str) -> Option<CompletionContext> {
+    let tokens: Vec<&str> = text.split_whitespace().collect();
+    if tokens.is_empty() {
+        return None;
+    }
+
+    // Prefix form: `+N stat` or `+ N stat` — the stat name follows the delta.
+    let first = tokens[0];
+    if first.starts_with(['+', '-']) {
+        // Compact: `+3` — `+` followed by digits
+        if first.len() > 1 && first[1..].parse::<i64>().is_ok() {
+            return Some(CompletionContext::Stats);
+        }
+        // Spaced: `+ 3` — just `+` alone, then a separate number
+        if (first == "+" || first == "-") && tokens.len() >= 2 && tokens[1].parse::<i64>().is_ok() {
+            return Some(CompletionContext::Stats);
+        }
+    }
+
+    None
+}
+
 /// Convert a UTF-16 code unit offset to a byte offset within a line.
 /// The LSP spec uses UTF-16 code units for character positions; Rust strings
 /// use byte offsets. This conversion is necessary whenever the client
@@ -149,6 +396,7 @@ impl Server {
             Request::SemanticTokensRange { uri, range } => {
                 self.handle_semantic_tokens_range(&uri, &range, id)
             }
+            Request::FoldingRange { uri } => self.handle_folding_range(&uri, id),
         }
     }
 
@@ -168,6 +416,7 @@ impl Server {
             "documentOnTypeFormattingProvider": {
                 "triggerCharacters": ["\t"]
             },
+            "foldingRangeProvider": true,
             "semanticTokensOptions": {
                 "legend": {
                     "tokenTypes": ["keyword", "string", "comment", "type", "parameter", "number", "operator"],
@@ -318,8 +567,8 @@ impl Server {
     fn handle_completion(
         &self,
         uri: &str,
-        _line: u32,
-        _character: u32,
+        line: u32,
+        character: u32,
         id: Option<RequestId>,
     ) -> Vec<Response> {
         let doc = match self.documents.get(uri) {
@@ -328,50 +577,99 @@ impl Server {
         };
 
         let story = doc.story.as_ref().unwrap();
+        let (context, _partial) = compute_completion_context(&doc.text, line, character);
+
         let mut items = Vec::new();
 
-        // Collect completions in a single pass over story items.
-        for item in &story.items {
-            match item {
-                StoryItem::EventDef(e) => items.push(CompletionItem {
-                    label: e.id.clone(),
-                    kind: Some(CompletionItemKind::Class),
-                    detail: Some("event".to_string()),
-                    documentation: None,
-                }),
-                StoryItem::StatDef(s) => items.push(CompletionItem {
-                    label: s.name.clone(),
-                    kind: Some(CompletionItemKind::Variable),
-                    detail: Some(format!("stat = {}", s.default)),
-                    documentation: None,
-                }),
-                StoryItem::FlagDef(f) => items.push(CompletionItem {
-                    label: f.name.clone(),
-                    kind: Some(CompletionItemKind::Field),
-                    detail: Some(format!("flag = {}", f.default)),
-                    documentation: None,
-                }),
-                StoryItem::EffectDef(e) => items.push(CompletionItem {
-                    label: e.name.clone(),
-                    kind: Some(CompletionItemKind::Function),
-                    detail: Some("effect".to_string()),
-                    documentation: None,
-                }),
-                _ => {}
+        match context {
+            CompletionContext::All => {
+                // Show every story item and all DSL keywords (baseline behaviour).
+                collect_story_items(story, &mut items);
+                for kw in KEYWORDS {
+                    items.push(keyword_completion(kw));
+                }
             }
-        }
-
-        // DSL keywords
-        for kw in &[
-            "event", "choice", "effect", "stat", "flag", "tags", "requires", "next", "uses", "add",
-            "remove", "set",
-        ] {
-            items.push(CompletionItem {
-                label: kw.to_string(),
-                kind: Some(CompletionItemKind::Keyword),
-                detail: Some("keyword".to_string()),
-                documentation: None,
-            });
+            CompletionContext::Events => {
+                for item in &story.items {
+                    if let StoryItem::EventDef(e) = item {
+                        items.push(CompletionItem {
+                            label: e.id.clone(),
+                            kind: Some(CompletionItemKind::Class),
+                            detail: Some("event".to_string()),
+                            documentation: None,
+                        });
+                    }
+                }
+            }
+            CompletionContext::Effects => {
+                for item in &story.items {
+                    if let StoryItem::EffectDef(e) = item {
+                        items.push(CompletionItem {
+                            label: e.name.clone(),
+                            kind: Some(CompletionItemKind::Function),
+                            detail: Some("effect".to_string()),
+                            documentation: None,
+                        });
+                    }
+                }
+            }
+            CompletionContext::Flags => {
+                for item in &story.items {
+                    if let StoryItem::FlagDef(f) = item {
+                        items.push(CompletionItem {
+                            label: f.name.clone(),
+                            kind: Some(CompletionItemKind::Field),
+                            detail: Some(format!("flag = {}", f.default)),
+                            documentation: None,
+                        });
+                    }
+                }
+            }
+            CompletionContext::Conditions => {
+                for item in &story.items {
+                    match item {
+                        StoryItem::StatDef(s) => items.push(CompletionItem {
+                            label: s.name.clone(),
+                            kind: Some(CompletionItemKind::Variable),
+                            detail: Some(format!("stat = {}", s.default)),
+                            documentation: None,
+                        }),
+                        StoryItem::FlagDef(f) => items.push(CompletionItem {
+                            label: f.name.clone(),
+                            kind: Some(CompletionItemKind::Field),
+                            detail: Some(format!("flag = {}", f.default)),
+                            documentation: None,
+                        }),
+                        _ => {}
+                    }
+                }
+                // Condition expression keywords
+                for kw in &["AND", "OR", "NOT", "true", "false"] {
+                    items.push(keyword_completion(kw));
+                }
+            }
+            CompletionContext::Stats => {
+                for item in &story.items {
+                    if let StoryItem::StatDef(s) = item {
+                        items.push(CompletionItem {
+                            label: s.name.clone(),
+                            kind: Some(CompletionItemKind::Variable),
+                            detail: Some(format!("stat = {}", s.default)),
+                            documentation: None,
+                        });
+                    }
+                }
+            }
+            CompletionContext::Tags => {
+                for tag in collect_all_tags(story) {
+                    items.push(CompletionItem {
+                        label: tag,
+                        kind: Some(CompletionItemKind::Field),
+                        detail: Some("tag".to_string()),
+                        documentation: None,
+                    });
+                }
+            }
         }
 
         self.json_response(
@@ -655,6 +953,24 @@ impl Server {
         // which sends semanticTokens/range requests for viewport highlighting.
         self.do_semantic_tokens(&filtered, &lines, range.start.line, id)
     }
+
+    // ── Folding range ───────────────────────────────────────────────────────
+
+    fn handle_folding_range(&self, uri: &str, id: Option<RequestId>) -> Vec<Response> {
+        let doc = match self.documents.get(uri) {
+            Some(d) => d,
+            None => return self.empty_response(id),
+        };
+
+        let ranges = compute_folding_ranges(&doc.text);
+        if ranges.is_empty() {
+            return self.empty_response(id);
+        }
+
+        self.json_response(id, serde_json::json!(ranges))
+    }
+
+    // ── Helper methods ─────────────────────────────────────────────────────────
 
     /// Shared helper that encodes tokens and wraps them in a JSON-RPC response.
     fn do_semantic_tokens(
@@ -1381,6 +1697,58 @@ fn tokenize_semantic(text: &str) -> Vec<SemanticToken> {
     tokens
 }
 
+/// Compute folding ranges for a CYOA DSL source file.
+///
+/// Folding is available for `story`, `event`, `effect`, and `choice` blocks.
+/// Each block is identified by its starting keyword at the beginning of a line,
+/// and the fold extends to the last line of its indented body.
+fn compute_folding_ranges(text: &str) -> Vec<FoldingRange> {
+    let lines: Vec<&str> = text.lines().collect();
+    let mut ranges = Vec::new();
+
+    const FOLDABLE: &[&str] = &["story", "event", "effect", "choice"];
+
+    for (line_idx, line) in lines.iter().enumerate() {
+        let trimmed = line.trim_start();
+        let indent = line.len() - trimmed.len();
+
+        let first_word = trimmed.split_whitespace().next();
+        if first_word.is_some_and(|w| FOLDABLE.contains(&w)) {
+            // Scan forward to find the last line with greater indentation
+            // (the end of this construct's body). Blank lines are skipped
+            // but do not terminate the block.
+            let mut end_line = line_idx;
+            for (i, l) in lines.iter().enumerate().skip(line_idx + 1) {
+                if l.trim().is_empty() {
+                    continue;
+                }
+                let next_indent = l.len() - l.trim_start().len();
+                if next_indent <= indent {
+                    break;
+                }
+                end_line = i;
+            }
+
+            // Only create a fold range if the block has a non-empty body
+            if end_line > line_idx {
+                ranges.push(FoldingRange {
+                    start_line: line_idx as u32,
+                    end_line: end_line as u32,
+                    start_character: None,
+                    end_character: None,
+                    kind: Some("region".to_string()),
+                });
+            }
+        }
+    }
+
+    // Sort by start line, then by end line (innermost first for overlapping ranges)
+    // as required by the LSP specification.
+    ranges.sort_by_key(|r| (r.start_line, r.end_line));
+
+    ranges
+}
+
 impl Default for Server {
     fn default() -> Self {
         Self::new()
@@ -1845,6 +2213,285 @@ mod tests {
             }
             _ => panic!("expected Response"),
         }
+    }
+
+    /// Story used for context-aware completion tests.
+    /// Contains stats, flags, effects, events, tags, and various effect steps.
+    const COMPLETION_STORY: &str = r#"story TestStory:
+  tags: fantasy, brave
+  stat hp = 50
+  stat courage = 0
+  flag visited_cave
+  flag brave
+  effect found_item:
+    +10 hp
+    "You found a potion!"
+  effect heal:
+    +5 hp
+    add brave
+    "You feel better."
+  effect remove_tag_effect:
+    remove brave
+    "The tag is removed."
+  event start:
+    "You begin your journey."
+    choice "Go to cave":
+      next cave
+      uses found_item
+  event cave:
+    requires: visited_cave AND courage >= 5
+    tags: exploration
+    "You enter the cave."
+    choice "Leave":
+      set brave to true
+      remove fantasy
+      +3 courage
+  event river_crossing:
+    "You cross the river."
+"#;
+
+    /// Helper: request completion and collect the labels of all returned items.
+    fn completion_labels(server: &mut Server, uri: &str, line: u32, character: u32) -> Vec<String> {
+        let msg = request_msg(
+            "textDocument/completion",
+            serde_json::json!({
+                "textDocument": {"uri": uri},
+                "position": {"line": line, "character": character}
+            }),
+        );
+        let responses = server.handle(msg);
+        match &responses[0] {
+            Response::Response { result, .. } => result.as_ref().unwrap()["items"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|i| i["label"].as_str().unwrap().to_string())
+                .collect(),
+            _ => panic!("expected Response"),
+        }
+    }
+
+    #[test]
+    fn test_completion_context_next_suggests_events_not_keywords() {
+        let mut server = Server::new();
+        let _ = server.handle(did_open_msg("file:///test.cyoa", COMPLETION_STORY));
+
+        // Cursor at char 11 on line 19 (`      next cave`) — right after "next "
+        let labels = completion_labels(&mut server, "file:///test.cyoa", 19, 11);
+
+        // Events should be present
+        assert!(labels.contains(&"start".to_string()));
+        assert!(labels.contains(&"cave".to_string()));
+        assert!(labels.contains(&"river_crossing".to_string()));
+        // Keywords like "add" / "set" / "remove" should NOT appear
+        assert!(
+            !labels.contains(&"add".to_string()),
+            "after `next`, 'add' should not be suggested: {:?}",
+            labels
+        );
+        assert!(!labels.contains(&"set".to_string()));
+        assert!(!labels.contains(&"remove".to_string()));
+        assert!(!labels.contains(&"effect".to_string()));
+    }
+
+    #[test]
+    fn test_completion_context_uses_suggests_effects_not_keywords() {
+        let mut server = Server::new();
+        let _ = server.handle(did_open_msg("file:///test.cyoa", COMPLETION_STORY));
+
+        // Cursor at char 11 on line 20 (`      uses found_item`) — right after "uses "
+        let labels = completion_labels(&mut server, "file:///test.cyoa", 20, 11);
+
+        assert!(labels.contains(&"found_item".to_string()));
+        assert!(labels.contains(&"heal".to_string()));
+        // Events and keywords should NOT appear
+        assert!(!labels.contains(&"start".to_string()));
+        assert!(!labels.contains(&"next".to_string()));
+        assert!(!labels.contains(&"add".to_string()));
+    }
+
+    #[test]
+    fn test_completion_context_set_suggests_flags_only() {
+        let mut server = Server::new();
+        let _ = server.handle(did_open_msg("file:///test.cyoa", COMPLETION_STORY));
+
+        // Cursor at char 10 on line 26 (`      set brave to true`) — right after "set "
+        let labels = completion_labels(&mut server, "file:///test.cyoa", 26, 10);
+
+        assert!(labels.contains(&"visited_cave".to_string()));
+        assert!(labels.contains(&"brave".to_string()));
+        // Events, effects, stats, and keywords should NOT appear
+        assert!(!labels.contains(&"start".to_string()));
+        assert!(!labels.contains(&"found_item".to_string()));
+        assert!(!labels.contains(&"hp".to_string()));
+        assert!(!labels.contains(&"add".to_string()));
+    }
+
+    #[test]
+    fn test_completion_context_requires_suggests_stats_and_flags() {
+        let mut server = Server::new();
+        let _ = server.handle(did_open_msg("file:///test.cyoa", COMPLETION_STORY));
+
+        // Cursor at char 14 on line 22 (`    requires: visited_cave ...`) — after "requires: "
+        let labels = completion_labels(&mut server, "file:///test.cyoa", 22, 14);
+
+        assert!(labels.contains(&"visited_cave".to_string()));
+        assert!(labels.contains(&"brave".to_string()));
+        assert!(labels.contains(&"hp".to_string()));
+        assert!(labels.contains(&"courage".to_string()));
+        // Condition keywords
+        assert!(labels.contains(&"AND".to_string()));
+        assert!(labels.contains(&"NOT".to_string()));
+        // Events and effects should NOT appear
+        assert!(!labels.contains(&"start".to_string()));
+        assert!(!labels.contains(&"found_item".to_string()));
+    }
+
+    #[test]
+    fn test_completion_context_add_suggests_tags() {
+        let mut server = Server::new();
+        let _ = server.handle(did_open_msg("file:///test.cyoa", COMPLETION_STORY));
+
+        // Cursor at char 8 on line 11 (`    add brave`) — right after "add "
+        let labels = completion_labels(&mut server, "file:///test.cyoa", 11, 8);
+
+        // Collected tags from the story: fantasy, brave, exploration
+        assert!(labels.contains(&"fantasy".to_string()));
+        assert!(labels.contains(&"brave".to_string()));
+        // No events, stats, or other keywords
+        assert!(!labels.contains(&"start".to_string()));
+        assert!(!labels.contains(&"hp".to_string()));
+        assert!(!labels.contains(&"next".to_string()));
+        assert!(!labels.contains(&"set".to_string()));
+    }
+
+    #[test]
+    fn test_completion_context_remove_suggests_tags() {
+        let mut server = Server::new();
+        let _ = server.handle(did_open_msg("file:///test.cyoa", COMPLETION_STORY));
+
+        // Cursor at char 13 on line 27 (`      remove fantasy`) — right after "remove "
+        let labels = completion_labels(&mut server, "file:///test.cyoa", 27, 13);
+
+        // Tags from the story
+        assert!(labels.contains(&"fantasy".to_string()));
+        assert!(labels.contains(&"brave".to_string()));
+        // No events, stats, or other keywords
+        assert!(!labels.contains(&"next".to_string()));
+        assert!(!labels.contains(&"add".to_string()));
+        assert!(!labels.contains(&"found_item".to_string()));
+    }
+
+    #[test]
+    fn test_completion_context_prefix_stat_change_suggests_stats() {
+        let mut server = Server::new();
+        let _ = server.handle(did_open_msg("file:///test.cyoa", COMPLETION_STORY));
+
+        // Cursor at char 9 on line 28 (`      +3 courage`) — right after "+3 "
+        let labels = completion_labels(&mut server, "file:///test.cyoa", 28, 9);
+
+        // Only stats should appear, not keywords like "add" or "set"
+        assert!(labels.contains(&"hp".to_string()));
+        assert!(labels.contains(&"courage".to_string()));
+        assert!(!labels.contains(&"add".to_string()));
+        assert!(!labels.contains(&"set".to_string()));
+        assert!(!labels.contains(&"visited_cave".to_string()));
+    }
+
+    #[test]
+    fn test_completion_context_spaced_prefix_stat_change_suggests_stats() {
+        let mut server = Server::new();
+
+        let story = r#"story T:
+  stat hp = 50
+  effect e:
+    + 3 hp
+"#;
+        let _ = server.handle(did_open_msg("file:///test.cyoa", story));
+
+        // Cursor at char 8 on line 3 (`    + 3 hp`) — right after "+ 3 "
+        let labels = completion_labels(&mut server, "file:///test.cyoa", 3, 8);
+
+        assert!(labels.contains(&"hp".to_string()));
+        assert!(!labels.contains(&"add".to_string()));
+    }
+
+    #[test]
+    fn test_completion_at_line_start_shows_all() {
+        let mut server = Server::new();
+        let _ = server.handle(did_open_msg("file:///test.cyoa", COMPLETION_STORY));
+
+        // Cursor at char 0 on line 10 (`    +5 hp`) — start of line, empty text before cursor
+        let labels = completion_labels(&mut server, "file:///test.cyoa", 10, 0);
+
+        // All context: should contain both story items and keywords
+        assert!(labels.contains(&"hp".to_string()));
+        assert!(labels.contains(&"start".to_string()));
+        assert!(labels.contains(&"next".to_string()));
+        assert!(labels.contains(&"add".to_string()));
+        assert!(labels.contains(&"set".to_string()));
+    }
+
+    #[test]
+    fn test_completion_context_next_partial_in_progress() {
+        let mut server = Server::new();
+        let _ = server.handle(did_open_msg("file:///test.cyoa", COMPLETION_STORY));
+
+        // Cursor at char 13 on line 19 (`      next cave`) — at "ca" (partial event name)
+        let labels = completion_labels(&mut server, "file:///test.cyoa", 19, 13);
+
+        // Events only, no keywords
+        assert!(labels.contains(&"cave".to_string()));
+        assert!(labels.contains(&"start".to_string()));
+        assert!(!labels.contains(&"add".to_string()));
+        assert!(!labels.contains(&"set".to_string()));
+    }
+
+    #[test]
+    fn test_completion_context_keyword_typed_without_space() {
+        let mut server = Server::new();
+        let _ = server.handle(did_open_msg("file:///test.cyoa", COMPLETION_STORY));
+
+        // Cursor at char 10 on line 19 (`      next cave`) — right after "next", before the space
+        let labels = completion_labels(&mut server, "file:///test.cyoa", 19, 10);
+
+        // "next" typed completely (no trailing space) → Events context
+        assert!(labels.contains(&"start".to_string()));
+        assert!(labels.contains(&"cave".to_string()));
+        assert!(!labels.contains(&"add".to_string()));
+    }
+
+    #[test]
+    fn test_completion_context_comment_does_not_break_keyword_detection() {
+        let mut server = Server::new();
+
+        let story = r#"story T:
+  stat hp = 50
+  event start:
+    "Begin."
+    choice "Go":
+      next start # go to the start event
+"#;
+        let _ = server.handle(did_open_msg("file:///test.cyoa", story));
+
+        // Cursor right after "next " on line 5, before the comment
+        let labels = completion_labels(&mut server, "file:///test.cyoa", 5, 11);
+
+        // `next` keyword should be detected → Events context
+        assert!(labels.contains(&"start".to_string()));
+        assert!(!labels.contains(&"add".to_string()));
+    }
+
+    #[test]
+    fn test_completion_context_non_trigger_line_shows_all() {
+        let mut server = Server::new();
+        let _ = server.handle(did_open_msg("file:///test.cyoa", COMPLETION_STORY));
+
+        // Cursor at char 4 on line 24 (`    "You enter the cave."`) — prose text line
+        let labels = completion_labels(&mut server, "file:///test.cyoa", 24, 4);
+
+        // All context: should contain keywords
+        assert!(labels.contains(&"next".to_string()) || labels.contains(&"add".to_string()));
     }
 
     #[test]
@@ -2788,5 +3435,271 @@ mod tests {
         let token_end_byte = (t.start_char + t.length) as usize;
         let token_content = &line_str[token_end_byte - 1..token_end_byte]; // last char should be "
         assert_eq!(token_content, "\"", "token should end at the closing quote");
+    }
+
+    // ── Folding range tests ──────────────────────────────────────────────
+
+    /// Helper: send a foldingRange request and collect (start_line, end_line, kind) tuples.
+    fn folding_labels(server: &mut Server, uri: &str) -> Vec<(u32, u32, String)> {
+        let msg = request_msg(
+            "textDocument/foldingRange",
+            serde_json::json!({
+                "textDocument": {"uri": uri}
+            }),
+        );
+        let responses = server.handle(msg);
+        match &responses[0] {
+            Response::Response { result, .. } => {
+                let json = result.as_ref().unwrap();
+                if json.is_null() {
+                    return Vec::new();
+                }
+                json.as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|r| {
+                        (
+                            r["startLine"].as_u64().unwrap() as u32,
+                            r["endLine"].as_u64().unwrap() as u32,
+                            r["kind"].as_str().unwrap_or("").to_string(),
+                        )
+                    })
+                    .collect()
+            }
+            _ => panic!("expected Response"),
+        }
+    }
+
+    #[test]
+    fn test_folding_range_basic() {
+        let mut server = Server::new();
+        let open_msg = did_open_msg("file:///test.cyoa", VALID_STORY);
+        server.handle(open_msg);
+
+        let ranges = folding_labels(&mut server, "file:///test.cyoa");
+
+        // Expected fold ranges for VALID_STORY:
+        // story  → [0, 13]  (indent 0, body to end of file)
+        // effect → [4, 6]   (indent 2)
+        // event  → [7, 11]  (indent 2)
+        // choice → [9, 11]  (indent 4, nested inside event start)
+        // event  → [12, 13] (indent 2)
+        assert_eq!(ranges.len(), 5, "expected 5 fold ranges, got {:?}", ranges);
+
+        let expected: Vec<(u32, u32, String)> = vec![
+            (0, 13, "region".to_string()),  // story
+            (4, 6, "region".to_string()),   // effect
+            (7, 11, "region".to_string()),  // event start
+            (9, 11, "region".to_string()),  // choice (nested)
+            (12, 13, "region".to_string()), // event cave
+        ];
+        for (i, expected_range) in expected.iter().enumerate() {
+            assert_eq!(
+                ranges[i], *expected_range,
+                "range {} mismatch: expected {:?}, got {:?}",
+                i, expected_range, &ranges[i]
+            );
+        }
+    }
+
+    #[test]
+    fn test_folding_range_advertised_in_capabilities() {
+        let mut server = Server::new();
+        let init_msg = request_msg("initialize", serde_json::json!({}));
+
+        let responses = server.handle(init_msg);
+        match &responses[0] {
+            Response::Response { result, .. } => {
+                let caps = &result.as_ref().unwrap()["capabilities"];
+                assert_eq!(
+                    caps["foldingRangeProvider"], true,
+                    "initialize response should advertise foldingRangeProvider"
+                );
+            }
+            _ => panic!("expected Response"),
+        }
+    }
+
+    #[test]
+    fn test_folding_range_unknown_document_returns_null() {
+        let mut server = Server::new();
+
+        let msg = request_msg(
+            "textDocument/foldingRange",
+            serde_json::json!({
+                "textDocument": {"uri": "file:///unknown.cyoa"}
+            }),
+        );
+
+        let responses = server.handle(msg);
+        assert_eq!(responses.len(), 1);
+        match &responses[0] {
+            Response::Response { result, .. } => {
+                assert!(
+                    result.as_ref().unwrap().is_null(),
+                    "expected null for unknown document"
+                );
+            }
+            _ => panic!("expected Response"),
+        }
+    }
+
+    #[test]
+    fn test_folding_range_empty_body() {
+        // Event and effect with no indented body should not produce fold ranges,
+        // but the story itself has body items so it should fold.
+        let story = "story T:\n  event start:\n  effect empty:\n";
+        let ranges = compute_folding_ranges(story);
+
+        // story → [0, 2]  (has body: event + effect at indent 2)
+        // event start → no range (no indented body)
+        // effect empty → no range (no indented body)
+        assert_eq!(
+            ranges.len(),
+            1,
+            "expected 1 fold range (story only), got {:?}",
+            ranges
+        );
+        assert_eq!(ranges[0].start_line, 0);
+        assert_eq!(ranges[0].end_line, 2);
+    }
+
+    #[test]
+    fn test_folding_range_all_construct_types() {
+        // Verify that story, event, effect, and choice all produce fold ranges.
+        let story = r#"story MyStory:
+  tags: fantasy
+  stat hp = 50
+  effect heal:
+    +5 hp
+    "You feel better."
+  event forest:
+    "You are in a forest."
+    choice "Go north":
+      next town
+    choice "Go south":
+      next cave
+  event town:
+    "You are in a town."
+  event cave:
+    "You are in a cave."
+"#;
+        let ranges = compute_folding_ranges(story);
+
+        // Ranges (0-indexed, 16 lines 0-15):
+        // story  → [0, 15]
+        // effect → [3, 5]
+        // event  → [6, 10]
+        // choice → [8, 9]
+        // choice → [10, 11]
+        // event  → [12, 13]
+        // event  → [14, 15]
+        assert_eq!(ranges.len(), 7, "expected 7 fold ranges, got {:?}", ranges);
+
+        // Verify each construct type is represented
+        let story_range = &ranges[0];
+        assert_eq!(story_range.start_line, 0);
+        assert_eq!(story_range.end_line, 15);
+
+        let effect_range = &ranges[1];
+        assert_eq!(effect_range.start_line, 3);
+        assert_eq!(effect_range.end_line, 5);
+
+        let event_range = &ranges[2];
+        assert_eq!(event_range.start_line, 6);
+
+        let choice_range = &ranges[3];
+        assert_eq!(choice_range.start_line, 8);
+    }
+
+    #[test]
+    fn test_folding_range_nested() {
+        // Event contains a choice — both should have fold ranges, with the
+        // choice range correctly nested inside the event range.
+        let story = r#"story T:
+  event start:
+    "Begin."
+    choice "Go":
+      next elsewhere
+  event elsewhere:
+    "End."
+"#;
+        let ranges = compute_folding_ranges(story);
+
+        // Expected:
+        // story    → [0, 7]
+        // event    → [1, 4]
+        // choice   → [3, 4]
+        // event    → [5, 6]
+        assert_eq!(ranges.len(), 4, "expected 4 fold ranges, got {:?}", ranges);
+
+        // Verify nesting: choice [3,4] is inside event [1,4]
+        let event_range = &ranges[1];
+        let choice_range = &ranges[2];
+        assert!(
+            choice_range.start_line >= event_range.start_line
+                && choice_range.end_line <= event_range.end_line,
+            "choice range {:?} should be inside event range {:?}",
+            choice_range,
+            event_range
+        );
+    }
+
+    #[test]
+    fn test_folding_range_blank_lines_between_blocks() {
+        // Blank lines between construct body and the next sibling should
+        // not be included in the fold range.
+        let story = r#"story T:
+  event start:
+    "Begin."
+
+  event next:
+    "Next."
+"#;
+        let ranges = compute_folding_ranges(story);
+
+        // event start → [1, 2] (blank line 3 excluded from fold range)
+        // event next  → [4, 5]
+        let start_range = ranges.iter().find(|r| r.start_line == 1).unwrap();
+        assert_eq!(start_range.end_line, 2);
+
+        let next_range = ranges.iter().find(|r| r.start_line == 4).unwrap();
+        assert_eq!(next_range.end_line, 5);
+    }
+
+    #[test]
+    fn test_folding_range_sorted_innermost_first() {
+        // When ranges start at the same line, innermost (shorter) should come first.
+        // This happens when an event and a choice share a line... which can't happen
+        // in valid CYOA, but we test the sort order with a synthetic case.
+        let story = r#"event start:
+  choice "A":
+    next a
+"#;
+        let ranges = compute_folding_ranges(story);
+        // 3 lines (0-2): event → [0, 2], choice → [1, 2]
+        // Sorted by (start_line, end_line): (0,2) then (1,2)
+        assert_eq!(ranges[0].start_line, 0);
+        assert_eq!(ranges[0].end_line, 2);
+        assert_eq!(ranges[1].start_line, 1);
+        assert_eq!(ranges[1].end_line, 2);
+    }
+
+    #[test]
+    fn test_folding_range_choice_without_colon() {
+        // `choice` lines may or may not end with `:` — both should be foldable.
+        let story = r#"story T:
+  event start:
+    "Begin."
+    choice "Go"
+      next elsewhere
+"#;
+        let ranges = compute_folding_ranges(story);
+        // story  → [0, 5]
+        // event  → [1, 4]
+        // choice → [3, 4]
+        assert_eq!(ranges.len(), 3, "expected 3 fold ranges, got {:?}", ranges);
+        assert_eq!(ranges[2].start_line, 3);
+        assert_eq!(ranges[2].end_line, 4);
     }
 }

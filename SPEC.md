@@ -727,12 +727,26 @@ If import resolution fails, the CLI reports the import error and exits.
 
 ### LSP integration
 
-The LSP server resolves imports on every `didOpen`/`didChange` notification
-and then runs `validate_references` on the merged story. Each `ReferenceError`
-is converted to an LSP `Diagnostic` with range, severity, and source metadata.
-If imports fail to resolve, reference validation is skipped (to avoid false
-positives for symbols defined in the unresolvable imported files) — the import
-error itself is surfaced as a parse or diagnostic error instead.
+The LSP server provides syntax diagnostics, hover, completion, on-type
+formatting, semantic tokenization, and code folding over stdio (JSON-RPC).
+
+- **Diagnostics**: resolves imports on every `didOpen`/`didChange` notification,
+  runs `validate_references` on the merged story, and converts each `ReferenceError`
+  to an LSP `Diagnostic` with range, severity, and source metadata. If imports fail
+  to resolve, reference validation is skipped (to avoid false positives for symbols
+  defined in the unresolvable imported files) — the import error itself is surfaced
+  as a parse or diagnostic error instead.
+- **Hover**: reveals story metadata (name, tags, stats, flags, effects, events)
+  on hover, or line/column error detail on diagnostic positions.
+- **Completion**: suggests event IDs, stat/flag/effect names, and DSL keywords
+  (including `remove tag`).
+- **On-type formatting**: auto-indents after a line ending in `:` and converts
+  tabs to 2-space indentation.
+- **Semantic tokens**: highlights keywords, construct definitions, stat changes,
+  string literals, template interpolations, and comments.
+- **Folding ranges**: `textDocument/foldingRange` returns foldable regions for
+  `story`, `event`, `effect`, and `choice` blocks. Ranges are computed by
+  indentation level (2-space units) and sorted innermost-first per the LSP spec.
 
 ---
 

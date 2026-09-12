@@ -291,6 +291,7 @@ cargo build -p cyoa-lsp
 - Hover shows story metadata: name, tags, stats, flags, effects, events
 - Completion suggests event IDs, stat/flag/effect names, and DSL keywords
 - Error hover shows line/column info
+- Code folding for `story`, `event`, `effect`, and `choice` blocks (indentation-based)
 
 ## Development
 

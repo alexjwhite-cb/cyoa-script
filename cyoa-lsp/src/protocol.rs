@@ -55,6 +55,13 @@ struct SemanticTokensRangeParams {
     range: Range,
 }
 
+/// Parameters for `textDocument/foldingRange`.
+#[derive(Debug, Clone, Deserialize)]
+struct FoldingRangeParams {
+    #[serde(rename = "textDocument")]
+    text_document: TextDocumentIdentifier,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum RequestId {
@@ -164,6 +171,9 @@ pub enum Request {
         uri: String,
         range: Range,
     },
+    FoldingRange {
+        uri: String,
+    },
 }
 
 impl Request {
@@ -247,6 +257,12 @@ impl Request {
                     range: p.range,
                 })
             }
+            "textDocument/foldingRange" => {
+                let p: FoldingRangeParams = serde_json::from_value(params).ok()?;
+                Some(Request::FoldingRange {
+                    uri: p.text_document.uri,
+                })
+            }
             _ => None,
         }
     }
@@ -295,6 +311,21 @@ pub struct Position {
 pub struct Location {
     pub uri: String,
     pub range: Range,
+}
+
+/// A single folding range in a document.
+/// Serializes to LSP camelCase: `startLine`, `endLine`, `kind`.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FoldingRange {
+    pub start_line: u32,
+    pub end_line: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub start_character: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub end_character: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
 }
 
 /// A completion item in the completion list.

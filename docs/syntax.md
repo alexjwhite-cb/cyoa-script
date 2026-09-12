@@ -634,6 +634,15 @@ cannot be resolved (e.g., file not found), reference validation is skipped
 for the unresolved symbols to avoid false positives — the import error itself
 is reported instead.
 
+### LSP code folding
+
+The LSP server advertises `foldingRangeProvider` and responds to
+`textDocument/foldingRange` requests. Foldable regions are computed for
+`story`, `event`, `effect`, and `choice` blocks by detecting construct
+keywords at line start and scanning forward for indented body lines. Blank
+lines are skipped (not included in fold ranges). Overlapping ranges are
+returned innermost-first per the LSP specification.
+
 ### Error positions
 
 Validation errors include line and column positions pointing to the **reference
