@@ -1047,6 +1047,25 @@ is reported instead.</p>
 keywords at line start and scanning forward for indented body lines. Blank
 lines are skipped (not included in fold ranges). Overlapping ranges are
 returned innermost-first per the LSP specification.</p>
+<h3>Event-level prerequisites</h3>
+<p>An <code>event</code> can have its own <code>requires:</code> condition. When a <code>choice</code> in another
+event specifies that event via <code>next</code>, the choice is <strong>automatically hidden</strong>
+if the target event&#39;s <code>requires</code> is not met:</p>
+<pre><code class="language-cyoa">event start:
+  &quot;Where do you go?&quot;
+  choice &quot;Enter the cave&quot;:
+    next dark_cave
+  choice &quot;Go around&quot;:
+    next forest_path
+
+event dark_cave:
+  requires: courage &gt;= 5
+  &quot;You venture into the dark cave.&quot;
+</code></pre>
+<p>With <code>courage = 0</code>, the &quot;Enter the cave&quot; choice is hidden because
+<code>dark_cave</code>&#39;s <code>requires: courage &gt;= 5</code> is false. Both the choice&#39;s own
+<code>requires</code> and the target event&#39;s <code>requires</code> are checked — both must pass
+for the choice to be visible.</p>
 <h3>Error positions</h3>
 <p>Validation errors include line and column positions pointing to the <strong>reference
 site</strong> (where the symbol is used), not the definition. Comment lines (<code>#</code>) are
