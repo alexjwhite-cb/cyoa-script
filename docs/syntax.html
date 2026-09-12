@@ -1040,6 +1040,13 @@ on every keystroke. Diagnostics are published in real time. When imports
 cannot be resolved (e.g., file not found), reference validation is skipped
 for the unresolved symbols to avoid false positives — the import error itself
 is reported instead.</p>
+<h3>LSP code folding</h3>
+<p>The LSP server advertises <code>foldingRangeProvider</code> and responds to
+<code>textDocument/foldingRange</code> requests. Foldable regions are computed for
+<code>story</code>, <code>event</code>, <code>effect</code>, and <code>choice</code> blocks by detecting construct
+keywords at line start and scanning forward for indented body lines. Blank
+lines are skipped (not included in fold ranges). Overlapping ranges are
+returned innermost-first per the LSP specification.</p>
 <h3>Error positions</h3>
 <p>Validation errors include line and column positions pointing to the <strong>reference
 site</strong> (where the symbol is used), not the definition. Comment lines (<code>#</code>) are
