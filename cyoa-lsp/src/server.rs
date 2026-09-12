@@ -1702,6 +1702,10 @@ fn tokenize_semantic(text: &str) -> Vec<SemanticToken> {
 /// Folding is available for `story`, `event`, `effect`, and `choice` blocks.
 /// Each block is identified by its starting keyword at the beginning of a line,
 /// and the fold extends to the last line of its indented body.
+///
+/// `startCharacter` and `endCharacter` are populated so that editors can
+/// preserve fold state across edits (the LSP spec recommends sending character
+/// offsets so the client can track ranges while typing).
 fn compute_folding_ranges(text: &str) -> Vec<FoldingRange> {
     let lines: Vec<&str> = text.lines().collect();
     let mut ranges = Vec::new();
@@ -1731,11 +1735,12 @@ fn compute_folding_ranges(text: &str) -> Vec<FoldingRange> {
 
             // Only create a fold range if the block has a non-empty body
             if end_line > line_idx {
+                let end_line_content = lines[end_line].trim_end();
                 ranges.push(FoldingRange {
                     start_line: line_idx as u32,
                     end_line: end_line as u32,
-                    start_character: None,
-                    end_character: None,
+                    start_character: Some(indent as u32),
+                    end_character: Some(end_line_content.len() as u32),
                     kind: Some("region".to_string()),
                 });
             }
@@ -3701,5 +3706,67 @@ mod tests {
         assert_eq!(ranges.len(), 3, "expected 3 fold ranges, got {:?}", ranges);
         assert_eq!(ranges[2].start_line, 3);
         assert_eq!(ranges[2].end_line, 4);
+    }
+
+    #[test]
+    fn test_folding_range_has_character_offsets() {
+        // startCharacter and endCharacter must be populated so editors can
+        // preserve fold state across edits (LSP spec recommendation).
+        let story = r#"story TestStory:
+
+  event start:
+    "Begin."
+    choice "Go":
+      next elsewhere
+  event elsewhere:
+    "End."
+"#;
+        let ranges = compute_folding_ranges(story);
+
+        // Every range should have Some(start_character) and Some(end_character)
+        for (i, r) in ranges.iter().enumerate() {
+            assert!(
+                r.start_character.is_some(),
+                "range {} should have startCharacter, got {:?}",
+                i,
+                r
+            );
+            assert!(
+                r.end_character.is_some(),
+                "range {} should have endCharacter, got {:?}",
+                i,
+                r
+            );
+        }
+
+        // The event "start" (line 2, indent 2) should have start_character = 2
+        let event_range = ranges
+            .iter()
+            .find(|r| r.start_line == 2)
+            .expect("event 'start' range should exist");
+        assert_eq!(
+            event_range.start_character,
+            Some(2),
+            "event at indent 2 should have start_character = 2"
+        );
+
+        // The choice (line 4, indent 4) should have start_character = 4
+        let choice_range = ranges
+            .iter()
+            .find(|r| r.start_line == 4)
+            .expect("choice range should exist");
+        assert_eq!(
+            choice_range.start_character,
+            Some(4),
+            "choice at indent 4 should have start_character = 4"
+        );
+
+        // end_character should be the length of the trimmed last line
+        // For the choice range [5, 7], end_line is 7 = "End." which has 4 chars
+        let story_range = ranges
+            .iter()
+            .find(|r| r.start_line == 0)
+            .expect("story range should exist");
+        assert_eq!(story_range.start_character, Some(0), "story at indent 0");
     }
 }
