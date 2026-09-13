@@ -754,7 +754,12 @@ formatting, semantic tokenization, and code folding over stdio (JSON-RPC).
   string literals, template interpolations, and comments.
 - **Folding ranges**: `textDocument/foldingRange` returns foldable regions for
   `story`, `event`, `effect`, and `choice` blocks. Ranges are computed by
-  indentation level (2-space units) and sorted innermost-first per the LSP spec.
+  indentation level (2-space units) and sorted by `startLine` ascending, then
+  `endLine` descending (parent before children) per the LSP spec. `startCharacter`
+  is set to the full trimmed line length so that construct keywords (e.g.
+  `event start:`) remain visible when a fold is collapsed. Supports LSP 3.18
+  `lineFoldingOnly` and `rangeLimit` context fields. When `lineFoldingOnly` is
+  true, character offsets are omitted (line-based folding only).
 
 ---
 

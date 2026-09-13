@@ -640,8 +640,12 @@ The LSP server advertises `foldingRangeProvider` and responds to
 `textDocument/foldingRange` requests. Foldable regions are computed for
 `story`, `event`, `effect`, and `choice` blocks by detecting construct
 keywords at line start and scanning forward for indented body lines. Blank
-lines are skipped (not included in fold ranges). Overlapping ranges are
-returned innermost-first per the LSP specification.
+lines are skipped (not included in fold ranges). Ranges are sorted by
+`startLine` ascending, then `endLine` descending (parent before children)
+per the LSP specification. `startCharacter` is set to the full trimmed line
+length so that construct keywords (e.g. `event start:`) remain visible when a
+fold is collapsed. Supports LSP 3.18 `lineFoldingOnly` and `rangeLimit`
+context fields — when `lineFoldingOnly` is true, character offsets are omitted.
 
 ### Event-level prerequisites
 
