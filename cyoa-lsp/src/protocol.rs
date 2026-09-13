@@ -60,6 +60,19 @@ struct SemanticTokensRangeParams {
 struct FoldingRangeParams {
     #[serde(rename = "textDocument")]
     text_document: TextDocumentIdentifier,
+    #[serde(rename = "context", default)]
+    context: Option<FoldingRangeContext>,
+}
+
+/// Context for `textDocument/foldingRange` requests.
+#[derive(Debug, Clone, Deserialize, Default)]
+struct FoldingRangeContext {
+    /// The maximum number of folding ranges the client can handle.
+    #[serde(rename = "rangeLimit", default)]
+    range_limit: Option<u32>,
+    /// If true, the client only supports line-based folding (no character offsets).
+    #[serde(rename = "lineFoldingOnly", default)]
+    line_folding_only: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -173,6 +186,8 @@ pub enum Request {
     },
     FoldingRange {
         uri: String,
+        line_folding_only: bool,
+        range_limit: Option<u32>,
     },
 }
 
@@ -259,8 +274,16 @@ impl Request {
             }
             "textDocument/foldingRange" => {
                 let p: FoldingRangeParams = serde_json::from_value(params).ok()?;
+                let line_folding_only = p
+                    .context
+                    .as_ref()
+                    .and_then(|c| c.line_folding_only)
+                    .unwrap_or(false);
+                let range_limit = p.context.as_ref().and_then(|c| c.range_limit);
                 Some(Request::FoldingRange {
                     uri: p.text_document.uri,
+                    line_folding_only,
+                    range_limit,
                 })
             }
             _ => None,

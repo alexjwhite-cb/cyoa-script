@@ -891,7 +891,7 @@ fn parse_choice(
     let rest = header.strip_prefix("choice").unwrap();
     let rest = rest.trim_start();
 
-    let (text_raw, remainder) = split_choice_header(rest)?;
+    let (text_raw, remainder) = split_choice_header(rest, line, col)?;
     let text = parse_template_string(text_raw, true)?;
 
     let header_indent = col - 1;
@@ -1062,7 +1062,7 @@ fn parse_choice(
 
 /// Split a choice header into (text_raw, remainder) where remainder is
 /// everything after the quoted/unquoted text (including the colon and modifiers).
-fn split_choice_header(rest: &str) -> Result<(&str, &str), ParseError> {
+fn split_choice_header(rest: &str, line: usize, col: usize) -> Result<(&str, &str), ParseError> {
     if rest.starts_with('"') {
         // Find the closing quote (handle escapes)
         let mut end = 1;
@@ -1076,6 +1076,16 @@ fn split_choice_header(rest: &str) -> Result<(&str, &str), ParseError> {
                 break;
             }
             end += 1;
+        }
+        // No closing quote found — the string is unterminated. This can happen
+        // when the LSP server parses an incomplete document during incremental
+        // editing (user is mid-typing a choice with a quoted text).
+        if end >= bytes.len() {
+            return Err(ParseError::at(
+                "unterminated string in choice header",
+                line,
+                col,
+            ));
         }
         let text_end = end + 1; // Include closing quote
         Ok((&rest[..text_end], &rest[text_end..]))

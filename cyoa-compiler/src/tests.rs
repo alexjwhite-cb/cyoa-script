@@ -1478,3 +1478,27 @@ story Test:
         other => panic!("expected Text at index 2, got {:?}", other),
     }
 }
+
+#[test]
+fn test_parse_choice_unterminated_string_errors() {
+    // When a user is mid-typing a choice with a quoted text (no closing quote),
+    // the parser should return a ParseError instead of panicking.
+    // This can happen during LSP incremental editing.
+    let source = r#"story Test:
+  event start:
+    "Begin."
+    choice "Go to cave
+      next cave
+"#;
+    let result = parse_story(source);
+    assert!(
+        result.is_err(),
+        "should return error for unterminated string"
+    );
+    let err = result.unwrap_err();
+    assert!(
+        err.message.contains("unterminated string"),
+        "error should mention unterminated string, got: {}",
+        err.message
+    );
+}

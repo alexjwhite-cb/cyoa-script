@@ -396,7 +396,11 @@ impl Server {
             Request::SemanticTokensRange { uri, range } => {
                 self.handle_semantic_tokens_range(&uri, &range, id)
             }
-            Request::FoldingRange { uri } => self.handle_folding_range(&uri, id),
+            Request::FoldingRange {
+                uri,
+                line_folding_only,
+                range_limit,
+            } => self.handle_folding_range(&uri, line_folding_only, range_limit, id),
         }
     }
 
@@ -956,13 +960,19 @@ impl Server {
 
     // ── Folding range ───────────────────────────────────────────────────────
 
-    fn handle_folding_range(&self, uri: &str, id: Option<RequestId>) -> Vec<Response> {
+    fn handle_folding_range(
+        &self,
+        uri: &str,
+        line_folding_only: bool,
+        range_limit: Option<u32>,
+        id: Option<RequestId>,
+    ) -> Vec<Response> {
         let doc = match self.documents.get(uri) {
             Some(d) => d,
             None => return self.empty_response(id),
         };
 
-        let ranges = compute_folding_ranges(&doc.text);
+        let ranges = compute_folding_ranges(&doc.text, line_folding_only, range_limit);
         if ranges.is_empty() {
             return self.empty_response(id);
         }
@@ -1703,10 +1713,17 @@ fn tokenize_semantic(text: &str) -> Vec<SemanticToken> {
 /// Each block is identified by its starting keyword at the beginning of a line,
 /// and the fold extends to the last line of its indented body.
 ///
-/// `startCharacter` and `endCharacter` are populated so that editors can
-/// preserve fold state across edits (the LSP spec recommends sending character
-/// offsets so the client can track ranges while typing).
-fn compute_folding_ranges(text: &str) -> Vec<FoldingRange> {
+/// When `line_folding_only` is false (the default), `startCharacter` and
+/// `endCharacter` are populated so that editors can preserve fold state across
+/// edits. `startCharacter` is set to the full trimmed line length so that the
+/// entire start line (including the construct keyword) stays visible when the
+/// fold is collapsed. If `line_folding_only` is true (client only supports
+/// line-based folding, e.g. GoLand), character offsets are omitted.
+fn compute_folding_ranges(
+    text: &str,
+    line_folding_only: bool,
+    range_limit: Option<u32>,
+) -> Vec<FoldingRange> {
     let lines: Vec<&str> = text.lines().collect();
     let mut ranges = Vec::new();
 
@@ -1735,21 +1752,53 @@ fn compute_folding_ranges(text: &str) -> Vec<FoldingRange> {
 
             // Only create a fold range if the block has a non-empty body
             if end_line > line_idx {
-                let end_line_content = lines[end_line].trim_end();
+                // start_character is set to the full trimmed length of the start line.
+                // In character-based folding, the visible portion of the start line
+                // is line[0..startCharacter]. Using the full line length means the
+                // entire start line — including the construct keyword (e.g. "event
+                // start:") — stays visible when the fold is collapsed. Setting it
+                // to the indentation (or 0) would hide the keyword or the entire
+                // line in some editors.
+                //
+                // end_character is set to the full length of the end line so that
+                // the entire end line is hidden when the fold is collapsed.
+                // When line_folding_only is true, both are None (standard line-based
+                // folding, which some clients e.g. GoLand require).
+                let start_char = if line_folding_only {
+                    None
+                } else {
+                    Some(lines[line_idx].trim_end().len() as u32)
+                };
+                let end_char = if line_folding_only {
+                    None
+                } else {
+                    Some(lines[end_line].len() as u32)
+                };
+
                 ranges.push(FoldingRange {
                     start_line: line_idx as u32,
                     end_line: end_line as u32,
-                    start_character: Some(indent as u32),
-                    end_character: Some(end_line_content.len() as u32),
+                    start_character: start_char,
+                    end_character: end_char,
                     kind: Some("region".to_string()),
                 });
             }
         }
     }
 
-    // Sort by start line, then by end line (innermost first for overlapping ranges)
-    // as required by the LSP specification.
-    ranges.sort_by_key(|r| (r.start_line, r.end_line));
+    // Sort by start line ascending, then by end line descending.
+    // For ranges with the same start line, the parent (larger end line) comes
+    // before the child (smaller end line), as required by the LSP specification.
+    ranges.sort_by(|a, b| {
+        a.start_line
+            .cmp(&b.start_line)
+            .then(b.end_line.cmp(&a.end_line))
+    });
+
+    // Enforce client-requested range limit
+    if let Some(limit) = range_limit {
+        ranges.truncate(limit as usize);
+    }
 
     ranges
 }
@@ -3554,7 +3603,7 @@ mod tests {
         // Event and effect with no indented body should not produce fold ranges,
         // but the story itself has body items so it should fold.
         let story = "story T:\n  event start:\n  effect empty:\n";
-        let ranges = compute_folding_ranges(story);
+        let ranges = compute_folding_ranges(story, false, None);
 
         // story → [0, 2]  (has body: event + effect at indent 2)
         // event start → no range (no indented body)
@@ -3589,7 +3638,7 @@ mod tests {
   event cave:
     "You are in a cave."
 "#;
-        let ranges = compute_folding_ranges(story);
+        let ranges = compute_folding_ranges(story, false, None);
 
         // Ranges (0-indexed, 16 lines 0-15):
         // story  → [0, 15]
@@ -3629,7 +3678,7 @@ mod tests {
   event elsewhere:
     "End."
 "#;
-        let ranges = compute_folding_ranges(story);
+        let ranges = compute_folding_ranges(story, false, None);
 
         // Expected:
         // story    → [0, 7]
@@ -3661,7 +3710,7 @@ mod tests {
   event next:
     "Next."
 "#;
-        let ranges = compute_folding_ranges(story);
+        let ranges = compute_folding_ranges(story, false, None);
 
         // event start → [1, 2] (blank line 3 excluded from fold range)
         // event next  → [4, 5]
@@ -3681,7 +3730,7 @@ mod tests {
   choice "A":
     next a
 "#;
-        let ranges = compute_folding_ranges(story);
+        let ranges = compute_folding_ranges(story, false, None);
         // 3 lines (0-2): event → [0, 2], choice → [1, 2]
         // Sorted by (start_line, end_line): (0,2) then (1,2)
         assert_eq!(ranges[0].start_line, 0);
@@ -3699,7 +3748,7 @@ mod tests {
     choice "Go"
       next elsewhere
 "#;
-        let ranges = compute_folding_ranges(story);
+        let ranges = compute_folding_ranges(story, false, None);
         // story  → [0, 5]
         // event  → [1, 4]
         // choice → [3, 4]
@@ -3721,9 +3770,13 @@ mod tests {
   event elsewhere:
     "End."
 "#;
-        let ranges = compute_folding_ranges(story);
+        let ranges = compute_folding_ranges(story, false, None);
 
-        // Every range should have Some(start_character) and Some(end_character)
+        // startCharacter and endCharacter must be populated so editors can
+        // preserve fold state across edits (LSP spec recommendation).
+        // start_character is set to the full trimmed line length so that the
+        // entire start line (including the construct keyword) stays visible
+        // when the fold is collapsed.
         for (i, r) in ranges.iter().enumerate() {
             assert!(
                 r.start_character.is_some(),
@@ -3739,34 +3792,128 @@ mod tests {
             );
         }
 
-        // The event "start" (line 2, indent 2) should have start_character = 2
+        // The story range (line 0): "story TestStory:" → 16 chars
+        let story_range = ranges
+            .iter()
+            .find(|r| r.start_line == 0)
+            .expect("story range should exist");
+        assert_eq!(
+            story_range.start_character,
+            Some("story TestStory:".len() as u32),
+            "story line should have start_character = full line length"
+        );
+
+        // The event "start" (line 2): "  event start:" → 14 chars
         let event_range = ranges
             .iter()
             .find(|r| r.start_line == 2)
             .expect("event 'start' range should exist");
         assert_eq!(
             event_range.start_character,
-            Some(2),
-            "event at indent 2 should have start_character = 2"
+            Some("  event start:".len() as u32),
+            "event 'start' line should have start_character = full line length"
         );
 
-        // The choice (line 4, indent 4) should have start_character = 4
+        // The choice (line 4): "    choice \"Go\":" → 16 chars
         let choice_range = ranges
             .iter()
             .find(|r| r.start_line == 4)
             .expect("choice range should exist");
         assert_eq!(
             choice_range.start_character,
-            Some(4),
-            "choice at indent 4 should have start_character = 4"
+            Some("    choice \"Go\":".len() as u32),
+            "choice line should have start_character = full line length"
         );
 
-        // end_character should be the length of the trimmed last line
-        // For the choice range [5, 7], end_line is 7 = "End." which has 4 chars
-        let story_range = ranges
-            .iter()
-            .find(|r| r.start_line == 0)
-            .expect("story range should exist");
-        assert_eq!(story_range.start_character, Some(0), "story at indent 0");
+        // end_character should be the full length of the end line so the entire
+        // end line (including any trailing whitespace) is hidden when collapsed.
+        // For the choice range [4, 5], end_line is 5 = "      next elsewhere"
+        assert_eq!(
+            choice_range.end_character,
+            Some("      next elsewhere".len() as u32),
+            "end_character should be the full end line length"
+        );
+
+        // Verify JSON serialization includes character offsets (so the client
+        // can use them for fold state preservation across edits)
+        let json_str = serde_json::to_string(&*ranges).unwrap();
+        assert!(
+            json_str.contains("startCharacter"),
+            "JSON should include startCharacter field, got: {}",
+            json_str
+        );
+        assert!(
+            json_str.contains("endCharacter"),
+            "JSON should include endCharacter field, got: {}",
+            json_str
+        );
+    }
+
+    #[test]
+    fn test_folding_range_json_serialization() {
+        // Verify that the JSON response for folding ranges includes
+        // startCharacter and endCharacter fields with correct values.
+        use serde_json::json;
+
+        let story = "story T:\n  event start:\n    \"Begin.\"\n";
+        let ranges = compute_folding_ranges(story, false, None);
+
+        let json = serde_json::to_value(&ranges).unwrap();
+        let arr = json.as_array().unwrap();
+        assert!(!arr.is_empty(), "should have at least one range");
+
+        // The story range (line 0) should have startCharacter = full line length
+        let story_range = &arr[0];
+        assert_eq!(
+            story_range["startLine"],
+            json!(0),
+            "story should start at line 0"
+        );
+        assert_eq!(
+            story_range["startCharacter"],
+            json!("story T:".len()),
+            "story startCharacter should be full line length (10), got: {}",
+            story_range["startCharacter"]
+        );
+        assert!(
+            story_range.get("endCharacter").is_some(),
+            "endCharacter should be present"
+        );
+    }
+
+    #[test]
+    fn test_folding_range_line_only_omits_character_offsets() {
+        // When lineFoldingOnly is true (e.g. GoLand, which doesn't send context),
+        // startCharacter and endCharacter should be None so they are omitted
+        // from the JSON serialization entirely. This produces standard line-based
+        // folding ranges that all editors understand.
+        let story = "story T:\n  event start:\n    \"Begin.\"\n";
+        let ranges = compute_folding_ranges(story, true, None);
+
+        assert!(!ranges.is_empty(), "should have fold ranges");
+
+        for r in &ranges {
+            assert!(
+                r.start_character.is_none(),
+                "start_character should be None when line_folding_only=true"
+            );
+            assert!(
+                r.end_character.is_none(),
+                "end_character should be None when line_folding_only=true"
+            );
+        }
+
+        // Verify JSON has no startCharacter/endCharacter keys
+        let json_str = serde_json::to_string(&ranges).unwrap();
+        assert!(
+            !json_str.contains("startCharacter"),
+            "JSON should NOT contain startCharacter, got: {}",
+            json_str
+        );
+        assert!(
+            !json_str.contains("endCharacter"),
+            "JSON should NOT contain endCharacter, got: {}",
+            json_str
+        );
     }
 }
