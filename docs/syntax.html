@@ -1045,8 +1045,12 @@ is reported instead.</p>
 <code>textDocument/foldingRange</code> requests. Foldable regions are computed for
 <code>story</code>, <code>event</code>, <code>effect</code>, and <code>choice</code> blocks by detecting construct
 keywords at line start and scanning forward for indented body lines. Blank
-lines are skipped (not included in fold ranges). Overlapping ranges are
-returned innermost-first per the LSP specification.</p>
+lines are skipped (not included in fold ranges). Ranges are sorted by
+<code>startLine</code> ascending, then <code>endLine</code> descending (parent before children)
+per the LSP specification. <code>startCharacter</code> is set to the full trimmed line
+length so that construct keywords (e.g. <code>event start:</code>) remain visible when a
+fold is collapsed. Supports LSP 3.18 <code>lineFoldingOnly</code> and <code>rangeLimit</code>
+context fields — when <code>lineFoldingOnly</code> is true, character offsets are omitted.</p>
 <h3>Event-level prerequisites</h3>
 <p>An <code>event</code> can have its own <code>requires:</code> condition. When a <code>choice</code> in another
 event specifies that event via <code>next</code>, the choice is <strong>automatically hidden</strong>
