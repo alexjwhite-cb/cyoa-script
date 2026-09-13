@@ -332,6 +332,52 @@ fn byte_range_to_utf16(line: &str, start_byte: usize, end_byte: usize) -> (u32, 
     )
 }
 
+/// Convert an LSP `Position` (line, UTF-16 character) to a byte offset within
+/// the document text. Used when applying incremental `didChange` content edits.
+fn position_to_byte_offset(text: &str, line: u32, character: u32) -> usize {
+    let mut byte_offset = 0usize;
+    for (i, l) in text.lines().enumerate() {
+        if i as u32 == line {
+            // Found the target line — convert the UTF-16 character position
+            // to a byte offset within this line.
+            return byte_offset + utf16_to_byte_idx(l, character);
+        }
+        byte_offset += l.len() + 1; // +1 for the '\n' separator
+    }
+    // Line is at or past the end — return the end of the document
+    text.len()
+}
+
+/// Apply a set of LSP `TextDocumentContentChangeEvent`s to the current document
+/// text, producing the new text. Handles both full-sync changes (single event
+/// with no `range`, just `text`) and incremental-sync changes (events with
+/// `range` fields).
+fn apply_content_changes(text: &str, changes: &[TextDocumentContentChangeEvent]) -> String {
+    if changes.is_empty() {
+        return text.to_string();
+    }
+
+    // Check if this is a full-sync change (no range means replace entire document)
+    if changes.len() == 1 && changes[0].range.is_none() {
+        return changes[0].text.clone().unwrap_or_default();
+    }
+
+    // Incremental sync: apply each change in order
+    let mut result = text.to_owned();
+    for change in changes {
+        if let Some(range) = &change.range {
+            let start = position_to_byte_offset(&result, range.start.line, range.start.character);
+            let end = position_to_byte_offset(&result, range.end.line, range.end.character);
+            let new_text = change.text.clone().unwrap_or_default();
+            result.replace_range(start..end, &new_text);
+        } else {
+            // No range — full replacement
+            result = change.text.clone().unwrap_or_default();
+        }
+    }
+    result
+}
+
 pub struct Server {
     /// Open documents: URI → (source text, parsed story, parse error if any)
     documents: HashMap<String, DocumentState>,
@@ -368,7 +414,11 @@ impl Server {
             Request::Initialize => self.handle_initialize(id),
             Request::Shutdown => self.handle_shutdown(id),
             Request::DidOpen { uri, text } => self.handle_document_update(uri, text),
-            Request::DidChange { uri, text } => self.handle_document_update(uri, text),
+            Request::DidChange {
+                uri,
+                text,
+                content_changes,
+            } => self.handle_document_update_with_changes(uri, text, content_changes),
             Request::DidClose { uri } => self.handle_did_close(uri),
             Request::Hover {
                 uri,
@@ -410,7 +460,7 @@ impl Server {
         let capabilities = serde_json::json!({
             "textDocumentSync": {
                 "openClose": true,
-                "change": 1  // TextDocumentSyncKind.Full
+                "change": 2  // TextDocumentSyncKind.Incremental
             },
             "hoverProvider": true,
             "completionProvider": {
@@ -447,6 +497,35 @@ impl Server {
     // ── Document handlers ────────────────────────────────────────────────────
 
     fn handle_document_update(&mut self, uri: String, text: String) -> Vec<Response> {
+        let diagnostics = self.parse_and_store(uri.clone(), text);
+        self.publish_diagnostics(&uri, diagnostics)
+    }
+
+    /// Handle `didChange` with content changes for incremental sync support.
+    /// If the changes contain range information, apply them incrementally to
+    /// the existing document text; otherwise fall back to full text replacement.
+    fn handle_document_update_with_changes(
+        &mut self,
+        uri: String,
+        fallback_text: String,
+        content_changes: Vec<TextDocumentContentChangeEvent>,
+    ) -> Vec<Response> {
+        let text = if content_changes.is_empty() {
+            // Backward compatibility: no content changes, use fallback
+            fallback_text
+        } else if content_changes.len() == 1 && content_changes[0].range.is_none() {
+            // Full sync: single change with no range
+            content_changes[0].text.clone().unwrap_or(fallback_text)
+        } else {
+            // Incremental sync: apply changes to existing document text
+            let current = self
+                .documents
+                .get(&uri)
+                .map(|d| d.text.as_str())
+                .unwrap_or(&fallback_text);
+            apply_content_changes(current, &content_changes)
+        };
+
         let diagnostics = self.parse_and_store(uri.clone(), text);
         self.publish_diagnostics(&uri, diagnostics)
     }
@@ -963,7 +1042,7 @@ impl Server {
     fn handle_folding_range(
         &self,
         uri: &str,
-        line_folding_only: bool,
+        _line_folding_only: bool,
         range_limit: Option<u32>,
         id: Option<RequestId>,
     ) -> Vec<Response> {
@@ -972,7 +1051,7 @@ impl Server {
             None => return self.empty_response(id),
         };
 
-        let ranges = compute_folding_ranges(&doc.text, line_folding_only, range_limit);
+        let ranges = compute_folding_ranges(&doc.text, range_limit);
         if ranges.is_empty() {
             return self.empty_response(id);
         }
@@ -1713,17 +1792,24 @@ fn tokenize_semantic(text: &str) -> Vec<SemanticToken> {
 /// Each block is identified by its starting keyword at the beginning of a line,
 /// and the fold extends to the last line of its indented body.
 ///
-/// When `line_folding_only` is false (the default), `startCharacter` and
-/// `endCharacter` are populated so that editors can preserve fold state across
-/// edits. `startCharacter` is set to the full trimmed line length so that the
-/// entire start line (including the construct keyword) stays visible when the
-/// fold is collapsed. If `line_folding_only` is true (client only supports
-/// line-based folding, e.g. GoLand), character offsets are omitted.
-fn compute_folding_ranges(
-    text: &str,
-    line_folding_only: bool,
-    range_limit: Option<u32>,
-) -> Vec<FoldingRange> {
+/// `startCharacter` and `endCharacter` are **always** populated (as UTF-16 code
+/// unit offsets). This is critical for fold state preservation: when an editor
+/// re-requests folding ranges after a document change (e.g. on `didChange`), the
+/// character offsets let it match old ranges to new ones by their structural
+/// position, even when line numbers have shifted due to edits elsewhere.
+///
+/// The LSP spec makes these fields optional, and clients that don't understand
+/// them simply ignore them. We therefore send them unconditionally, ignoring the
+/// client's `lineFoldingOnly` hint — omitting them (as we previously did for
+/// GoLand) causes the client to fall back to line-number-only matching, which
+/// breaks fold state preservation when any line above a fold point shifts.
+///
+/// `startCharacter` is set to the full trimmed line length (in UTF-16 code
+/// units) so that the entire start line — including the construct keyword
+/// (e.g. `event start:`) — stays visible when the fold is collapsed.
+/// `endCharacter` is set to the full line length (in UTF-16 code units) so
+/// that the entire end line is hidden when collapsed.
+fn compute_folding_ranges(text: &str, range_limit: Option<u32>) -> Vec<FoldingRange> {
     let lines: Vec<&str> = text.lines().collect();
     let mut ranges = Vec::new();
 
@@ -1752,34 +1838,30 @@ fn compute_folding_ranges(
 
             // Only create a fold range if the block has a non-empty body
             if end_line > line_idx {
-                // start_character is set to the full trimmed length of the start line.
-                // In character-based folding, the visible portion of the start line
-                // is line[0..startCharacter]. Using the full line length means the
-                // entire start line — including the construct keyword (e.g. "event
-                // start:") — stays visible when the fold is collapsed. Setting it
-                // to the indentation (or 0) would hide the keyword or the entire
-                // line in some editors.
+                // start_character: full trimmed line length (UTF-16 code units).
+                // In character-based folding, the visible portion of the start
+                // line is line[0..startCharacter]. Using the full trimmed line
+                // length means the entire start line — including the construct
+                // keyword (e.g. "event start:") — stays visible when the fold
+                // is collapsed.
                 //
-                // end_character is set to the full length of the end line so that
-                // the entire end line is hidden when the fold is collapsed.
-                // When line_folding_only is true, both are None (standard line-based
-                // folding, which some clients e.g. GoLand require).
-                let start_char = if line_folding_only {
-                    None
-                } else {
-                    Some(lines[line_idx].trim_end().len() as u32)
-                };
-                let end_char = if line_folding_only {
-                    None
-                } else {
-                    Some(lines[end_line].len() as u32)
-                };
+                // end_character: full line length of the end line (UTF-16 code
+                // units), so the entire end line is hidden when collapsed.
+                //
+                // We always provide these offsets (even when the client
+                // advertises lineFoldingOnly) so the client can match ranges
+                // across edits and preserve fold state. See the doc comment on
+                // `compute_folding_ranges` for rationale.
+                let start_line_str = lines[line_idx];
+                let end_line_str = lines[end_line];
+                let start_trimmed_len = start_line_str.trim_end().len();
+                let end_line_len = end_line_str.len();
 
                 ranges.push(FoldingRange {
                     start_line: line_idx as u32,
                     end_line: end_line as u32,
-                    start_character: start_char,
-                    end_character: end_char,
+                    start_character: Some(byte_to_utf16_idx(start_line_str, start_trimmed_len)),
+                    end_character: Some(byte_to_utf16_idx(end_line_str, end_line_len)),
                     kind: Some("region".to_string()),
                 });
             }
@@ -1894,6 +1976,20 @@ mod tests {
             serde_json::Value::Number(serde_json::Number::from(1i64)),
             params,
         )
+    }
+
+    /// Extract folding ranges from the server response as a Vec of JSON objects.
+    fn extract_folding_ranges(responses: &[Response]) -> Vec<serde_json::Value> {
+        for resp in responses {
+            if let Response::Response { result, .. } = resp {
+                if let Some(json) = result {
+                    if let Some(arr) = json.as_array() {
+                        return arr.clone();
+                    }
+                }
+            }
+        }
+        vec![]
     }
 
     #[test]
@@ -3603,7 +3699,7 @@ mod tests {
         // Event and effect with no indented body should not produce fold ranges,
         // but the story itself has body items so it should fold.
         let story = "story T:\n  event start:\n  effect empty:\n";
-        let ranges = compute_folding_ranges(story, false, None);
+        let ranges = compute_folding_ranges(story, None);
 
         // story → [0, 2]  (has body: event + effect at indent 2)
         // event start → no range (no indented body)
@@ -3638,7 +3734,7 @@ mod tests {
   event cave:
     "You are in a cave."
 "#;
-        let ranges = compute_folding_ranges(story, false, None);
+        let ranges = compute_folding_ranges(story, None);
 
         // Ranges (0-indexed, 16 lines 0-15):
         // story  → [0, 15]
@@ -3678,7 +3774,7 @@ mod tests {
   event elsewhere:
     "End."
 "#;
-        let ranges = compute_folding_ranges(story, false, None);
+        let ranges = compute_folding_ranges(story, None);
 
         // Expected:
         // story    → [0, 7]
@@ -3710,7 +3806,7 @@ mod tests {
   event next:
     "Next."
 "#;
-        let ranges = compute_folding_ranges(story, false, None);
+        let ranges = compute_folding_ranges(story, None);
 
         // event start → [1, 2] (blank line 3 excluded from fold range)
         // event next  → [4, 5]
@@ -3730,7 +3826,7 @@ mod tests {
   choice "A":
     next a
 "#;
-        let ranges = compute_folding_ranges(story, false, None);
+        let ranges = compute_folding_ranges(story, None);
         // 3 lines (0-2): event → [0, 2], choice → [1, 2]
         // Sorted by (start_line, end_line): (0,2) then (1,2)
         assert_eq!(ranges[0].start_line, 0);
@@ -3748,7 +3844,7 @@ mod tests {
     choice "Go"
       next elsewhere
 "#;
-        let ranges = compute_folding_ranges(story, false, None);
+        let ranges = compute_folding_ranges(story, None);
         // story  → [0, 5]
         // event  → [1, 4]
         // choice → [3, 4]
@@ -3770,7 +3866,7 @@ mod tests {
   event elsewhere:
     "End."
 "#;
-        let ranges = compute_folding_ranges(story, false, None);
+        let ranges = compute_folding_ranges(story, None);
 
         // startCharacter and endCharacter must be populated so editors can
         // preserve fold state across edits (LSP spec recommendation).
@@ -3856,7 +3952,7 @@ mod tests {
         use serde_json::json;
 
         let story = "story T:\n  event start:\n    \"Begin.\"\n";
-        let ranges = compute_folding_ranges(story, false, None);
+        let ranges = compute_folding_ranges(story, None);
 
         let json = serde_json::to_value(&ranges).unwrap();
         let arr = json.as_array().unwrap();
@@ -3882,38 +3978,280 @@ mod tests {
     }
 
     #[test]
-    fn test_folding_range_line_only_omits_character_offsets() {
-        // When lineFoldingOnly is true (e.g. GoLand, which doesn't send context),
-        // startCharacter and endCharacter should be None so they are omitted
-        // from the JSON serialization entirely. This produces standard line-based
-        // folding ranges that all editors understand.
+    fn test_folding_range_always_has_character_offsets() {
+        // Character offsets must ALWAYS be populated, even when the client
+        // advertises lineFoldingOnly (e.g. GoLand). This is critical for fold
+        // state preservation: without character offsets, editors can only match
+        // ranges by line number, which breaks when lines shift due to edits
+        // elsewhere in the document — causing all folds to unfold.
         let story = "story T:\n  event start:\n    \"Begin.\"\n";
-        let ranges = compute_folding_ranges(story, true, None);
+        let ranges = compute_folding_ranges(story, None);
 
         assert!(!ranges.is_empty(), "should have fold ranges");
 
-        for r in &ranges {
+        // Every range must have startCharacter and endCharacter
+        for (i, r) in ranges.iter().enumerate() {
             assert!(
-                r.start_character.is_none(),
-                "start_character should be None when line_folding_only=true"
+                r.start_character.is_some(),
+                "range {} should always have startCharacter, got {:?}",
+                i,
+                r
             );
             assert!(
-                r.end_character.is_none(),
-                "end_character should be None when line_folding_only=true"
+                r.end_character.is_some(),
+                "range {} should always have endCharacter, got {:?}",
+                i,
+                r
             );
         }
 
-        // Verify JSON has no startCharacter/endCharacter keys
+        // Verify JSON includes character offset fields (so the client can use
+        // them for fold state preservation across edits)
         let json_str = serde_json::to_string(&ranges).unwrap();
         assert!(
-            !json_str.contains("startCharacter"),
-            "JSON should NOT contain startCharacter, got: {}",
+            json_str.contains("startCharacter"),
+            "JSON should always include startCharacter, got: {}",
             json_str
         );
         assert!(
-            !json_str.contains("endCharacter"),
-            "JSON should NOT contain endCharacter, got: {}",
+            json_str.contains("endCharacter"),
+            "JSON should always include endCharacter, got: {}",
             json_str
+        );
+    }
+
+    #[test]
+    fn test_folding_range_preserved_across_edit_elsewhere() {
+        // Simulate the user's scenario: fold "event start", then add a line in
+        // a different event ("event middle"). The folding ranges for "event
+        // start" should have the SAME line numbers and character offsets before
+        // and after the edit — allowing the client to match the fold and keep
+        // it collapsed.
+        let original = r#"story my_story:
+
+  event start:
+    "This is the start."
+    choice "Go to the middle":
+      next middle
+
+  event middle:
+    "This is the middle"
+
+    choice "Go to end":
+      next end
+
+  event end:
+    "This is the end."
+"#;
+
+        let ranges_before = compute_folding_ranges(original, None);
+        let start_range = ranges_before
+            .iter()
+            .find(|r| r.start_line == 2)
+            .expect("event 'start' range should exist (start_line=2)");
+
+        // Simulate adding a paragraph in "event middle" (between lines 9 and 10)
+        let edited = r#"story my_story:
+
+  event start:
+    "This is the start."
+    choice "Go to the middle":
+      next middle
+
+  event middle:
+    "This is the middle"
+    "A new paragraph."
+
+    choice "Go to end":
+      next end
+
+  event end:
+    "This is the end."
+"#;
+
+        let ranges_after = compute_folding_ranges(edited, None);
+        let start_range_after = ranges_after
+            .iter()
+            .find(|r| r.start_line == 2)
+            .expect("event 'start' range should still exist at start_line=2 after edit");
+
+        // Line numbers unchanged because the edit was AFTER event start
+        assert_eq!(
+            start_range.start_line, start_range_after.start_line,
+            "event start start_line should be stable (2) after editing elsewhere"
+        );
+        assert_eq!(
+            start_range.end_line, start_range_after.end_line,
+            "event start end_line should be stable after editing elsewhere"
+        );
+
+        // Character offsets must also be stable — this is what enables the
+        // client to recognize the range as unchanged and preserve fold state.
+        assert_eq!(
+            start_range.start_character, start_range_after.start_character,
+            "event start startCharacter should be stable after editing elsewhere"
+        );
+        assert_eq!(
+            start_range.end_character, start_range_after.end_character,
+            "event start endCharacter should be stable after editing elsewhere"
+        );
+
+        // Both ranges must have character offsets (not None)
+        assert!(start_range.start_character.is_some());
+        assert!(start_range.end_character.is_some());
+    }
+
+    #[test]
+    fn test_apply_full_sync_content_change() {
+        // Full sync: single change with no range
+        let original = "story T:\n  event start:\n    \"Hello\"\n";
+        let changes = vec![TextDocumentContentChangeEvent {
+            text: Some("story T:\n  event start:\n    \"World\"\n".to_string()),
+            range: None,
+            range_length: None,
+        }];
+        let result = apply_content_changes(original, &changes);
+        assert_eq!(result, "story T:\n  event start:\n    \"World\"\n");
+    }
+
+    #[test]
+    fn test_apply_incremental_change_insert() {
+        // Incremental sync: insert a line in "event middle" (after "event start")
+        let original = "story my_story:\n\n  event start:\n    \"This is the start.\"\n\n  event middle:\n    \"This is the middle\"\n";
+        let changes = vec![TextDocumentContentChangeEvent {
+            text: Some("    \"A new paragraph.\"\n".to_string()),
+            range: Some(Range {
+                start: Position {
+                    line: 6,
+                    character: 0,
+                },
+                end: Position {
+                    line: 6,
+                    character: 0,
+                },
+            }),
+            range_length: None,
+        }];
+        let result = apply_content_changes(original, &changes);
+        assert!(result.contains("\"A new paragraph.\""));
+        // The "event start" content should be unchanged
+        assert!(result.contains("\"This is the start.\""));
+    }
+
+    #[test]
+    fn test_apply_incremental_change_delete() {
+        // Incremental sync: delete the "stat mp = 30" line (line 2)
+        let original = "story T:\n  stat hp = 50\n  stat mp = 30\n  event start:\n    \"Hello\"\n";
+        let changes = vec![TextDocumentContentChangeEvent {
+            text: Some("".to_string()),
+            range: Some(Range {
+                start: Position {
+                    line: 2,
+                    character: 0,
+                },
+                end: Position {
+                    line: 3,
+                    character: 0,
+                },
+            }),
+            range_length: None,
+        }];
+        let result = apply_content_changes(original, &changes);
+        // "stat mp = 30" line should be deleted
+        assert!(!result.contains("stat mp = 30"));
+        // "stat hp = 50" should still be present
+        assert!(result.contains("stat hp = 50"));
+    }
+
+    #[test]
+    fn test_incremental_did_change_preserves_fold_state() {
+        // End-to-end test: open a story, fold "event start", then make an
+        // incremental edit in "event middle" (adding a paragraph). The
+        // "event start" fold range should be identical before and after.
+        let mut server = Server::new();
+        let original = r#"story my_story:
+
+  event start:
+    "This is the start."
+    choice "Go to the middle":
+      next middle
+
+  event middle:
+    "This is the middle"
+
+    choice "Go to end":
+      next end
+
+  event end:
+    "This is the end."
+"#;
+
+        // Open the document
+        let open_msg = did_open_msg("file:///test.cyoa", original);
+        server.handle(open_msg);
+
+        // Get folding ranges before the edit
+        let before_msg = request_msg(
+            "textDocument/foldingRange",
+            serde_json::json!({
+                "textDocument": {"uri": "file:///test.cyoa"},
+                "context": {"lineFoldingOnly": true}
+            }),
+        );
+        let before_resp = server.handle(before_msg);
+        let before_ranges = extract_folding_ranges(&before_resp);
+        let start_range_before = before_ranges
+            .iter()
+            .find(|r| r["startLine"] == serde_json::json!(2))
+            .expect("event start range should exist");
+
+        // Send incremental didChange: add a paragraph to "event middle"
+        let change_msg = request_msg(
+            "textDocument/didChange",
+            serde_json::json!({
+                "textDocument": {"uri": "file:///test.cyoa"},
+                "contentChanges": [{
+                    "range": {
+                        "start": {"line": 8, "character": 0},
+                        "end": {"line": 8, "character": 0}
+                    },
+                    "text": "\n    \"A new paragraph.\""
+                }]
+            }),
+        );
+        server.handle(change_msg);
+
+        // Get folding ranges after the edit
+        let after_msg = request_msg(
+            "textDocument/foldingRange",
+            serde_json::json!({
+                "textDocument": {"uri": "file:///test.cyoa"},
+                "context": {"lineFoldingOnly": true}
+            }),
+        );
+        let after_resp = server.handle(after_msg);
+        let after_ranges = extract_folding_ranges(&after_resp);
+        let start_range_after = after_ranges
+            .iter()
+            .find(|r| r["startLine"] == serde_json::json!(2))
+            .expect("event start range should still exist at line 2");
+
+        // The folding range for "event start" should be completely unchanged
+        assert_eq!(
+            start_range_before["startLine"], start_range_after["startLine"],
+            "event start startLine should be unchanged after editing elsewhere"
+        );
+        assert_eq!(
+            start_range_before["endLine"], start_range_after["endLine"],
+            "event start endLine should be unchanged after editing elsewhere"
+        );
+        assert_eq!(
+            start_range_before["startCharacter"], start_range_after["startCharacter"],
+            "event start startCharacter should be unchanged after editing elsewhere"
+        );
+        assert_eq!(
+            start_range_before["endCharacter"], start_range_after["endCharacter"],
+            "event start endCharacter should be unchanged after editing elsewhere"
         );
     }
 }

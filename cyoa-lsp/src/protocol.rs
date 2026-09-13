@@ -117,10 +117,11 @@ struct DidChangeTextDocumentParams {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-struct TextDocumentContentChangeEvent {
-    text: Option<String>,
-    #[serde(rename = "range")]
-    _range: Option<Range>,
+pub struct TextDocumentContentChangeEvent {
+    pub text: Option<String>,
+    pub range: Option<Range>,
+    #[serde(rename = "rangeLength")]
+    pub range_length: Option<u32>,
 }
 
 /// Parameters for `textDocument/hover`.
@@ -150,7 +151,15 @@ pub enum Request {
     },
     DidChange {
         uri: String,
+        /// Full text (for Full sync) or the replacement text for the last
+        /// content change (for Incremental sync). In both cases this is the
+        /// text to use as the complete new document — `apply_content_changes`
+        /// handles the actual incremental logic.
         text: String,
+        /// Content changes from the `didChange` notification. For Full sync,
+        /// this contains a single change with no `range` (just `text`). For
+        /// Incremental sync, each change has a `range` indicating the edit region.
+        content_changes: Vec<TextDocumentContentChangeEvent>,
     },
     DidClose {
         uri: String,
@@ -208,7 +217,8 @@ impl Request {
             }
             "textDocument/didChange" => {
                 let p: DidChangeTextDocumentParams = serde_json::from_value(params).ok()?;
-                // Use the latest text content
+                // For Full sync: a single content change with only `text` (no range).
+                // For Incremental sync: one or more content changes with `range` fields.
                 let text = p
                     .content_changes
                     .last()
@@ -217,6 +227,7 @@ impl Request {
                 Some(Request::DidChange {
                     uri: p.text_document.uri,
                     text,
+                    content_changes: p.content_changes,
                 })
             }
             "textDocument/didClose" => {

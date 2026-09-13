@@ -757,9 +757,14 @@ formatting, semantic tokenization, and code folding over stdio (JSON-RPC).
   indentation level (2-space units) and sorted by `startLine` ascending, then
   `endLine` descending (parent before children) per the LSP spec. `startCharacter`
   is set to the full trimmed line length so that construct keywords (e.g.
-  `event start:`) remain visible when a fold is collapsed. Supports LSP 3.18
-  `lineFoldingOnly` and `rangeLimit` context fields. When `lineFoldingOnly` is
-  true, character offsets are omitted (line-based folding only).
+  `event start:`) remain visible when a fold is collapsed. Character offsets are
+  **always** provided as UTF-16 code unit values, even when the client advertises
+  `lineFoldingOnly`. This ensures editors can match folding ranges across edits
+  (when line numbers shift due to changes elsewhere) and preserve fold state.
+  `rangeLimit` context is honored to truncate excess ranges. Clients that don't
+  understand character offsets simply ignore them. The server uses
+  `TextDocumentSyncKind.Incremental` (`change: 2`) so editors can track specific
+  edits and adjust fold positions without re-matching entire range sets.
 
 ---
 
@@ -795,3 +800,4 @@ formatting, semantic tokenization, and code folding over stdio (JSON-RPC).
 | 0.11.1 | 2026-08-28 | Version bump to 0.11.1 (patch release consolidating tag removal feature; all docs synchronized) |
 | 0.11.2 | 2026-09-11 | Fix: resolve imports in `cmd_compile` before codegen |
 | 0.12.0 | 2026-09-12 | LSP: remove keyword highlighting + syntax-aware stat change highlighting; LSP code folding for `story`/`event`/`effect`/`choice` blocks with `startCharacter`/`endCharacter` for fold-state preservation; runtime: event-level `requires` gates choice availability when target event prerequisites are unmet |
+| 0.12.1 | 2026-09-13 | LSP: fix fold state loss on edits — switched from `TextDocumentSyncKind.Full` to `Incremental` so editors (GoLand) can track changes precisely and adjust fold positions; character offsets (`startCharacter`/`endCharacter`) are always sent as UTF-16 code unit values even when the client advertises `lineFoldingOnly: true`; previously, respecting this hint caused editors to fall back to line-only matching, which breaks fold preservation when line numbers shift after edits elsewhere |

@@ -642,10 +642,18 @@ The LSP server advertises `foldingRangeProvider` and responds to
 keywords at line start and scanning forward for indented body lines. Blank
 lines are skipped (not included in fold ranges). Ranges are sorted by
 `startLine` ascending, then `endLine` descending (parent before children)
-per the LSP specification. `startCharacter` is set to the full trimmed line
-length so that construct keywords (e.g. `event start:`) remain visible when a
-fold is collapsed. Supports LSP 3.18 `lineFoldingOnly` and `rangeLimit`
-context fields — when `lineFoldingOnly` is true, character offsets are omitted.
+per the LSP specification.
+
+`startCharacter` is set to the full trimmed line length (UTF-16 code units)
+so that construct keywords (e.g. `event start:`) remain visible when a fold
+is collapsed. `endCharacter` is set to the full end-line length (UTF-16 code
+units). Character offsets are **always** provided (as `startCharacter` and
+`endCharacter` fields), even when the client advertises `lineFoldingOnly: true`
+in its folding range request context. This is critical for fold state
+preservation: when an edit shifts line numbers, the client can match old
+ranges to new ones by their character offsets and keep folds collapsed.
+Clients that don't understand character offsets simply ignore them. The
+`rangeLimit` context field is honored to truncate excess ranges.
 
 ### Event-level prerequisites
 
