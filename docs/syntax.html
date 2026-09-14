@@ -1047,10 +1047,17 @@ is reported instead.</p>
 keywords at line start and scanning forward for indented body lines. Blank
 lines are skipped (not included in fold ranges). Ranges are sorted by
 <code>startLine</code> ascending, then <code>endLine</code> descending (parent before children)
-per the LSP specification. <code>startCharacter</code> is set to the full trimmed line
-length so that construct keywords (e.g. <code>event start:</code>) remain visible when a
-fold is collapsed. Supports LSP 3.18 <code>lineFoldingOnly</code> and <code>rangeLimit</code>
-context fields — when <code>lineFoldingOnly</code> is true, character offsets are omitted.</p>
+per the LSP specification.</p>
+<p><code>startCharacter</code> is set to the full trimmed line length (UTF-16 code units)
+so that construct keywords (e.g. <code>event start:</code>) remain visible when a fold
+is collapsed. <code>endCharacter</code> is set to the full end-line length (UTF-16 code
+units). Character offsets are <strong>always</strong> provided (as <code>startCharacter</code> and
+<code>endCharacter</code> fields), even when the client advertises <code>lineFoldingOnly: true</code>
+in its folding range request context. This is critical for fold state
+preservation: when an edit shifts line numbers, the client can match old
+ranges to new ones by their character offsets and keep folds collapsed.
+Clients that don&#39;t understand character offsets simply ignore them. The
+<code>rangeLimit</code> context field is honored to truncate excess ranges.</p>
 <h3>Event-level prerequisites</h3>
 <p>An <code>event</code> can have its own <code>requires:</code> condition. When a <code>choice</code> in another
 event specifies that event via <code>next</code>, the choice is <strong>automatically hidden</strong>
