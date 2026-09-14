@@ -116,21 +116,39 @@ fn main() {
     let mut server = Server::new();
 
     while let Some(message) = read_message(&mut reader) {
-        let responses = match serde_json::from_str::<cyoa_lsp::RawMessage>(&message) {
-            Ok(msg) => server.handle(msg),
+        let parsed = match serde_json::from_str::<cyoa_lsp::RawMessage>(&message) {
+            Ok(msg) => Some(msg),
             Err(_) => {
                 // Attempt recovery for "trailing characters" errors by parsing
                 // just the first JSON value (handles Content-Length overcount)
                 if let Some(recovered) = try_recover_json(&message) {
-                    match serde_json::from_str::<cyoa_lsp::RawMessage>(&recovered) {
-                        Ok(msg) => server.handle(msg),
-                        Err(_) => continue,
-                    }
+                    serde_json::from_str::<cyoa_lsp::RawMessage>(&recovered).ok()
                 } else {
-                    continue;
+                    None
                 }
             }
         };
+
+        let Some(msg) = parsed else {
+            continue;
+        };
+
+        // Handle `exit` notification: the LSP spec requires the server to
+        // terminate its process after receiving `exit` (which follows `shutdown`
+        // request). If we don't exit here, the client kills the process and
+        // may restart it in a loop.
+        if msg.method.as_deref() == Some("exit") {
+            break;
+        }
+
+        // `initialized` is a notification the client sends after receiving the
+        // `initialize` response. It's handled by the client itself; we just
+        // acknowledge it by continuing the loop (notifications need no response).
+        if msg.method.as_deref() == Some("initialized") {
+            continue;
+        }
+
+        let responses = server.handle(msg);
 
         for resp in &responses {
             if let Ok(json) = serde_json::to_string(resp) {

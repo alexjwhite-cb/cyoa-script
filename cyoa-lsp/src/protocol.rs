@@ -305,7 +305,11 @@ impl Request {
 // ===== Core LSP types =====
 
 /// LSP diagnostic severity.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+/// Uses serde_repr to serialize as a u32 integer (1=Error, 2=Warning, etc.)
+/// per the LSP specification.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, serde_repr::Serialize_repr, serde_repr::Deserialize_repr,
+)]
 #[repr(u32)]
 pub enum DiagnosticSeverity {
     Error = 1,
@@ -374,7 +378,7 @@ pub struct CompletionItem {
     pub documentation: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, Serialize)]
+#[derive(Debug, Clone, Copy, serde_repr::Serialize_repr)]
 #[repr(u32)]
 pub enum CompletionItemKind {
     Function = 3,

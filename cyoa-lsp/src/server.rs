@@ -458,18 +458,12 @@ impl Server {
 
     fn handle_initialize(&self, id: Option<RequestId>) -> Vec<Response> {
         let capabilities = serde_json::json!({
-            "textDocumentSync": {
-                "openClose": true,
-                "change": 2  // TextDocumentSyncKind.Incremental
-            },
+            "textDocumentSync": 1,
             "hoverProvider": true,
             "completionProvider": {
                 "triggerCharacters": ["\"", "#", "@", "-", "+", "{", "(", ":"]
             },
             "definitionProvider": true,
-            "documentOnTypeFormattingProvider": {
-                "triggerCharacters": ["\t"]
-            },
             "foldingRangeProvider": true,
             "semanticTokensOptions": {
                 "legend": {
@@ -485,7 +479,11 @@ impl Server {
         self.json_response(
             id,
             serde_json::json!({
-                "capabilities": capabilities
+                "capabilities": capabilities,
+                "serverInfo": {
+                    "name": "cyoa-lsp",
+                    "version": "0.12.1"
+                }
             }),
         )
     }
@@ -2006,7 +2004,7 @@ mod tests {
                 assert!(json.get("capabilities").is_some());
                 let caps = &json["capabilities"];
                 assert_eq!(caps["hoverProvider"], true);
-                assert_eq!(caps["textDocumentSync"]["openClose"], true);
+                assert_eq!(caps["textDocumentSync"], 1); // TextDocumentSyncKind::Full
             }
             _ => panic!("expected Response variant"),
         }
