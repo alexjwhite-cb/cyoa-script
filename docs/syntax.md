@@ -613,6 +613,17 @@ on the merged story.
 | `next <event>` | Defined events | `next castle_gate` → must have `event castle_gate:` |
 | `uses <effect>` | Defined effects | `uses healing_potion` → must be imported or locally defined |
 
+**Unreferenced event warnings** — events that are defined but never targeted by
+any `next` produce a **warning** (not an error). The entry-point event (the
+first event defined in the story) is exempt. This helps catch leftover events
+that are unreachable from any choice path.
+
+**Severity distinction:**
+- **Error**: `next` references an undefined event, or `uses` references an
+  undefined effect.
+- **Warning**: an event is defined but never referenced by any `next` (excluding
+  the entry-point).
+
 > **Note**: Stats and flags are **not** validated at compile time. The runtime
 > treats undeclared stats as `0` and undeclared flags as `false`. This allows
 > standard library effects (e.g., `std/combat` uses `courage`) to be imported
@@ -629,10 +640,12 @@ an import error and exits.
 ### LSP diagnostics
 
 The language server (LSP) runs the same reference validation as `cyoa validate`
-on every keystroke. Diagnostics are published in real time. When imports
-cannot be resolved (e.g., file not found), reference validation is skipped
-for the unresolved symbols to avoid false positives — the import error itself
-is reported instead.
+on every keystroke. Diagnostics are published in real time with severity
+mapping: `ReferenceErrorSeverity::Error` → `DiagnosticSeverity::Error` (error
+squiggles), `ReferenceErrorSeverity::Warning` → `DiagnosticSeverity::Warning`
+(warning squiggles). When imports cannot be resolved (e.g., file not found),
+reference validation is skipped for the unresolved symbols to avoid false
+positives — the import error itself is reported instead.
 
 ### LSP code folding
 

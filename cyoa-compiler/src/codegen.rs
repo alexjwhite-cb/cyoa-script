@@ -4,7 +4,7 @@
 
 use cyoa_ast::*;
 use cyoa_bytecode::*;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
 /// Error during bytecode generation.
 #[derive(Debug)]
@@ -36,12 +36,23 @@ impl std::fmt::Display for CodegenError {
 
 impl std::error::Error for CodegenError {}
 
-/// A reference validation error with source position information.
+/// Severity of a `ReferenceError` — distinguishes errors from warnings.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReferenceErrorSeverity {
+    /// A hard error: the reference points to an undefined symbol.
+    Error,
+    /// A warning: the symbol is defined but never referenced (e.g. an
+    /// event that no `next` targets).
+    Warning,
+}
+
+/// A reference validation error or warning with source position information.
 #[derive(Debug, Clone)]
 pub struct ReferenceError {
     pub message: String,
     pub line: usize,
     pub col: usize,
+    pub severity: ReferenceErrorSeverity,
 }
 
 /// Validate that all references in the story point to defined symbols.
@@ -49,6 +60,9 @@ pub struct ReferenceError {
 /// Checks:
 /// - `next` targets in choices reference defined events
 /// - `uses` references in choices reference defined effects
+/// - Events that are defined but never targeted by any `next` produce a
+///   warning (excluding the story's entry-point event — the first event
+///   defined — which is always reachable as the starting point).
 ///
 /// Note: stat and flag references are NOT validated at compile time. The
 /// runtime treats undeclared stats as 0 and undeclared flags as false,
@@ -57,19 +71,50 @@ pub struct ReferenceError {
 /// uses `courage`) that may reference stats the importing story doesn't
 /// declare.
 ///
-/// Returns a list of errors with line/col positions extracted from the
-/// source text. This is used by the LSP to provide real-time diagnostics
-/// and by `cyoa validate` to report errors.
+/// Returns a list of errors and warnings with line/col positions extracted
+/// from the source text. This is used by the LSP to provide real-time
+/// diagnostics and by `cyoa validate` to report issues.
 pub fn validate_references(story: &Story, source: &str) -> Vec<ReferenceError> {
     let (_, _, defined_events, defined_effects) = collect_defined_symbols(story);
     let lines: Vec<&str> = source.lines().collect();
 
     let mut errors: Vec<ReferenceError> = Vec::new();
 
+    // Collect all `next` targets across every choice in every event.
+    // Also track the first event defined — that is the story's entry point
+    // and is exempt from the "unreferenced" warning.
+    let mut next_targets: HashSet<&str> = HashSet::new();
+    let mut entry_event: Option<&str> = None;
+
     for item in &story.items {
-        if let StoryItem::EventDef(ev) = item {
-            check_event_refs(ev, &defined_events, &defined_effects, &lines, &mut errors);
+        let StoryItem::EventDef(ev) = item else {
+            continue;
+        };
+        if entry_event.is_none() {
+            entry_event = Some(ev.id.as_str());
         }
+        for choice in &ev.choices {
+            if let Some(target) = &choice.next {
+                next_targets.insert(target.as_str());
+            }
+        }
+        check_event_refs(ev, &defined_events, &defined_effects, &lines, &mut errors);
+    }
+
+    // Warn about events that are never referenced by any `next` (excluding
+    // the entry-point event, which is always reachable as the story start).
+    let entry = match entry_event {
+        Some(e) => e,
+        None => return errors,
+    };
+    for item in &story.items {
+        let StoryItem::EventDef(ev) = item else {
+            continue;
+        };
+        if ev.id == entry || next_targets.contains(ev.id.as_str()) {
+            continue;
+        }
+        errors.extend(check_unreferenced_event(ev, &lines));
     }
 
     errors
@@ -79,14 +124,31 @@ pub fn validate_references(story: &Story, source: &str) -> Vec<ReferenceError> {
 /// undefined `next` (event) and `uses` (effect) references.
 fn check_event_refs(
     ev: &EventDef,
-    defined_events: &std::collections::HashSet<&str>,
-    defined_effects: &std::collections::HashSet<&str>,
+    defined_events: &HashSet<&str>,
+    defined_effects: &HashSet<&str>,
     lines: &[&str],
     errors: &mut Vec<ReferenceError>,
 ) {
     for choice in &ev.choices {
         check_choice_refs(choice, defined_events, defined_effects, lines, errors);
     }
+}
+
+/// Emit a warning for an event that is defined but never targeted by any `next`.
+fn check_unreferenced_event(ev: &EventDef, lines: &[&str]) -> Vec<ReferenceError> {
+    let Some((line, col)) = find_ref_after_keyword(lines, "event", &ev.id) else {
+        return Vec::new();
+    };
+    vec![ReferenceError {
+        message: format!(
+            "event '{}' is never reached by any 'next' — it is not the story \
+             entry point and no choice targets it",
+            ev.id
+        ),
+        line,
+        col,
+        severity: ReferenceErrorSeverity::Warning,
+    }]
 }
 
 /// Collect the names of all defined symbols (stats, flags, events, effects).
@@ -138,7 +200,7 @@ fn check_choice_refs(
     // Choice next → event reference
     if let Some(target) = &choice.next {
         if !defined_events.contains(target.as_str()) {
-            if let Some((line, col)) = find_text_position(lines, target) {
+            if let Some((line, col)) = find_ref_after_keyword(lines, "next", target) {
                 errors.push(ReferenceError {
                     message: format!(
                         "undefined event '{}': referenced in choice 'next' but not defined",
@@ -146,6 +208,7 @@ fn check_choice_refs(
                     ),
                     line,
                     col,
+                    severity: ReferenceErrorSeverity::Error,
                 });
             }
         }
@@ -153,7 +216,7 @@ fn check_choice_refs(
     // Choice uses → effect references
     for eff in &choice.uses {
         if !defined_effects.contains(eff.as_str()) {
-            if let Some((line, col)) = find_text_position(lines, eff) {
+            if let Some((line, col)) = find_ref_after_keyword(lines, "uses", eff) {
                 errors.push(ReferenceError {
                     message: format!(
                         "undefined effect '{}': referenced in 'uses' but not defined",
@@ -161,26 +224,41 @@ fn check_choice_refs(
                     ),
                     line,
                     col,
+                    severity: ReferenceErrorSeverity::Error,
                 });
             }
         }
     }
 }
 
-/// Find the first word-boundary occurrence of `needle` in the source lines
-/// and return its (line, col) position (1-based, matching ParseError conventions).
+/// Find the first occurrence of `needle` that appears after the `keyword` on
+/// the same source line, and return its (line, col) position (1-based, matching
+/// `ParseError` conventions).
+///
+/// This is used to locate `next <event>` and `uses <effect>` references in the
+/// source text. By requiring the keyword to precede the reference name on the
+/// same line, we avoid false matches where the name also appears inside a string
+/// literal (e.g. `"The end is near."` containing `end` when `next end` is the
+/// actual reference).
 ///
 /// Uses word-boundary matching to avoid false positives (e.g. matching "hp"
-/// inside "chap" or "courage" inside "encourage"). Skips comment lines (where
-/// the first non-whitespace character is `#`) so that errors point at actual
-/// references, not at mentions in comments.
-fn find_text_position(lines: &[&str], needle: &str) -> Option<(usize, usize)> {
+/// inside "chap"). Skips comment lines so errors point at actual references.
+fn find_ref_after_keyword(lines: &[&str], keyword: &str, needle: &str) -> Option<(usize, usize)> {
     lines.iter().enumerate().find_map(|(line_idx, line)| {
         if is_comment_line(line) {
             return None;
         }
-        find_word_in_line(line, needle).map(|col| (line_idx + 1, col + 1))
+        find_ref_after_keyword_in_line(line, keyword, needle).map(|col| (line_idx + 1, col + 1))
     })
+}
+
+/// Find `needle` that appears after `keyword` on a single line.
+/// Both must match as word-boundary tokens. Returns the byte offset of `needle`.
+fn find_ref_after_keyword_in_line(line: &str, keyword: &str, needle: &str) -> Option<usize> {
+    let kw_pos = find_word_in_line(line, keyword)?;
+    let after_kw = &line[kw_pos + keyword.len()..];
+    let rel_pos = find_word_in_line(after_kw, needle)?;
+    Some(kw_pos + keyword.len() + rel_pos)
 }
 
 /// Check if a line is a comment (first non-whitespace character is `#`).

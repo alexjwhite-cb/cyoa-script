@@ -204,12 +204,25 @@ fn cmd_validate(input: &str) {
 
     // Validate that all references (next, uses, stats, flags) are defined
     let ref_errors = cyoa_compiler::validate_references(&story, &source);
+    let has_errors = ref_errors
+        .iter()
+        .any(|e| e.severity == cyoa_compiler::ReferenceErrorSeverity::Error);
+
     if !ref_errors.is_empty() {
-        eprintln!("Validation errors:");
+        eprintln!("Validation issues:");
         for err in &ref_errors {
-            eprintln!("  line {} col {}: {}", err.line, err.col, err.message);
+            let tag = match err.severity {
+                cyoa_compiler::ReferenceErrorSeverity::Error => "E",
+                cyoa_compiler::ReferenceErrorSeverity::Warning => "W",
+            };
+            eprintln!(
+                "  [{}] line {} col {}: {}",
+                tag, err.line, err.col, err.message
+            );
         }
-        std::process::exit(1);
+        if has_errors {
+            std::process::exit(1);
+        }
     }
 
     match cyoa_compiler::compile_story(&story) {

@@ -494,6 +494,110 @@ story Test:
 }
 
 #[test]
+fn test_validate_references_unreferenced_event_warning() {
+    // `dead_event` is defined but never targeted by any `next`.
+    // `start` is the entry point (first event) and is referenced by `next cave`.
+    let source = r#"
+story Test:
+  stat hp = 50
+  event start:
+    "You begin."
+    choice "Go north":
+      next cave
+  event cave:
+    "A dark cave."
+  event dead_event:
+    "This is never reached."
+"#;
+    let story = parse_story(source).unwrap();
+    let errors = validate_references(&story, source);
+    let unreferenced = errors.iter().find(|e| e.message.contains("never reached"));
+    assert!(
+        unreferenced.is_some(),
+        "expected a warning for unreferenced event 'dead_event'; got: {:?}",
+        errors
+    );
+    assert_eq!(
+        unreferenced.unwrap().severity,
+        crate::ReferenceErrorSeverity::Warning,
+        "unreferenced event should be a warning, not an error"
+    );
+}
+
+#[test]
+fn test_validate_references_entry_point_not_flagged() {
+    // The first event defined is the story entry point and should NOT get
+    // an unreferenced warning even if no `next` targets it.
+    let source = r#"
+story Test:
+  stat hp = 50
+  event start:
+    "You begin."
+    choice "Exit":
+      next start
+"#;
+    let story = parse_story(source).unwrap();
+    let errors = validate_references(&story, source);
+    let warnings = errors
+        .iter()
+        .filter(|e| e.severity == crate::ReferenceErrorSeverity::Warning);
+    assert_eq!(
+        warnings.count(),
+        0,
+        "entry point 'start' should not get an unreferenced warning; got: {:?}",
+        errors
+    );
+}
+
+#[test]
+fn test_validate_references_entry_point_no_next_still_no_warning() {
+    // Entry point has no choices with `next` — still no warning since it's
+    // the story's starting event.
+    let source = r#"
+story Test:
+  event start:
+    "You begin."
+"#;
+    let story = parse_story(source).unwrap();
+    let errors = validate_references(&story, source);
+    assert!(
+        errors.is_empty(),
+        "entry point with no `next` should not get unreferenced warning; got: {:?}",
+        errors
+    );
+}
+
+#[test]
+fn test_validate_references_unreferenced_event_in_string_no_false_positive() {
+    // The event name "dead_end" appears in a string literal before the
+    // `event dead_end:` definition. The warning should still point at the
+    // event definition line, not the string.
+    let source = r#"
+story Test:
+  event start:
+    "The dead_end approaches."
+    choice "Continue":
+      next start
+  event dead_end:
+    "Never reached."
+"#;
+    let story = parse_story(source).unwrap();
+    let errors = validate_references(&story, source);
+    let warning = errors.iter().find(|e| e.message.contains("never reached"));
+    assert!(
+        warning.is_some(),
+        "expected unreferenced warning for 'dead_end'; got: {:?}",
+        errors
+    );
+    // The event is defined on line 7 (1-based) — `event dead_end:`
+    assert_eq!(
+        warning.unwrap().line,
+        7,
+        "warning should point to the event definition line"
+    );
+}
+
+#[test]
 fn test_validate_references_all_defined() {
     let source = r#"
 story Test:

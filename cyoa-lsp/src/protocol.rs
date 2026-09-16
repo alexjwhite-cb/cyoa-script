@@ -307,6 +307,10 @@ impl Request {
 /// LSP diagnostic severity.
 /// Uses serde_repr to serialize as a u32 integer (1=Error, 2=Warning, etc.)
 /// per the LSP specification.
+///
+/// Maps from compiler `ReferenceErrorSeverity`:
+/// - `Error` → `DiagnosticSeverity::Error` (squiggly underline, error diagnostics)
+/// - `Warning` → `DiagnosticSeverity::Warning` (yellow squiggly, warning diagnostics)
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, serde_repr::Serialize_repr, serde_repr::Deserialize_repr,
 )]
@@ -401,6 +405,7 @@ pub enum Response {
     },
     /// `textDocument/publishDiagnostics` notification (server → client).
     PublishDiagnostics {
+        jsonrpc: String,
         method: String,
         #[serde(rename = "params")]
         params: PublishDiagnosticsParams,

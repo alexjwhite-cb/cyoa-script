@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use crate::diagnostics::{diagnostics_from_parse_error, format_error_message};
 use crate::protocol::*;
 use cyoa_ast::{EffectStep, Story, StoryItem, TextSegment};
-use cyoa_compiler::{parse_story, resolve_imports, validate_references};
+use cyoa_compiler::{parse_story, resolve_imports, validate_references, ReferenceErrorSeverity};
 
 /// Keyword set for semantic token classification.
 /// Must be kept in sync with `cyoa-compiler::keyword` (grammar.pest) and
@@ -792,6 +792,10 @@ impl Server {
         if imports_resolved {
             if let Some(story) = &story {
                 for err in validate_references(story, &text) {
+                    let severity = match err.severity {
+                        ReferenceErrorSeverity::Error => DiagnosticSeverity::Error,
+                        ReferenceErrorSeverity::Warning => DiagnosticSeverity::Warning,
+                    };
                     diagnostics.push(Diagnostic {
                         range: Some(Range {
                             start: Position {
@@ -803,7 +807,7 @@ impl Server {
                                 character: (err.col.saturating_sub(1) + 20) as u32, // highlight ~20 chars
                             },
                         }),
-                        severity: Some(DiagnosticSeverity::Error),
+                        severity: Some(severity),
                         code: None,
                         source: Some("cyoa-lsp".to_string()),
                         message: err.message.clone(),
@@ -891,6 +895,7 @@ impl Server {
 
     fn publish_diagnostics(&self, uri: &str, diagnostics: Vec<Diagnostic>) -> Vec<Response> {
         vec![Response::PublishDiagnostics {
+            jsonrpc: "2.0".to_string(),
             method: "textDocument/publishDiagnostics".to_string(),
             params: PublishDiagnosticsParams {
                 uri: uri.to_string(),
@@ -2071,6 +2076,72 @@ mod tests {
                 assert!(params.diagnostics[0]
                     .message
                     .contains("undefined event 'non_existent_event'"));
+            }
+            _ => panic!("expected PublishDiagnostics"),
+        }
+    }
+
+    #[test]
+    fn test_publish_diagnostics_includes_jsonrpc_field() {
+        // JSON-RPC 2.0 spec requires ALL messages (including notifications) to
+        // include `"jsonrpc": "2.0"`. Without it, strict LSP clients (e.g.
+        // Sublime Text 4's LSP plugin) silently drop `publishDiagnostics`
+        // notifications, so diagnostics never appear in the editor.
+        let mut server = Server::new();
+        let story = r#"story TestStory:
+  stat hp = 50
+  event start:
+    "You begin your journey."
+    choice "Go north":
+      next non_existent_event
+"#;
+        let msg = did_open_msg("file:///test.cyoa", story);
+        let responses = server.handle(msg);
+
+        assert_eq!(responses.len(), 1);
+        let json = serde_json::to_string(&responses[0]).unwrap();
+        assert!(
+            json.contains("\"jsonrpc\":\"2.0\""),
+            "publishDiagnostics notification must include jsonrpc field; got: {}",
+            json
+        );
+        assert!(
+            json.contains("\"method\":\"textDocument/publishDiagnostics\""),
+            "notification must include method field; got: {}",
+            json
+        );
+    }
+
+    #[test]
+    fn test_did_open_unresolved_next_no_false_positive_for_event_in_string() {
+        // The event name "end" appears inside a string literal on an earlier line,
+        // but the `next end` reference is on a later line. The diagnostic should
+        // point to the `next end` line, not the string-literal line.
+        let mut server = Server::new();
+        let story = r#"story TestStory:
+  event start:
+    "The end is near."
+    choice "Go to end":
+      next end
+"#;
+        let msg = did_open_msg("file:///test.cyoa", story);
+        let responses = server.handle(msg);
+
+        assert_eq!(responses.len(), 1);
+        match &responses[0] {
+            Response::PublishDiagnostics { params, .. } => {
+                // "end" is not defined as an event — should be flagged
+                assert_eq!(params.diagnostics.len(), 1);
+                assert!(params.diagnostics[0]
+                    .message
+                    .contains("undefined event 'end'"));
+                // The diagnostic should be on line 4 (0-indexed) where `next end` appears
+                assert_eq!(
+                    params.diagnostics[0].range.as_ref().unwrap().start.line,
+                    4,
+                    "diagnostic should point to the `next end` line, got line {}",
+                    params.diagnostics[0].range.as_ref().unwrap().start.line
+                );
             }
             _ => panic!("expected PublishDiagnostics"),
         }
@@ -3444,6 +3515,118 @@ mod tests {
         // Cursor at UTF-16 12 ('w' in "world"):
         let word2 = server.word_at_position("file:///test.cyoa", 1, 12);
         assert_eq!(word2, Some("world".to_string()));
+    }
+
+    #[test]
+    fn test_did_open_unreferenced_event_is_warning() {
+        // `ghost` is defined but never targeted by any `next`. It should
+        // appear as a Warning (not an Error) diagnostic.
+        let mut server = Server::new();
+        let story = r#"story TestStory:
+  stat hp = 50
+  event start:
+    "You begin."
+    choice "Go":
+      next cave
+  event cave:
+    "A cave."
+  event ghost:
+    "Never reached."
+"#;
+        let msg = did_open_msg("file:///test.cyoa", story);
+        let responses = server.handle(msg);
+
+        let diagnostics = match &responses[0] {
+            Response::PublishDiagnostics { params, .. } => &params.diagnostics,
+            _ => panic!("expected PublishDiagnostics"),
+        };
+
+        let warning = diagnostics
+            .iter()
+            .find(|d| d.message.contains("never reached"));
+        assert!(
+            warning.is_some(),
+            "expected a warning for unreferenced event 'ghost'; got: {:?}",
+            diagnostics
+        );
+        assert_eq!(
+            warning.unwrap().severity,
+            Some(DiagnosticSeverity::Warning),
+            "unreferenced event should have Warning severity"
+        );
+        // No errors should be present
+        assert!(
+            !diagnostics
+                .iter()
+                .any(|d| d.severity == Some(DiagnosticSeverity::Error)),
+            "no errors expected for unreferenced event; got: {:?}",
+            diagnostics
+        );
+    }
+
+    #[test]
+    fn test_did_open_entry_point_not_flagged_as_unreferenced() {
+        // The first event (entry point) is never targeted by `next` —
+        // it should NOT get a warning.
+        let mut server = Server::new();
+        let story = r#"story TestStory:
+  stat hp = 50
+  event start:
+    "You begin."
+    choice "Exit":
+      next start
+"#;
+        let msg = did_open_msg("file:///test.cyoa", story);
+        let responses = server.handle(msg);
+
+        match &responses[0] {
+            Response::PublishDiagnostics { params, .. } => {
+                // `start` is self-referencing via `next start`, so it's
+                // referenced anyway. No warnings or errors expected.
+                assert!(
+                    params.diagnostics.is_empty(),
+                    "expected no diagnostics for self-referencing entry point; got: {:?}",
+                    params.diagnostics
+                );
+            }
+            _ => panic!("expected PublishDiagnostics"),
+        }
+    }
+
+    #[test]
+    fn test_did_open_unreferenced_event_warning_position() {
+        // The warning should point at the event definition line.
+        let mut server = Server::new();
+        let story = r#"story TestStory:
+  stat hp = 50
+  event start:
+    "You begin."
+    choice "Go":
+      next cave
+  event cave:
+    "A cave."
+  event ghost:
+    "Never reached."
+"#;
+        let msg = did_open_msg("file:///test.cyoa", story);
+        let responses = server.handle(msg);
+
+        let diagnostics = match &responses[0] {
+            Response::PublishDiagnostics { params, .. } => &params.diagnostics,
+            _ => panic!("expected PublishDiagnostics"),
+        };
+
+        let warning = diagnostics
+            .iter()
+            .find(|d| d.message.contains("never reached"))
+            .expect("expected unreferenced event warning");
+
+        // `event ghost:` is on line 8 (0-indexed) in the source
+        assert_eq!(
+            warning.range.as_ref().unwrap().start.line,
+            8,
+            "warning should point to the `event ghost:` definition line"
+        );
     }
 
     #[test]

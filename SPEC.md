@@ -694,6 +694,19 @@ declare. Only `next` (event) and `uses` (effect) references are validated.
 | `choice "label": next <target>` | event | `next castle_gate` → must match an `event` id |
 | `choice "label": uses <effect>` | effect | `uses healing_potion` → must match an `effect` name |
 
+### Unreferenced event warnings
+
+Events that are defined but never targeted by any `next` from any choice produce
+a **warning** (not an error). The first event defined in the story (the
+entry-point) is exempt — it is always reachable as the story starting point, even
+if no `next` references it.
+
+| Severity | Condition | Example |
+|----------|-----------|---------|
+| `Error` | `next` references an undefined event | `next dragon_lair` when no `event dragon_lair:` exists |
+| `Error` | `uses` references an undefined effect | `uses fireball` when no `effect fireball:` exists |
+| `Warning` | Event is defined but never targeted by any `next` (excludes entry-point) | `event ghost:` with no `next ghost` anywhere |
+
 ### Runtime behavior with undeclared stats
 
 At runtime, the VM treats any stat not declared via `stat <name> = N` as having
@@ -715,6 +728,12 @@ pub struct ReferenceError {
     pub message: String,  // human-readable description
     pub line: usize,      // 1-based line number in source text
     pub col: usize,       // 1-based column number in source text
+    pub severity: ReferenceErrorSeverity,  // Error or Warning
+}
+
+pub enum ReferenceErrorSeverity {
+    Error,   // undefined reference (next → event, uses → effect)
+    Warning, // defined-but-unreferenced event
 }
 ```
 
@@ -729,7 +748,10 @@ The `cyoa validate <story.cyoa>` command:
 2. Resolves imports (using `std/` directories found by walking up from the
    file's directory, plus a fallback to the current working directory)
 3. Runs `validate_references` on the merged story
-4. Compiles the story (catches any remaining codegen errors)
+4. Reports each issue prefixed by severity: `[E]` for errors, `[W]` for warnings
+5. Exits with code 1 if any errors are present; warnings alone do not cause a
+   non-zero exit
+6. Compiles the story (catches any remaining codegen errors)
 
 If import resolution fails, the CLI reports the import error and exits.
 
@@ -740,7 +762,9 @@ formatting, semantic tokenization, and code folding over stdio (JSON-RPC).
 
 - **Diagnostics**: resolves imports on every `didOpen`/`didChange` notification,
   runs `validate_references` on the merged story, and converts each `ReferenceError`
-  to an LSP `Diagnostic` with range, severity, and source metadata. If imports fail
+  to an LSP `Diagnostic` with range, severity, and source metadata. `ReferenceErrorSeverity::Error`
+  maps to `DiagnosticSeverity::Error` (error squiggles) and `ReferenceErrorSeverity::Warning`
+  maps to `DiagnosticSeverity::Warning` (warning squiggles). If imports fail
   to resolve, reference validation is skipped (to avoid false positives for symbols
   defined in the unresolvable imported files) — the import error itself is surfaced
   as a parse or diagnostic error instead.
