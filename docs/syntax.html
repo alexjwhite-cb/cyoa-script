@@ -1022,6 +1022,17 @@ defined symbols:</li>
 <td><code>uses healing_potion</code> → must be imported or locally defined</td>
 </tr>
 </tbody></table>
+<p><strong>Unreferenced event warnings</strong> — events that are defined but never targeted by
+any <code>next</code> produce a <strong>warning</strong> (not an error). The entry-point event (the
+first event defined in the story) is exempt. This helps catch leftover events
+that are unreachable from any choice path.</p>
+<p><strong>Severity distinction:</strong></p>
+<ul>
+<li><strong>Error</strong>: <code>next</code> references an undefined event, or <code>uses</code> references an
+undefined effect.</li>
+<li><strong>Warning</strong>: an event is defined but never referenced by any <code>next</code> (excluding
+the entry-point).</li>
+</ul>
 <blockquote>
 <p><strong>Note</strong>: Stats and flags are <strong>not</strong> validated at compile time. The runtime
 treats undeclared stats as <code>0</code> and undeclared flags as <code>false</code>. This allows
@@ -1036,10 +1047,12 @@ references. If an import file is missing or circular, <code>validate</code> repo
 an import error and exits.</p>
 <h3>LSP diagnostics</h3>
 <p>The language server (LSP) runs the same reference validation as <code>cyoa validate</code>
-on every keystroke. Diagnostics are published in real time. When imports
-cannot be resolved (e.g., file not found), reference validation is skipped
-for the unresolved symbols to avoid false positives — the import error itself
-is reported instead.</p>
+on every keystroke. Diagnostics are published in real time with severity
+mapping: <code>ReferenceErrorSeverity::Error</code> → <code>DiagnosticSeverity::Error</code> (error
+squiggles), <code>ReferenceErrorSeverity::Warning</code> → <code>DiagnosticSeverity::Warning</code>
+(warning squiggles). When imports cannot be resolved (e.g., file not found),
+reference validation is skipped for the unresolved symbols to avoid false
+positives — the import error itself is reported instead.</p>
 <h3>LSP code folding</h3>
 <p>The LSP server advertises <code>foldingRangeProvider</code> and responds to
 <code>textDocument/foldingRange</code> requests. Foldable regions are computed for
