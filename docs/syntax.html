@@ -1026,12 +1026,23 @@ defined symbols:</li>
 any <code>next</code> produce a <strong>warning</strong> (not an error). The entry-point event (the
 first event defined in the story) is exempt. This helps catch leftover events
 that are unreachable from any choice path.</p>
+<p><strong>Terminal node diagnostics</strong> — stories that end are highlighted so writers can
+locate story endings at a glance. These are <strong>informational</strong> (not errors or
+warnings) and do not affect the validation exit code:</p>
+<ul>
+<li><strong>Terminal event</strong>: an <code>event</code> with no <code>choice</code> blocks. The story ends when
+this event is reached.</li>
+<li><strong>Terminal choice</strong>: a <code>choice</code> with no <code>next</code> target. After this choice&#39;s
+effects are applied, the story ends.</li>
+</ul>
+<p>In the CLI (<code>cyoa validate</code>), these print with an <code>[I]</code> prefix.</p>
 <p><strong>Severity distinction:</strong></p>
 <ul>
 <li><strong>Error</strong>: <code>next</code> references an undefined event, or <code>uses</code> references an
 undefined effect.</li>
 <li><strong>Warning</strong>: an event is defined but never referenced by any <code>next</code> (excluding
 the entry-point).</li>
+<li><strong>Information</strong>: a terminal event (no choices) or terminal choice (no <code>next</code>).</li>
 </ul>
 <blockquote>
 <p><strong>Note</strong>: Stats and flags are <strong>not</strong> validated at compile time. The runtime
@@ -1050,9 +1061,11 @@ an import error and exits.</p>
 on every keystroke. Diagnostics are published in real time with severity
 mapping: <code>ReferenceErrorSeverity::Error</code> → <code>DiagnosticSeverity::Error</code> (error
 squiggles), <code>ReferenceErrorSeverity::Warning</code> → <code>DiagnosticSeverity::Warning</code>
-(warning squiggles). When imports cannot be resolved (e.g., file not found),
-reference validation is skipped for the unresolved symbols to avoid false
-positives — the import error itself is reported instead.</p>
+(warning squiggles), <code>ReferenceErrorSeverity::Information</code> →
+<code>DiagnosticSeverity::Information</code> (subtle dotted underline + Problems panel entry)
+for terminal events and terminal choices. When imports cannot be resolved
+(e.g., file not found), reference validation is skipped for the unresolved
+symbols to avoid false positives — the import error itself is reported instead.</p>
 <h3>LSP code folding</h3>
 <p>The LSP server advertises <code>foldingRangeProvider</code> and responds to
 <code>textDocument/foldingRange</code> requests. Foldable regions are computed for
