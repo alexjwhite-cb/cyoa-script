@@ -15,6 +15,7 @@ mod parser;
 mod resolver;
 
 pub use codegen::compile_story;
+pub use codegen::find_terminal_nodes;
 pub use codegen::validate_references;
 pub use codegen::CodegenError;
 pub use codegen::ReferenceError;

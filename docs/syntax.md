@@ -618,11 +618,23 @@ any `next` produce a **warning** (not an error). The entry-point event (the
 first event defined in the story) is exempt. This helps catch leftover events
 that are unreachable from any choice path.
 
+**Terminal node diagnostics** — stories that end are highlighted so writers can
+locate story endings at a glance. These are **informational** (not errors or
+warnings) and do not affect the validation exit code:
+
+- **Terminal event**: an `event` with no `choice` blocks. The story ends when
+  this event is reached.
+- **Terminal choice**: a `choice` with no `next` target. After this choice's
+  effects are applied, the story ends.
+
+In the CLI (`cyoa validate`), these print with an `[I]` prefix.
+
 **Severity distinction:**
 - **Error**: `next` references an undefined event, or `uses` references an
   undefined effect.
 - **Warning**: an event is defined but never referenced by any `next` (excluding
   the entry-point).
+- **Information**: a terminal event (no choices) or terminal choice (no `next`).
 
 > **Note**: Stats and flags are **not** validated at compile time. The runtime
 > treats undeclared stats as `0` and undeclared flags as `false`. This allows
@@ -643,9 +655,11 @@ The language server (LSP) runs the same reference validation as `cyoa validate`
 on every keystroke. Diagnostics are published in real time with severity
 mapping: `ReferenceErrorSeverity::Error` → `DiagnosticSeverity::Error` (error
 squiggles), `ReferenceErrorSeverity::Warning` → `DiagnosticSeverity::Warning`
-(warning squiggles). When imports cannot be resolved (e.g., file not found),
-reference validation is skipped for the unresolved symbols to avoid false
-positives — the import error itself is reported instead.
+(warning squiggles), `ReferenceErrorSeverity::Information` →
+`DiagnosticSeverity::Information` (subtle dotted underline + Problems panel entry)
+for terminal events and terminal choices. When imports cannot be resolved
+(e.g., file not found), reference validation is skipped for the unresolved
+symbols to avoid false positives — the import error itself is reported instead.
 
 ### LSP code folding
 

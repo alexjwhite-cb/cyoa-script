@@ -44,6 +44,11 @@ pub enum ReferenceErrorSeverity {
     /// A warning: the symbol is defined but never referenced (e.g. an
     /// event that no `next` targets).
     Warning,
+    /// Informational: the node is structurally terminal (e.g. an event with
+    /// no choices, or a choice with no `next`). Not an error or warning —
+    /// surfaced as an info-level diagnostic so writers can locate story
+    /// endings at a glance.
+    Information,
 }
 
 /// A reference validation error or warning with source position information.
@@ -118,6 +123,116 @@ pub fn validate_references(story: &Story, source: &str) -> Vec<ReferenceError> {
     }
 
     errors
+}
+
+/// Detect terminal nodes in the story graph for informational highlighting.
+///
+/// A **terminal event** is an event with no choices — a story ending (leaf
+/// node). A **terminal choice** is a choice with no `next` target — the story
+/// ends after that choice is taken.
+///
+/// Unlike `validate_references`, these are not errors or warnings — they are
+/// surfaced as `ReferenceErrorSeverity::Information` diagnostics so writers
+/// can locate story endings at a glance in their editor's Problems panel.
+pub fn find_terminal_nodes(story: &Story, source: &str) -> Vec<ReferenceError> {
+    let lines: Vec<&str> = source.lines().collect();
+    let mut diagnostics = Vec::new();
+
+    for item in &story.items {
+        let StoryItem::EventDef(ev) = item else {
+            continue;
+        };
+
+        if ev.choices.is_empty() {
+            // Terminal event: no choices at all.
+            if let Some((line, col)) = find_ref_after_keyword(&lines, "event", &ev.id) {
+                diagnostics.push(ReferenceError {
+                    message: format!("terminal event '{}' — no choices (story ending)", ev.id),
+                    line,
+                    col,
+                    severity: ReferenceErrorSeverity::Information,
+                });
+            }
+        } else {
+            // Check each choice for terminal status (no `next`).
+            // First, locate this event's position in the source so we can
+            // walk forward to find each `choice` line in order.
+            let event_pos = find_ref_after_keyword(&lines, "event", &ev.id);
+            for (choice_idx, choice) in ev.choices.iter().enumerate() {
+                if choice.next.is_none() {
+                    if let Some((line, col)) = event_pos
+                        .and_then(|(el, _)| find_choice_in_event(&lines, el - 1, choice_idx))
+                    {
+                        diagnostics.push(ReferenceError {
+                            message: "terminal choice — no `next` (story ending)".to_string(),
+                            line,
+                            col,
+                            severity: ReferenceErrorSeverity::Information,
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    diagnostics
+}
+
+/// Find the source position of the `choice_idx`-th `choice` keyword within an
+/// event's body block.
+///
+/// Walks forward from the event's definition line (`event_line_idx`, 0-based)
+/// through lines with greater indentation, counting `choice` keywords. The
+/// Nth `choice` occurrence corresponds to `choice_idx` in the AST (choices
+/// are stored in source order).
+///
+/// Returns `(line, col)` in 1-based coordinates (matching the convention used
+/// by `find_ref_after_keyword`).
+fn find_choice_in_event(
+    lines: &[&str],
+    event_line_idx: usize,
+    choice_idx: usize,
+) -> Option<(usize, usize)> {
+    if event_line_idx >= lines.len() {
+        return None;
+    }
+
+    // Indentation of the `event` keyword line — determines the event block
+    // boundary. The block ends when a line has equal or lesser indentation.
+    let event_indent = {
+        let event_line = lines[event_line_idx];
+        event_line.len() - event_line.trim_start().len()
+    };
+
+    let mut choice_count = 0usize;
+    for (i, line) in lines.iter().enumerate().skip(event_line_idx + 1) {
+        let trimmed = line.trim_start();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let indent = line.len() - trimmed.len();
+        if indent <= event_indent {
+            // We've left the event's body block.
+            break;
+        }
+
+        if !is_comment_line(line) {
+            if let Some(pos) = find_word_in_line(line, "choice") {
+                // Check that "choice" is a standalone keyword (word boundary)
+                // — not part of a longer identifier like "choices_list".
+                let after = pos + "choice".len();
+                let boundary_ok = after >= line.len() || !is_ident_char(line.as_bytes()[after]);
+                if boundary_ok {
+                    if choice_count == choice_idx {
+                        return Some((i + 1, pos + 1)); // 1-based
+                    }
+                    choice_count += 1;
+                }
+            }
+        }
+    }
+
+    None
 }
 
 /// Check references within a single event and its choices, reporting

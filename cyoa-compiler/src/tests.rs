@@ -1606,3 +1606,149 @@ fn test_parse_choice_unterminated_string_errors() {
         err.message
     );
 }
+
+// ===== Terminal node tests =====
+
+#[test]
+fn test_find_terminal_nodes_event_with_no_choices() {
+    // `ending` has no choices — it is a terminal event.
+    let source = r#"
+story Test:
+  stat hp = 50
+  event start:
+    "You begin."
+    choice "Go to cave":
+      next cave
+  event cave:
+    "A dark cave."
+  event ending:
+    "The end."
+"#;
+    let story = parse_story(source).unwrap();
+    let nodes = find_terminal_nodes(&story, source);
+
+    // `ending` has no choices — it is a terminal event. `cave` also has no
+    // choices, so we specifically search for the diagnostic mentioning 'ending'.
+    let ending_diag = nodes.iter().find(|n| n.message.contains("'ending'"));
+    assert!(
+        ending_diag.is_some(),
+        "expected a terminal-event diagnostic for 'ending'; got: {:?}",
+        nodes
+    );
+    let diag = ending_diag.unwrap();
+    assert_eq!(diag.severity, ReferenceErrorSeverity::Information);
+    assert!(diag.message.contains("no choices"));
+    // `event ending:` is on line 10 (1-based) — the source starts with a blank
+    // line, so line numbers are shifted by 1 from the raw text.
+    assert_eq!(
+        diag.line, 10,
+        "diagnostic should point to the event definition line"
+    );
+}
+
+#[test]
+fn test_find_terminal_nodes_choice_without_next() {
+    // The choice "Stay" has no `next` — it is a terminal choice.
+    let source = r#"
+story Test:
+  stat hp = 50
+  event start:
+    "You begin."
+    choice "Go north":
+      next north_path
+    choice "Stay":
+      -5 hp
+  event north_path:
+    "A path."
+"#;
+    let story = parse_story(source).unwrap();
+    let nodes = find_terminal_nodes(&story, source);
+
+    let choice_diag = nodes.iter().find(|n| n.message.contains("terminal choice"));
+    assert!(
+        choice_diag.is_some(),
+        "expected a terminal-choice diagnostic; got: {:?}",
+        nodes
+    );
+    assert_eq!(
+        choice_diag.unwrap().severity,
+        ReferenceErrorSeverity::Information
+    );
+    // `choice "Stay":` is on line 10 (1-based) — the second choice in the event
+    // `choice "Stay":` is on line 8 (1-based) — the source starts with a
+    // blank line, so line numbers are shifted by 1 from the raw text.
+    assert_eq!(choice_diag.unwrap().line, 8);
+}
+
+#[test]
+fn test_find_terminal_nodes_no_terminals_in_normal_story() {
+    // Every event has at least one choice, and every choice has a `next`.
+    // No terminal nodes should be reported.
+    let source = r#"
+story Test:
+  stat hp = 50
+  event start:
+    "You begin."
+    choice "Go north":
+      next north_path
+  event north_path:
+    "A path."
+    choice "Go east":
+      next east_path
+  event east_path:
+    "The end... or is it?"
+    choice "Loop back":
+      next start
+"#;
+    let story = parse_story(source).unwrap();
+    let nodes = find_terminal_nodes(&story, source);
+    assert!(
+        nodes.is_empty(),
+        "expected no terminal nodes in a cyclic story; got: {:?}",
+        nodes
+    );
+}
+
+#[test]
+fn test_find_terminal_nodes_multiple_terminals() {
+    // Multiple terminal events and terminal choices.
+    let source = r#"
+story Test:
+  event start:
+    "Start."
+    choice "A":
+      next a_end
+    choice "B (stay)":
+      -1 hp
+  event a_end:
+    "A ending."
+    choice "Finish":
+      next finish
+  event finish:
+    "The true end."
+"#;
+    let story = parse_story(source).unwrap();
+    let nodes = find_terminal_nodes(&story, source);
+
+    // Terminal events: `finish` (no choices)
+    let finish_diag = nodes.iter().find(|n| n.message.contains("'finish'"));
+    assert!(
+        finish_diag.is_some(),
+        "expected terminal event for 'finish'; got: {:?}",
+        nodes
+    );
+    assert_eq!(
+        finish_diag.unwrap().severity,
+        ReferenceErrorSeverity::Information
+    );
+
+    // Terminal choice: "B (stay)" — no next, on line 7 (1-based) — the source
+    // starts with a blank line, shifting line numbers by 1.
+    let choice_diag = nodes.iter().find(|n| n.message.contains("terminal choice"));
+    assert!(
+        choice_diag.is_some(),
+        "expected terminal choice diagnostic; got: {:?}",
+        nodes
+    );
+    assert_eq!(choice_diag.unwrap().line, 7);
+}

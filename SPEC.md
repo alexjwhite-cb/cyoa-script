@@ -706,6 +706,23 @@ if no `next` references it.
 | `Error` | `next` references an undefined event | `next dragon_lair` when no `event dragon_lair:` exists |
 | `Error` | `uses` references an undefined effect | `uses fireball` when no `effect fireball:` exists |
 | `Warning` | Event is defined but never targeted by any `next` (excludes entry-point) | `event ghost:` with no `next ghost` anywhere |
+| `Information` | Event has no choices (story ending / terminal event) | `event the_end:` with no `choice` blocks |
+| `Information` | Choice has no `next` target (story ending) | `choice "Accept fate":` with no `next` line |
+
+### Terminal node diagnostics
+
+The `find_terminal_nodes` function (in `cyoa-compiler`) detects story endings
+so writers can locate them at a glance:
+
+- **Terminal event** — an `EventDef` with an empty `choices` vector. The event
+  has no choices, so the story ends when it is reached.
+- **Terminal choice** — a `ChoiceDef` with `next == None`. After this choice's
+  effects are applied, the story ends without advancing to another event.
+
+Both are reported at `ReferenceErrorSeverity::Information` and do not affect the
+validation exit code. The CLI prints them with an `[I]` prefix; the LSP renders
+them as `DiagnosticSeverity::Information` (subtle dotted underline + Problems
+panel entry).
 
 ### Runtime behavior with undeclared stats
 
@@ -732,8 +749,9 @@ pub struct ReferenceError {
 }
 
 pub enum ReferenceErrorSeverity {
-    Error,   // undefined reference (next → event, uses → effect)
-    Warning, // defined-but-unreferenced event
+    Error,         // undefined reference (next → event, uses → effect)
+    Warning,       // defined-but-unreferenced event
+    Information,   // terminal event (no choices) or terminal choice (no next)
 }
 ```
 
@@ -748,10 +766,13 @@ The `cyoa validate <story.cyoa>` command:
 2. Resolves imports (using `std/` directories found by walking up from the
    file's directory, plus a fallback to the current working directory)
 3. Runs `validate_references` on the merged story
-4. Reports each issue prefixed by severity: `[E]` for errors, `[W]` for warnings
-5. Exits with code 1 if any errors are present; warnings alone do not cause a
-   non-zero exit
-6. Compiles the story (catches any remaining codegen errors)
+4. Reports each issue prefixed by severity: `[E]` for errors, `[W]` for warnings,
+   `[I]` for informational (terminal nodes)
+5. Exits with code 1 if any errors are present; warnings and informational
+   diagnostics alone do not cause a non-zero exit
+6. Runs `find_terminal_nodes` and reports terminal events and terminal choices
+   as informational diagnostics
+7. Compiles the story (catches any remaining codegen errors)
 
 If import resolution fails, the CLI reports the import error and exits.
 
@@ -761,13 +782,16 @@ The LSP server provides syntax diagnostics, hover, completion, on-type
 formatting, semantic tokenization, and code folding over stdio (JSON-RPC).
 
 - **Diagnostics**: resolves imports on every `didOpen`/`didChange` notification,
-  runs `validate_references` on the merged story, and converts each `ReferenceError`
-  to an LSP `Diagnostic` with range, severity, and source metadata. `ReferenceErrorSeverity::Error`
-  maps to `DiagnosticSeverity::Error` (error squiggles) and `ReferenceErrorSeverity::Warning`
-  maps to `DiagnosticSeverity::Warning` (warning squiggles). If imports fail
-  to resolve, reference validation is skipped (to avoid false positives for symbols
-  defined in the unresolvable imported files) — the import error itself is surfaced
-  as a parse or diagnostic error instead.
+  runs `validate_references` and `find_terminal_nodes` on the merged story, and
+  converts each `ReferenceError` to an LSP `Diagnostic` with range, severity, and
+  source metadata. `ReferenceErrorSeverity::Error` maps to `DiagnosticSeverity::Error`
+  (error squiggles), `ReferenceErrorSeverity::Warning` maps to `DiagnosticSeverity::Warning`
+  (warning squiggles), and `ReferenceErrorSeverity::Information` maps to
+  `DiagnosticSeverity::Information` (subtle dotted underline + Problems panel entry)
+  for terminal events and terminal choices. If imports fail to resolve, reference
+  validation is skipped (to avoid false positives for symbols defined in the
+  unresolvable imported files) — the import error itself is surfaced as a parse or
+  diagnostic error instead.
 - **Hover**: reveals story metadata (name, tags, stats, flags, effects, events)
   on hover, or line/column error detail on diagnostic positions.
 - **Completion**: suggests event IDs, stat/flag/effect names, and DSL keywords

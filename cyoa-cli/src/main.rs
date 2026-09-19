@@ -214,6 +214,7 @@ fn cmd_validate(input: &str) {
             let tag = match err.severity {
                 cyoa_compiler::ReferenceErrorSeverity::Error => "E",
                 cyoa_compiler::ReferenceErrorSeverity::Warning => "W",
+                cyoa_compiler::ReferenceErrorSeverity::Information => "I",
             };
             eprintln!(
                 "  [{}] line {} col {}: {}",
@@ -222,6 +223,19 @@ fn cmd_validate(input: &str) {
         }
         if has_errors {
             std::process::exit(1);
+        }
+    }
+
+    // Detect and report terminal nodes (events with no choices, choices with
+    // no `next`) as informational diagnostics. These do not affect the exit code.
+    let terminal_nodes = cyoa_compiler::find_terminal_nodes(&story, &source);
+    if !terminal_nodes.is_empty() {
+        eprintln!("Informational:");
+        for node in &terminal_nodes {
+            eprintln!(
+                "  [I] line {} col {}: {}",
+                node.line, node.col, node.message
+            );
         }
     }
 

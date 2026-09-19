@@ -9,7 +9,9 @@ use std::path::{Path, PathBuf};
 use crate::diagnostics::{diagnostics_from_parse_error, format_error_message};
 use crate::protocol::*;
 use cyoa_ast::{EffectStep, Story, StoryItem, TextSegment};
-use cyoa_compiler::{parse_story, resolve_imports, validate_references, ReferenceErrorSeverity};
+use cyoa_compiler::{
+    find_terminal_nodes, parse_story, resolve_imports, validate_references, ReferenceErrorSeverity,
+};
 
 /// Keyword set for semantic token classification.
 /// Must be kept in sync with `cyoa-compiler::keyword` (grammar.pest) and
@@ -795,6 +797,7 @@ impl Server {
                     let severity = match err.severity {
                         ReferenceErrorSeverity::Error => DiagnosticSeverity::Error,
                         ReferenceErrorSeverity::Warning => DiagnosticSeverity::Warning,
+                        ReferenceErrorSeverity::Information => DiagnosticSeverity::Information,
                     };
                     diagnostics.push(Diagnostic {
                         range: Some(Range {
@@ -808,6 +811,28 @@ impl Server {
                             },
                         }),
                         severity: Some(severity),
+                        code: None,
+                        source: Some("cyoa-lsp".to_string()),
+                        message: err.message.clone(),
+                    });
+                }
+
+                // Detect terminal nodes (events with no choices, choices with
+                // no next) and surface them as Information-level diagnostics
+                // so writers can locate story endings at a glance.
+                for err in find_terminal_nodes(story, &text) {
+                    diagnostics.push(Diagnostic {
+                        range: Some(Range {
+                            start: Position {
+                                line: (err.line.saturating_sub(1)) as u32,
+                                character: (err.col.saturating_sub(1)) as u32,
+                            },
+                            end: Position {
+                                line: (err.line.saturating_sub(1)) as u32,
+                                character: (err.col.saturating_sub(1) + 20) as u32,
+                            },
+                        }),
+                        severity: Some(DiagnosticSeverity::Information),
                         code: None,
                         source: Some("cyoa-lsp".to_string()),
                         message: err.message.clone(),
@@ -1936,6 +1961,8 @@ mod tests {
       next cave
   event cave:
     "You enter the cave."
+    choice "Leave":
+      next start
 "#;
 
     const INVALID_STORY: &str = r#"story BadStory:
@@ -3630,6 +3657,129 @@ mod tests {
     }
 
     #[test]
+    fn test_terminal_event_highlighted_as_info() {
+        // `ending` has no choices — it should get an Information diagnostic.
+        let mut server = Server::new();
+        let story = r#"story TestStory:
+  stat hp = 50
+  event start:
+    "You begin."
+    choice "Go to cave":
+      next cave
+  event cave:
+    "A cave."
+  event ending:
+    "The end."
+"#;
+        let msg = did_open_msg("file:///test.cyoa", story);
+        let responses = server.handle(msg);
+
+        let diagnostics = match &responses[0] {
+            Response::PublishDiagnostics { params, .. } => &params.diagnostics,
+            _ => panic!("expected PublishDiagnostics"),
+        };
+
+        let info = diagnostics
+            .iter()
+            .find(|d| d.message.contains("terminal event 'ending'"));
+        assert!(
+            info.is_some(),
+            "expected an info diagnostic for terminal event 'ending'; got: {:?}",
+            diagnostics
+        );
+        assert_eq!(
+            info.unwrap().severity,
+            Some(DiagnosticSeverity::Information),
+            "terminal event should have Information severity"
+        );
+        // Verify position points to `event ending:` (line 8, 0-indexed)
+        assert_eq!(
+            info.unwrap().range.as_ref().unwrap().start.line,
+            8,
+            "diagnostic should point to `event ending:` line"
+        );
+    }
+
+    #[test]
+    fn test_terminal_choice_without_next_highlighted() {
+        // The choice "Stay" has no `next` — it should get an Information diagnostic.
+        let mut server = Server::new();
+        let story = r#"story TestStory:
+  stat hp = 50
+  event start:
+    "You begin."
+    choice "Go north":
+      next north_path
+    choice "Stay":
+      -5 hp
+  event north_path:
+    "A path."
+"#;
+        let msg = did_open_msg("file:///test.cyoa", story);
+        let responses = server.handle(msg);
+
+        let diagnostics = match &responses[0] {
+            Response::PublishDiagnostics { params, .. } => &params.diagnostics,
+            _ => panic!("expected PublishDiagnostics"),
+        };
+
+        let info = diagnostics
+            .iter()
+            .find(|d| d.message.contains("terminal choice"));
+        assert!(
+            info.is_some(),
+            "expected an info diagnostic for terminal choice (no next); got: {:?}",
+            diagnostics
+        );
+        assert_eq!(
+            info.unwrap().severity,
+            Some(DiagnosticSeverity::Information),
+            "terminal choice should have Information severity"
+        );
+        // `choice "Stay":` is on line 6 (0-indexed) — the second choice
+        assert_eq!(
+            info.unwrap().range.as_ref().unwrap().start.line,
+            6,
+            "diagnostic should point to the `choice \"Stay\":` line"
+        );
+    }
+
+    #[test]
+    fn test_non_terminal_events_and_choices_not_highlighted() {
+        // Every event has choices and every choice has a `next`.
+        // No Information diagnostics should be emitted for terminals.
+        let mut server = Server::new();
+        let story = r#"story TestStory:
+  stat hp = 50
+  event start:
+    "You begin."
+    choice "Go north":
+      next north_path
+  event north_path:
+    "A path."
+    choice "Go east":
+      next start
+"#;
+        let msg = did_open_msg("file:///test.cyoa", story);
+        let responses = server.handle(msg);
+
+        let diagnostics = match &responses[0] {
+            Response::PublishDiagnostics { params, .. } => &params.diagnostics,
+            _ => panic!("expected PublishDiagnostics"),
+        };
+
+        let info_diags: Vec<_> = diagnostics
+            .iter()
+            .filter(|d| d.severity == Some(DiagnosticSeverity::Information))
+            .collect();
+        assert!(
+            info_diags.is_empty(),
+            "expected no info diagnostics for a cyclic story with no terminals; got: {:?}",
+            info_diags
+        );
+    }
+
+    #[test]
     fn test_definition_with_multibyte_chars_in_word_line() {
         let mut server = Server::new();
         // Valid CYOA story: stat on ASCII-only line, reference inside event
@@ -3809,20 +3959,23 @@ mod tests {
 
         let ranges = folding_labels(&mut server, "file:///test.cyoa");
 
-        // Expected fold ranges for VALID_STORY:
-        // story  → [0, 13]  (indent 0, body to end of file)
+        // Expected fold ranges for VALID_STORY (which now has a `choice "Leave"`
+        // inside the `cave` event, adding one more nested fold range):
+        // story  → [0, 15]  (indent 0, body to end of file)
         // effect → [4, 6]   (indent 2)
         // event  → [7, 11]  (indent 2)
         // choice → [9, 11]  (indent 4, nested inside event start)
-        // event  → [12, 13] (indent 2)
-        assert_eq!(ranges.len(), 5, "expected 5 fold ranges, got {:?}", ranges);
+        // event  → [12, 15] (indent 2)
+        // choice → [14, 15] (indent 4, nested inside event cave)
+        assert_eq!(ranges.len(), 6, "expected 6 fold ranges, got {:?}", ranges);
 
         let expected: Vec<(u32, u32, String)> = vec![
-            (0, 13, "region".to_string()),  // story
+            (0, 15, "region".to_string()),  // story
             (4, 6, "region".to_string()),   // effect
             (7, 11, "region".to_string()),  // event start
-            (9, 11, "region".to_string()),  // choice (nested)
-            (12, 13, "region".to_string()), // event cave
+            (9, 11, "region".to_string()),  // choice (nested in start)
+            (12, 15, "region".to_string()), // event cave
+            (14, 15, "region".to_string()), // choice (nested in cave)
         ];
         for (i, expected_range) in expected.iter().enumerate() {
             assert_eq!(
